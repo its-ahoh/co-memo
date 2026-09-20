@@ -1,0 +1,77 @@
+{
+  "actor": {
+    "agentId": "12f1eb40-f4a8-4ea9-b94d-5df38f4d628a",
+    "projectId": "6a8a9206-f744-40a6-82c4-2ac7e676e20a"
+  },
+  "other": "91a7cea2-a7bf-45ca-a52e-7d2e0fa5f8ef",
+  "memoryId": "2a699046-6dcf-4c1e-a7eb-440fbab8083e",
+  "tables": {
+    "catalog": [
+      {
+        "id": "stage-explore",
+        "kind": "stages",
+        "payload": "{\"id\":\"stage-explore\",\"kind\":\"stages\",\"name\":\"Explore\",\"description\":\"Research, discovery and planning\",\"archived\":false,\"version\":1}"
+      },
+      {
+        "id": "stage-build",
+        "kind": "stages",
+        "payload": "{\"id\":\"stage-build\",\"kind\":\"stages\",\"name\":\"Build\",\"description\":\"Implementation and delivery\",\"archived\":false,\"version\":1}"
+      },
+      {
+        "id": "stage-maintain",
+        "kind": "stages",
+        "payload": "{\"id\":\"stage-maintain\",\"kind\":\"stages\",\"name\":\"Maintain\",\"description\":\"Operations and continued improvement\",\"archived\":false,\"version\":1}"
+      },
+      {
+        "id": "purpose-preferences",
+        "kind": "purposes",
+        "payload": "{\"id\":\"purpose-preferences\",\"kind\":\"purposes\",\"name\":\"Preferences\",\"description\":\"How you prefer to work\",\"archived\":false,\"version\":1}"
+      },
+      {
+        "id": "purpose-decisions",
+        "kind": "purposes",
+        "payload": "{\"id\":\"purpose-decisions\",\"kind\":\"purposes\",\"name\":\"Decisions\",\"description\":\"Agreed choices and their rationale\",\"archived\":false,\"version\":1}"
+      },
+      {
+        "id": "purpose-knowledge",
+        "kind": "purposes",
+        "payload": "{\"id\":\"purpose-knowledge\",\"kind\":\"purposes\",\"name\":\"Knowledge\",\"description\":\"Facts, conventions and domain context\",\"archived\":false,\"version\":1}"
+      },
+      {
+        "id": "12f1eb40-f4a8-4ea9-b94d-5df38f4d628a",
+        "kind": "agents",
+        "payload": "{\"id\":\"12f1eb40-f4a8-4ea9-b94d-5df38f4d628a\",\"kind\":\"agents\",\"name\":\"Legacy writer\",\"description\":\"\",\"archived\":false,\"version\":1}"
+      },
+      {
+        "id": "91a7cea2-a7bf-45ca-a52e-7d2e0fa5f8ef",
+        "kind": "agents",
+        "payload": "{\"id\":\"91a7cea2-a7bf-45ca-a52e-7d2e0fa5f8ef\",\"kind\":\"agents\",\"name\":\"Legacy reader\",\"description\":\"\",\"archived\":false,\"version\":1}"
+      },
+      {
+        "id": "6a8a9206-f744-40a6-82c4-2ac7e676e20a",
+        "kind": "projects",
+        "payload": "{\"id\":\"6a8a9206-f744-40a6-82c4-2ac7e676e20a\",\"kind\":\"projects\",\"name\":\"Compatibility fixture\",\"description\":\"\",\"archived\":false,\"version\":1}"
+      }
+    ],
+    "memories": [
+      {
+        "id": "2a699046-6dcf-4c1e-a7eb-440fbab8083e",
+        "owner_id": "12f1eb40-f4a8-4ea9-b94d-5df38f4d628a",
+        "audience": "private",
+        "project_id": "6a8a9206-f744-40a6-82c4-2ac7e676e20a",
+        "state": "active",
+        "fingerprint": "6e541dc8a50fae83721acf32eb38dc1121347bf1a3bcd7b4f5066d261aa8fab8",
+        "payload": "{\"ownerId\":\"12f1eb40-f4a8-4ea9-b94d-5df38f4d628a\",\"projectId\":\"6a8a9206-f744-40a6-82c4-2ac7e676e20a\",\"audience\":\"private\",\"kind\":\"lesson\",\"state\":\"active\",\"content\":\"Preserve this synthetic legacy lesson.\",\"evidence\":{\"source\":\"assistant\",\"eventId\":\"fixture:legacy\",\"excerpt\":\"Synthetic migration fixture\"},\"id\":\"2a699046-6dcf-4c1e-a7eb-440fbab8083e\",\"version\":1,\"createdAt\":1789934449931,\"updatedAt\":1789934449931}"
+      }
+    ],
+    "revisions": [
+      {
+        "memory_id": "2a699046-6dcf-4c1e-a7eb-440fbab8083e",
+        "version": 1,
+        "action": "create",
+        "payload": "{\"ownerId\":\"12f1eb40-f4a8-4ea9-b94d-5df38f4d628a\",\"projectId\":\"6a8a9206-f744-40a6-82c4-2ac7e676e20a\",\"audience\":\"private\",\"kind\":\"lesson\",\"state\":\"active\",\"content\":\"Preserve this synthetic legacy lesson.\",\"evidence\":{\"source\":\"assistant\",\"eventId\":\"fixture:legacy\",\"excerpt\":\"Synthetic migration fixture\"},\"id\":\"2a699046-6dcf-4c1e-a7eb-440fbab8083e\",\"version\":1,\"createdAt\":1789934449931,\"updatedAt\":1789934449931}",
+        "at": 1789934449931
+      }
+    ]
+  }
+}

@@ -5,3 +5,5 @@ output/
 *.sqlite*
 .env*
 .DS_Store
+
+/target/
