@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="memory-session" content="__SESSION_TOKEN__">
+  <title>Co-memo · A memory, shared</title>
+  <link rel="stylesheet" href="/demo.css">
+  <script src="/demo.js" defer></script>
+</head>
+<body>
+  <header><a class="brand" href="/demo">co-memo<span>Interactive demo</span></a><a class="library" href="/">Open library ↗</a></header>
+  <main>
+    <ol class="progress" aria-label="Demo progress">
+      <li data-step="1"><span>1</span>Remember</li>
+      <li data-step="2"><span>2</span>Share</li>
+      <li data-step="3"><span>3</span>Continue</li>
+    </ol>
+    <section id="stage" aria-labelledby="step-title"></section>
+    <p id="error" role="alert"></p>
+    <p class="disclosure">Real memory storage. Simulated agents. No API key needed.</p>
+    <details><summary>How this demo works</summary><p>Your note is saved to a separate demo database. Claude Code and Codex are labels here; no live model or extraction service runs. Sharing allows the second agent to retrieve the note on its next query.</p><p>This walkthrough shows only the note you create. The library also supports projects, file imports, and review history. Restarting the demo keeps previous notes in the demo library.</p><p id="setup-note">Checking the demo environment…</p></details>
+  </main>
+</body>
+</html>
