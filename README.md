@@ -2,30 +2,86 @@
 
 A lightweight, local-first **Rust CLI and MCP server** for managing memory across AI agents. One native executable handles retrieval, private proposals, review, sharing, and Markdown file imports. No Node.js runtime or model account is needed.
 
-## Build
+## Install and get started
+
+With Rust/Cargo and platform build tools installed, install directly from GitHub in one command—no manual clone or separate build:
 
 ```sh
-cargo build --release
-./target/release/co-memo --help
-# Optional: install into Cargo's bin directory
-cargo install --path .
+cargo install --git https://github.com/its-ahoh/co-memo --locked
 ```
 
-SQLite is bundled at build time. Rust/Cargo and platform build tools are required to build from source; running the resulting executable does not require Rust or Node.js. Prebuilt downloads and service installers are not yet provided.
+Then, **from the project you want to enable**, run:
 
-## Start with a local database
+```sh
+co-memo setup
+```
 
-All commands require `--db`. Use the same absolute database path for every client.
+Setup creates the database directory, initializes SQLite, and creates a project identity and a `coding` agent role. It saves their IDs and prints an MCP connection configuration with absolute paths. Running setup again reuses the same IDs. No test memory is written, and no client configuration or instruction file is modified.
+
+You can now use the CLI from that directory or its subdirectories without copying IDs:
+
+```sh
+co-memo recall --query 'task' --json
+co-memo inbox
+```
+
+For an MCP client, merge the printed connection settings using the [client-specific instructions](#set-up-your-coding-agent) below and add the memory instructions. Setup prepares storage and identities; the client connection still needs configuration and verification. The generated MCP command includes explicit paths and IDs, so its scope stays fixed regardless of the client's working directory.
+
+If `co-memo` is not found after installation, add Cargo's bin directory (normally `~/.cargo/bin`) to `PATH`, or run `~/.cargo/bin/co-memo setup`.
+
+### Defaults and existing installations
+
+The database path is selected in this order:
+
+1. Explicit `--db FILE`.
+2. `CO_MEMO_DB` (an absolute path).
+3. `$XDG_DATA_HOME/co-memo/memory.sqlite` when `XDG_DATA_HOME` is set to an absolute path.
+4. `~/.local/share/co-memo/memory.sqlite` on macOS/Linux, or `%LOCALAPPDATA%/co-memo/memory.sqlite` on Windows.
+
+`co-memo init` also accepts the default path, but setup replaces the usual separate init and register steps. Other commands open an existing database; they do not silently initialize a different one.
+
+To adopt existing identities, explicitly supply their stable IDs:
+
+```sh
+co-memo setup --db /absolute/memory.sqlite --agent EXISTING_AGENT_ID --project EXISTING_PROJECT_ID
+```
+
+Use the same `--db` on later commands, or set `CO_MEMO_DB` once. Setup does not replace your default database setting. Existing manually registered identities are not guessed from display names.
+
+Independent roles get separate agent IDs, while sharing the project's identity:
+
+```sh
+co-memo setup --role reviewer
+co-memo recall --role reviewer --query 'task' --json
+```
+
+Use the same role when continuing the same work in another engine; use different roles for independent agents. Sharing still requires explicit permission. A nested project with its own setup does not inherit missing roles from a parent. Moving a project changes its path; use `setup --agent ID --project ID` to retain its identities in the new location.
+
+`setup --directory PATH` configures a directory without changing into it. `setup --json` returns the setup result and MCP configuration as JSON. Commands with an explicit `--agent` retain their original behavior and do not inherit a saved project; pass `--project` explicitly when needed.
+
+### Build from a local checkout
+
+```sh
+cargo install --path . --locked
+# Or build without installing:
+cargo build --release --locked
+./target/release/co-memo --help
+```
+
+SQLite is bundled at build time. Running the resulting executable does not require Rust or Node.js. No prebuilt releases or login services are installed by this workflow.
+
+### Manual registration
+
+The lower-level commands remain available when you need explicit control:
 
 ```sh
 co-memo init --db /absolute/memory.sqlite
 co-memo register --db /absolute/memory.sqlite --kind agents --name Writer
-co-memo register --db /absolute/memory.sqlite --kind agents --name Reviewer
 co-memo register --db /absolute/memory.sqlite --kind projects --name MyProject
 co-memo catalog --db /absolute/memory.sqlite
 ```
 
-Use the returned stable IDs in later commands. Names are display labels, not identities. One role can retain its ID when switching engines; independent roles use separate IDs.
+Registration always creates a new ID. Prefer repeatable setup for normal onboarding.
 
 ## Propose, review, share
 
@@ -91,7 +147,7 @@ Configure the client to launch the absolute binary path with these arguments. Th
 
 ## Set up your coding agent
 
-Setup has two parts: connect the MCP server (or provide CLI commands for pi), then add instructions telling the agent when to retrieve and propose memories. There is currently **no `co-memo setup` command**. Use the steps below or give your agent the [copy-and-paste setup request](#ask-your-agent-to-configure-co-memo).
+Run `co-memo setup` first to prepare storage, identities, and the connection settings. Then connect the MCP server (or provide CLI commands for pi) and add instructions telling the agent when to retrieve and propose memories. Setup prints configuration; it does not modify client files. Use the steps below or give your agent the [copy-and-paste setup request](#ask-your-agent-to-configure-co-memo).
 
 | Client | Project MCP configuration | Project instructions |
 | --- | --- | --- |
@@ -105,10 +161,9 @@ For MCP integrations, the client launches the Rust MCP process itself; you do no
 
 ### Before configuring a client
 
-1. [Build and install](#build) Co-memo. Resolve the installed executable to an absolute path (`command -v co-memo` on macOS/Linux).
-2. Choose one absolute database path shared by your local clients, outside version control, and create its parent directory. Run `co-memo init --db /absolute/memory.sqlite` once.
-3. Run `co-memo catalog --db /absolute/memory.sqlite`. Reuse the appropriate existing IDs, or register an agent and project using the commands above. Registration creates new IDs; do not rerun it blindly during each setup.
-4. Replace `/absolute/co-memo`, `/absolute/memory.sqlite`, `AGENT_ID`, and `PROJECT_ID` in the examples. Both paths must exist on the machine running the client. The MCP process needs write access to the database directory for SQLite sidecar files.
+1. [Install Co-memo](#install-and-get-started), or reuse an existing installation.
+2. Run `co-memo setup --json` in the target project. If migrating an existing installation, pass its `--db`, `--agent`, and `--project` on the first run; use `catalog` to look up IDs if necessary.
+3. Use the returned executable path, database path, `agentId`, and `projectId` in the client examples below. Repeated setup reuses those IDs. The database directory must be writable for SQLite sidecar files.
 
 A Co-memo agent ID identifies a role, not a model vendor. Reuse an ID when continuing the same role in another engine; choose separate IDs for independent agents. Separate IDs still need explicit sharing to access each other's memories. A shared database does not make all memories public.
 
@@ -304,19 +359,19 @@ Paste this into Claude Code, Codex, OpenCode, or pi while working in the project
 Add Co-memo memory support to this project:
 https://github.com/its-ahoh/co-memo
 
-Read its current README and inspect the local checkout before using commands;
-it currently has no `co-memo setup` command. Detect whether this session is
+Read its current README and inspect the local checkout before using commands.
+Detect whether this session is
 Claude Code, Codex, OpenCode, or pi and follow that client's project setup.
 For OpenCode, check its installed version before selecting the MCP layout.
 For pi, use the documented Rust CLI path instead of installing an MCP adapter.
 If the client cannot be determined, ask me which one to configure.
 
-Use an existing Co-memo installation if available; otherwise clone it into a
-separate tools directory and build/install its Rust CLI. Do not install Node.js.
-Reuse an existing memory database and matching role/project IDs if configured.
-For a new installation, use ~/.local/share/co-memo/memory.sqlite, create its
-parent directory, and register this project's coding role and project. Resolve
-all executable/database paths to absolute paths in the final configuration.
+Use an existing Co-memo installation if available; otherwise install with
+cargo install --git https://github.com/its-ahoh/co-memo --locked
+Rust/Cargo and platform build tools must already be available. Do not install Node.js.
+Run co-memo setup --json in the target project. For an existing installation,
+pass its database and matching role/project IDs explicitly to setup on the first run.
+Use the absolute executable/database paths and IDs returned by setup.
 Do not merge independent roles just because they use the same model or engine.
 
 Merge the MCP entry into .mcp.json for Claude Code, .codex/config.toml for
@@ -362,9 +417,10 @@ File limits: 32 registered files, regular UTF-8 Markdown only, at most 64 KiB ea
 cargo test
 cargo build --release
 python3 scripts/verify_rust.py target/release/co-memo
+python3 scripts/verify_setup.py target/release/co-memo
 ```
 
-Python is used only by the integration verification script. Native tests cover permissions, stale updates, sharing-independent rediscovery, long multilingual context, expired-note review, conflicts, file imports, and TypeScript database compatibility. The integration script runs real native CLI/MCP/watch processes. Cross-platform behavior still needs validation beyond the development host.
+Python is used only by the integration verification script. Native tests cover permissions, stale updates, sharing-independent rediscovery, long multilingual context, expired-note review, conflicts, file imports, and TypeScript database compatibility. The integration scripts run real native CLI/MCP/watch processes and test setup defaults, repeatability, scope isolation, and existing-identity adoption using temporary databases. Cross-platform behavior still needs validation beyond the development host.
 
 ## License and project status
 

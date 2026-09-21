@@ -75,7 +75,7 @@ impl Store {
     pub fn open(path: &Path, create: bool) -> Result<Self> {
         ensure!(
             create || path.exists(),
-            "Database not found; use init first"
+            "Database not found; run co-memo setup (or init for manual configuration)"
         );
         if create {
             if let Some(p) = path.parent() {
@@ -93,7 +93,9 @@ impl Store {
  CREATE TABLE IF NOT EXISTS catalog(id TEXT PRIMARY KEY,kind TEXT NOT NULL,payload TEXT NOT NULL);
  CREATE TABLE IF NOT EXISTS memory_sources(id TEXT PRIMARY KEY,payload TEXT NOT NULL);
  CREATE TABLE IF NOT EXISTS inbox_seen(memory_id TEXT PRIMARY KEY,version INTEGER NOT NULL);
- CREATE TABLE IF NOT EXISTS memory_scan_lease(id INTEGER PRIMARY KEY,owner TEXT NOT NULL,expires INTEGER NOT NULL);")?;
+ CREATE TABLE IF NOT EXISTS memory_scan_lease(id INTEGER PRIMARY KEY,owner TEXT NOT NULL,expires INTEGER NOT NULL);
+ CREATE TABLE IF NOT EXISTS setup_projects(path TEXT PRIMARY KEY,project_id TEXT NOT NULL);
+ CREATE TABLE IF NOT EXISTS setup_profiles(path TEXT NOT NULL,role TEXT NOT NULL,agent_id TEXT NOT NULL,PRIMARY KEY(path,role));")?;
         let store = Self { db };
         for (id, kind, name) in [
             ("stage-explore", "stages", "Explore"),
@@ -552,6 +554,7 @@ pub fn due(m: &V) -> Option<i64> {
 }
 pub mod files;
 pub mod mcp;
+pub mod setup;
 
 #[cfg(test)]
 mod tests;
