@@ -1,4 +1,4 @@
-use anyhow::{ensure, Context, Result};
+use anyhow::{ensure, Result};
 use clap::{Args as ClapArgs, Parser, Subcommand};
 use co_memo::{files, mcp, *};
 use serde_json::{json, Value as V};
@@ -7,7 +7,7 @@ use std::{io::Read, path::PathBuf};
 #[derive(Parser)]
 #[command(version, about = "Local-first memory CLI and MCP server")]
 struct Args {
-    /// SQLite database path (required for every command).
+    /// SQLite database path (defaults to CO_MEMO_DB or the local user data directory).
     #[arg(long, global = true)]
     db: Option<PathBuf>,
     #[command(subcommand)]
@@ -16,8 +16,11 @@ struct Args {
 
 #[derive(ClapArgs)]
 struct Scope {
+    /// Saved project role to use when --agent is omitted.
+    #[arg(long, conflicts_with = "agent")]
+    role: Option<String>,
     #[arg(long)]
-    agent: String,
+    agent: Option<String>,
     #[arg(long)]
     project: Option<String>,
     #[arg(long)]
@@ -25,14 +28,30 @@ struct Scope {
     #[arg(long)]
     purpose: Option<String>,
 }
-impl From<Scope> for Actor {
-    fn from(scope: Scope) -> Self {
-        Self {
-            agent: scope.agent,
-            project: scope.project,
-            stage: scope.stage,
-            purpose: scope.purpose,
-        }
+impl Scope {
+    fn resolve(self, store: &Store) -> Result<Actor> {
+        let mut actor = if let Some(agent) = self.agent {
+            Actor {
+                agent,
+                project: self.project,
+                ..Default::default()
+            }
+        } else {
+            let actor = store.profile(
+                &std::env::current_dir()?,
+                self.role.as_deref().unwrap_or("coding"),
+            )?;
+            ensure!(
+                self.project
+                    .as_ref()
+                    .is_none_or(|id| actor.project.as_ref() == Some(id)),
+                "Project differs from saved setup; supply --agent explicitly to change scope"
+            );
+            actor
+        };
+        actor.stage = self.stage;
+        actor.purpose = self.purpose;
+        Ok(actor)
     }
 }
 
@@ -46,6 +65,21 @@ struct Mutation {
 
 #[derive(Subcommand)]
 enum Command {
+    /// Initialize storage and remember this project's identity; safe to run again.
+    Setup {
+        #[arg(long, default_value = ".")]
+        directory: PathBuf,
+        #[arg(long, default_value = "coding")]
+        role: String,
+        /// Reuse an existing agent ID instead of creating one.
+        #[arg(long)]
+        agent: Option<String>,
+        /// Reuse an existing project ID instead of creating one.
+        #[arg(long)]
+        project: Option<String>,
+        #[arg(long)]
+        json: bool,
+    },
     /// Create or initialize the database.
     Init,
     /// List registered identities and classifications.
@@ -170,21 +204,44 @@ fn stdin() -> Result<V> {
 }
 fn run() -> Result<()> {
     let args = Args::parse();
-    let db = args.db.context("--db required")?;
-    let store = Store::open(&db, matches!(args.command, Command::Init))?;
+    let db = match args.db {
+        Some(path) => path,
+        None => setup::default_database()?,
+    };
+    let store = Store::open(
+        &db,
+        matches!(args.command, Command::Init | Command::Setup { .. }),
+    )?;
     let result = match args.command {
+        Command::Setup {
+            directory,
+            role,
+            agent,
+            project,
+            json,
+        } => {
+            let actor = store.setup(&directory, &role, agent.as_deref(), project.as_deref())?;
+            let result = setup::output(&db, &directory, &role, &actor)?;
+            if !json {
+                println!("Ready.\nDatabase: {}\nProject: {}\nRole: {}\n\nFrom this project, run: co-memo recall --query 'task'\nIf you chose a custom --db or --role, pass the same option on later commands.\n\nMCP connection configuration:\n{}\n\n{}",
+                    text(&result, "database"), text(&result, "directory"), text(&result, "role"),
+                    serde_json::to_string_pretty(&json!({"mcpServers":result["mcpServers"]}))?, text(&result, "next"));
+                return Ok(());
+            }
+            result
+        }
         Command::Init => json!({"database":db,"status":"ready"}),
         Command::Catalog => json!(store.catalog()?),
         Command::Register { kind, name } => store.register(&kind, &name)?,
         Command::Recall { scope, query, json } => {
-            let result = store.context(&scope.into(), &query)?;
+            let result = store.context(&scope.resolve(&store)?, &query)?;
             if !json {
                 print!("{}", text(&result, "text"));
                 return Ok(());
             }
             result
         }
-        Command::Get { scope, id } => store.get(&scope.into(), &id)?,
+        Command::Get { scope, id } => store.get(&scope.resolve(&store)?, &id)?,
         Command::Inspect { id } => store.raw(&id)?,
         Command::Propose {
             scope,
@@ -192,7 +249,7 @@ fn run() -> Result<()> {
             evidence,
         } => mcp::call(
             &store,
-            &scope.into(),
+            &scope.resolve(&store)?,
             "memory_record",
             &json!({"content":content,"evidence":evidence}),
         )?,
@@ -214,7 +271,7 @@ fn run() -> Result<()> {
         )?,
         Command::History { id } => json!(store.history(&id)?),
         Command::Sources => json!(store.sources()?),
-        Command::SourceAdd { scope, file } => store.source_add(&file, &scope.into())?,
+        Command::SourceAdd { scope, file } => store.source_add(&file, &scope.resolve(&store)?)?,
         Command::SourcePause { id } => store.source_action(&id, Some(false), None)?,
         Command::SourceResume { id } => store.source_action(&id, Some(true), None)?,
         Command::SourceReview(m) => store.source_action(&m.id, None, Some(m.version))?,
@@ -227,7 +284,7 @@ fn run() -> Result<()> {
             return Ok(());
         }
         Command::Mcp { scope } => {
-            mcp::run(&store, &scope.into())?;
+            mcp::run(&store, &scope.resolve(&store)?)?;
             return Ok(());
         }
         Command::HookStart { scope } => {
@@ -237,13 +294,13 @@ fn run() -> Result<()> {
                 input.get("query").is_none() || input["query"].is_string(),
                 "Invalid query"
             );
-            let context = store.context(&scope.into(), text(&input, "query"))?;
+            let context = store.context(&scope.resolve(&store)?, text(&input, "query"))?;
             json!({"context":context["text"],"truncatedIds":context["truncatedIds"],"memories":context["entries"].as_array().unwrap().iter().map(|m|json!({"id":m["id"],"version":m["version"]})).collect::<Vec<_>>()})
         }
         Command::HookEnd { scope } => {
             let input = stdin()?;
             only(&input, &["content", "evidence"])?;
-            let actor = scope.into();
+            let actor = scope.resolve(&store)?;
             store.actor(&actor)?;
             if input.as_object().unwrap().is_empty() {
                 json!({"status":"skipped"})
