@@ -1,6 +1,9 @@
-//! Idempotent local setup. Client configuration is returned, never silently overwritten.
+//! Idempotent local setup with optional client configuration.
 use crate::*;
 use std::{env, path::PathBuf};
+
+mod clients;
+pub use clients::configure_client;
 
 pub fn default_database() -> Result<PathBuf> {
     if let Some(path) = env::var_os("CO_MEMO_DB").filter(|p| !p.is_empty()) {

@@ -1,8 +1,8 @@
 # Agent handoff
 
-Run `co-memo setup --json` in the project first. No SQLite path, data-directory creation, or database environment variable is required for default setup. All clients share Co-memo's default data directory; keep each client's connection configuration in its own supported configuration file.
+Run the client setup command in the project, for example `co-memo setup --client codex` or `co-memo setup --client claude`. It creates or reuses the selected client's identity and the project's identity, writes the connection configuration, and adds memory instructions. Users do not supply or copy SQLite paths or IDs. Restart the client and complete its normal trust/MCP approval.
 
-Launch each client's `co-memo mcp` process with its registered `--agent` and `--project` IDs. The default database is selected automatically. Copying setup's generated MCP command also works: it pins the resolved database path automatically so different client environments still reach the same store. Users do not need to enter that path.
+Generated connections pin the resolved database and identities automatically, so reads and writes keep their scope even when clients launch from another directory. Project scope applies to retrieval as well as new records. For manual integrations, `setup --json` prints the complete connection without editing client files.
 
 Do not put separate Co-memo databases under `.claude`, `.codex`, or other client folders by default. Separate roles should have distinct IDs in the shared database. One role can retain its ID across coding engines; use `setup --role NAME` for an independent role. Sharing remains explicit.
 

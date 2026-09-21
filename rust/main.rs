@@ -69,8 +69,12 @@ enum Command {
     Setup {
         #[arg(long, default_value = ".")]
         directory: PathBuf,
-        #[arg(long, default_value = "coding")]
-        role: String,
+        /// Configure this client automatically (no IDs or paths required).
+        #[arg(long, value_parser = ["claude", "codex", "opencode", "opencode-v2", "pi"])]
+        client: Option<String>,
+        /// Saved role; defaults to the selected client, or coding for CLI-only setup.
+        #[arg(long)]
+        role: Option<String>,
         /// Reuse an existing agent ID instead of creating one.
         #[arg(long)]
         agent: Option<String>,
@@ -215,13 +219,37 @@ fn run() -> Result<()> {
     let result = match args.command {
         Command::Setup {
             directory,
+            client,
             role,
             agent,
             project,
             json,
         } => {
-            let actor = store.setup(&directory, &role, agent.as_deref(), project.as_deref())?;
-            let result = setup::output(&db, &directory, &role, &actor)?;
+            let role = role.as_deref().unwrap_or(match client.as_deref() {
+                Some("opencode-v2") => "opencode",
+                Some(client) => client,
+                None => "coding",
+            });
+            let actor = store.setup(&directory, role, agent.as_deref(), project.as_deref())?;
+            let mut result = setup::output(&db, &directory, role, &actor)?;
+            if let Some(client) = client {
+                let files = setup::configure_client(&directory, &client, &result)?;
+                result["client"] = json!(client);
+                result["configuredFiles"] = json!(files);
+                result["next"] = json!("Client configuration and memory instructions are ready. Restart the client and complete its normal project trust/MCP approval, then ask it to search for setup verification. No test memory was created.");
+                if !json {
+                    println!(
+                        "Ready for {client}.\nUpdated files:\n{}\n\n{}",
+                        files
+                            .iter()
+                            .map(|p| p.display().to_string())
+                            .collect::<Vec<_>>()
+                            .join("\n"),
+                        text(&result, "next")
+                    );
+                    return Ok(());
+                }
+            }
             if !json {
                 println!("Ready.\nDatabase: {}\nProject: {}\nRole: {}\n\nFrom this project, run: co-memo recall --query 'task'\nIf you chose a custom --db or --role, pass the same option on later commands.\n\nMCP connection configuration:\n{}\n\n{}",
                     text(&result, "database"), text(&result, "directory"), text(&result, "role"),
