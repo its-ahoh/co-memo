@@ -16,7 +16,7 @@ Then, **from the project you want to enable**, run:
 co-memo setup
 ```
 
-Setup creates the database directory, initializes SQLite, and creates a project identity and a `coding` agent role. It saves their IDs and prints an MCP connection configuration with absolute paths. Running setup again reuses the same IDs. No test memory is written, and no client configuration or instruction file is modified.
+**No database path or environment variable needs to be configured for the default setup.** Setup selects and creates the shared Co-memo data directory, initializes SQLite, and creates a project identity and a `coding` agent role. It saves their IDs and prints an MCP connection configuration with absolute paths. Running setup again reuses the same IDs. No test memory is written, and no client configuration or instruction file is modified.
 
 You can now use the CLI from that directory or its subdirectories without copying IDs:
 
@@ -25,13 +25,15 @@ co-memo recall --query 'task' --json
 co-memo inbox
 ```
 
-For an MCP client, merge the printed connection settings using the [client-specific instructions](#set-up-your-coding-agent) below and add the memory instructions. Setup prepares storage and identities; the client connection still needs configuration and verification. The generated MCP command includes explicit paths and IDs, so its scope stays fixed regardless of the client's working directory.
+For an MCP client, merge the printed connection settings using the [client-specific instructions](#set-up-your-coding-agent) below and add the memory instructions. Setup prepares storage and identities; the client connection still needs configuration and verification. The generated MCP command pins the resolved database path and IDs automatically, so clients keep the same storage and scope even when their working directories or environments differ. Copy that generated command unchanged; its `--db` value is filled in by setup, not something you need to choose or type.
 
 If `co-memo` is not found after installation, add Cargo's bin directory (normally `~/.cargo/bin`) to `PATH`, or run `~/.cargo/bin/co-memo setup`.
 
-### Defaults and existing installations
+### Optional: custom storage and existing installations
 
-The database path is selected in this order:
+You can skip this section for a new installation. All clients use Co-memo's shared data directory by default. The resolved path is shown by setup for information, not as a required setting.
+
+Only use an override to adopt an existing database in another location or deliberately choose custom storage. The database path is selected in this order:
 
 1. Explicit `--db FILE`.
 2. `CO_MEMO_DB` (an absolute path).
@@ -75,10 +77,10 @@ SQLite is bundled at build time. Running the resulting executable does not requi
 The lower-level commands remain available when you need explicit control:
 
 ```sh
-co-memo init --db /absolute/memory.sqlite
-co-memo register --db /absolute/memory.sqlite --kind agents --name Writer
-co-memo register --db /absolute/memory.sqlite --kind projects --name MyProject
-co-memo catalog --db /absolute/memory.sqlite
+co-memo init
+co-memo register --kind agents --name Writer
+co-memo register --kind projects --name MyProject
+co-memo catalog
 ```
 
 Registration always creates a new ID. Prefer repeatable setup for normal onboarding.
@@ -86,18 +88,18 @@ Registration always creates a new ID. Prefer repeatable setup for normal onboard
 ## Propose, review, share
 
 ```sh
-co-memo propose --db /absolute/memory.sqlite --agent WRITER_ID \
+co-memo propose --agent WRITER_ID \
   --project PROJECT_ID --content 'Lead with the conclusion.' --evidence 'The user requested concise explanations.'
-co-memo inbox --db /absolute/memory.sqlite
-co-memo review --db /absolute/memory.sqlite --id MEMORY_ID --version 1
-co-memo share --db /absolute/memory.sqlite --id MEMORY_ID --version 2 \
+co-memo inbox
+co-memo review --id MEMORY_ID --version 1
+co-memo share --id MEMORY_ID --version 2 \
   --audience shared --with REVIEWER_ID
-co-memo recall --db /absolute/memory.sqlite --agent REVIEWER_ID --project PROJECT_ID --query 'explanations'
+co-memo recall --agent REVIEWER_ID --project PROJECT_ID --query 'explanations'
 ```
 
 Proposals are private candidates and excluded from recall until confirmed. Sharing and confirmation are separate actions. `--audience global` makes a note available to all agents within its project scope; `private` restricts it to its owner. Use `--with ID1,ID2` only with `shared`.
 
-`get`, `edit`, `forget`, and `history` read or update individual memories. For trusted local administration, `inspect --db FILE --id ID` reads any memory, including candidates, expired notes, and forgotten records. `inbox` includes candidates and expired active notes with a `reviewReason`; `review` renews an expired note without changing its audience.
+`get`, `edit`, `forget`, and `history` read or update individual memories. For trusted local administration, `inspect --id ID` reads any memory, including candidates, expired notes, and forgotten records. `inbox` includes candidates and expired active notes with a `reviewReason`; `review` renews an expired note without changing its audience.
 
 Mutations require the current `--version`; stale writes fail. Rediscovery returns an existing record unchanged, even after sharing or forgetting; it does not create another candidate or revive a forgotten note. Deduplication remains isolated by owner, project, kind, stage, and purpose.
 
@@ -110,15 +112,15 @@ Administrative commands such as inspect, inbox, review, share, and sources are t
 Registering a file explicitly authorizes ongoing reads. There is no prompt for every subsequent read. OS permissions remain in effect. Changed paragraphs are imported as private candidates; source files are **never rewritten**. The importer does not run semantic extraction or redact secrets. Only register files you intend to store locally.
 
 ```sh
-co-memo source-add --db /absolute/memory.sqlite --agent WRITER_ID \
+co-memo source-add --agent WRITER_ID \
   --project PROJECT_ID --file /absolute/project/MEMORY.md
-co-memo sources --db /absolute/memory.sqlite
+co-memo sources
 ```
 
 ### A. Continuous background import
 
 ```sh
-co-memo watch --db /absolute/memory.sqlite
+co-memo watch
 ```
 
 Keep this process running. It uses native filesystem events, debouncing, two stable snapshots, and 2-second reconciliation. Pause/resume registrations with `source-pause` / `source-resume --id SOURCE_ID`. Stop with Ctrl+C or SIGTERM. Periodic reconciliation also catches changes when the operating system silently omits file events. Watch registration errors are reported on stderr and imports continue through reconciliation. No login service is installed automatically.
@@ -130,7 +132,7 @@ Only registered files are read. Unchanged files produce no snapshot writes. Atom
 Configure your host's after-write or completion hook to run:
 
 ```sh
-co-memo scan --db /absolute/memory.sqlite
+co-memo scan
 ```
 
 `scan` (also `watch --once`) attempts two snapshots 250 ms apart, then exits. This is a generic hook command; native Claude Code/Codex hook installation is not included. Run it after writes finish. Per-file errors are JSON output; inspect them even if the process succeeds. A busy database or continuously changing file may require retrying.
@@ -140,14 +142,14 @@ Do not run a continuous watcher when choosing hook-only imports.
 ## MCP, entirely in Rust
 
 ```sh
-co-memo mcp --db /absolute/memory.sqlite --agent WRITER_ID --project PROJECT_ID
+co-memo mcp --agent WRITER_ID --project PROJECT_ID
 ```
 
 Configure the client to launch the absolute binary path with these arguments. The stdio MCP server supports protocol `2024-11-05` and tools `memory_search`, `memory_get`, and `memory_record`. Identity and scope are fixed by the launching host; model arguments cannot change them. New agent writes are always private candidates; duplicate submissions return the existing scoped record without changing its state or audience. Each query reads the latest committed data. Existing conversation context is not pushed or rewritten.
 
 ## Set up your coding agent
 
-Run `co-memo setup` first to prepare storage, identities, and the connection settings. Then connect the MCP server (or provide CLI commands for pi) and add instructions telling the agent when to retrieve and propose memories. Setup prints configuration; it does not modify client files. Use the steps below or give your agent the [copy-and-paste setup request](#ask-your-agent-to-configure-co-memo).
+Run `co-memo setup` first to prepare storage, identities, and the connection settings. **Do not configure a SQLite path for the default setup.** Then connect the MCP server (or provide CLI commands for pi) and add instructions telling the agent when to retrieve and propose memories. Setup prints configuration; it does not modify client files. Use the steps below or give your agent the [copy-and-paste setup request](#ask-your-agent-to-configure-co-memo).
 
 | Client | Project MCP configuration | Project instructions |
 | --- | --- | --- |
@@ -157,13 +159,17 @@ Run `co-memo setup` first to prepare storage, identities, and the connection set
 | pi | Direct Rust CLI through its shell tool | `AGENTS.md` with CLI instructions |
 | Other stdio MCP clients | Client-specific server configuration | The client's persistent instructions |
 
+Client-specific configuration stays in the files listed above. The SQLite database stays in the shared Co-memo data directory, **not** in `.claude`, `.codex`, or another client's folder. This lets agents use the same memory store while keeping access controlled by agent/project IDs and explicit sharing. Separate database files would require extra configuration to share memories again.
+
 For MCP integrations, the client launches the Rust MCP process itself; you do not start `co-memo mcp` separately. A file watcher is optional and is not required for MCP memory records. These examples configure the current project, not every project on your computer.
 
 ### Before configuring a client
 
 1. [Install Co-memo](#install-and-get-started), or reuse an existing installation.
-2. Run `co-memo setup --json` in the target project. If migrating an existing installation, pass its `--db`, `--agent`, and `--project` on the first run; use `catalog` to look up IDs if necessary.
-3. Use the returned executable path, database path, `agentId`, and `projectId` in the client examples below. Repeated setup reuses those IDs. The database directory must be writable for SQLite sidecar files.
+2. Run `co-memo setup --json` in the target project. Do not supply `--db` or set a database environment variable for a new default installation. Setup creates the directory and remembers the IDs; it is safe to run again.
+3. Copy the returned executable path and IDs into the client-specific format below, then add the memory instructions. The examples use the default database and have no SQLite path placeholder. If copying setup's complete generated `args`, preserve them unchanged: setup has already filled in the resolved path automatically.
+
+If you already use a custom database or custom data-directory environment, use the complete generated command instead of dropping its `--db` argument. See [optional overrides](#optional-custom-storage-and-existing-installations) only when you need to reuse or choose a non-default location.
 
 A Co-memo agent ID identifies a role, not a model vendor. Reuse an ID when continuing the same role in another engine; choose separate IDs for independent agents. Separate IDs still need explicit sharing to access each other's memories. A shared database does not make all memories public.
 
@@ -172,7 +178,7 @@ A Co-memo agent ID identifies a role, not a model vendor. Reuse an ID when conti
 From your target project's directory:
 
 ```sh
-claude mcp add --transport stdio --scope project co-memo -- /absolute/co-memo mcp --db /absolute/memory.sqlite --agent AGENT_ID --project PROJECT_ID
+claude mcp add --transport stdio --scope project co-memo -- /absolute/co-memo mcp --agent AGENT_ID --project PROJECT_ID
 ```
 
 Alternatively, merge this entry into the project's `.mcp.json`, preserving other servers:
@@ -182,7 +188,7 @@ Alternatively, merge this entry into the project's `.mcp.json`, preserving other
   "mcpServers": {
     "co-memo": {
       "command": "/absolute/co-memo",
-      "args": ["mcp", "--db", "/absolute/memory.sqlite", "--agent", "AGENT_ID", "--project", "PROJECT_ID"]
+      "args": ["mcp", "--agent", "AGENT_ID", "--project", "PROJECT_ID"]
     }
   }
 }
@@ -199,7 +205,7 @@ Create `.codex/` in the target project if needed, then merge this table into `.c
 ```toml
 [mcp_servers.co-memo]
 command = "/absolute/co-memo"
-args = ["mcp", "--db", "/absolute/memory.sqlite", "--agent", "AGENT_ID", "--project", "PROJECT_ID"]
+args = ["mcp", "--agent", "AGENT_ID", "--project", "PROJECT_ID"]
 ```
 
 Append the [memory instructions below](#memory-instructions-for-mcp-clients) to the applicable project `AGENTS.md`, preserving existing guidance. Start a new Codex session in that project. Project configuration requires a trusted project; complete the normal client trust flow. Use `/mcp` in the CLI to inspect available tools, then follow the verification steps below.
@@ -207,7 +213,7 @@ Append the [memory instructions below](#memory-instructions-for-mcp-clients) to 
 For a deliberately **user-wide** installation, the alternative is:
 
 ```sh
-codex mcp add co-memo -- /absolute/co-memo mcp --db /absolute/memory.sqlite --agent AGENT_ID --project PROJECT_ID
+codex mcp add co-memo -- /absolute/co-memo mcp --agent AGENT_ID --project PROJECT_ID
 ```
 
 This alternative writes user configuration rather than the project file. Its identity and project remain fixed wherever that server is used; do not use it as automatic per-project routing. Choose one scope to avoid conflicting entries.
@@ -226,7 +232,7 @@ Check `opencode --version` first and preserve the project's existing `opencode.j
   "mcp": {
     "co-memo": {
       "type": "local",
-      "command": ["/absolute/co-memo", "mcp", "--db", "/absolute/memory.sqlite", "--agent", "AGENT_ID", "--project", "PROJECT_ID"],
+      "command": ["/absolute/co-memo", "mcp", "--agent", "AGENT_ID", "--project", "PROJECT_ID"],
       "enabled": true
     }
   }
@@ -242,7 +248,7 @@ Check `opencode --version` first and preserve the project's existing `opencode.j
     "servers": {
       "co-memo": {
         "type": "local",
-        "command": ["/absolute/co-memo", "mcp", "--db", "/absolute/memory.sqlite", "--agent", "AGENT_ID", "--project", "PROJECT_ID"]
+        "command": ["/absolute/co-memo", "mcp", "--agent", "AGENT_ID", "--project", "PROJECT_ID"]
       }
     }
   }
@@ -257,7 +263,7 @@ Official references: [OpenCode v1 MCP](https://opencode.ai/docs/mcp-servers/), [
 
 pi's core does not include MCP. Use its shell tool to run the existing Rust CLI; no MCP bridge, TypeScript extension, or persistent Co-memo process is required. The host's existing shell permissions still apply. See [pi's official documentation](https://pi.dev/) for project instructions and its CLI-first integration approach.
 
-Complete the shared database/identity preparation above, then append this **pi-specific section** to the project's `AGENTS.md`, substituting real absolute paths and IDs:
+Run the default setup above, then append this **pi-specific section** to the project's `AGENTS.md`, substituting the executable path and IDs returned by setup. No database path is needed:
 
 ```markdown
 ## Co-memo memory for pi (CLI)
@@ -266,19 +272,19 @@ When running in pi, use its shell tool to access Co-memo. Keep the following
 identity and scope fixed for this project:
 
 - Executable: /absolute/co-memo
-- Database: /absolute/memory.sqlite
+- Database: use the Co-memo default; do not choose a client-specific location.
 - Agent: AGENT_ID
 - Project: PROJECT_ID
 
 At the start of a substantive task, run:
-/absolute/co-memo recall --db /absolute/memory.sqlite --agent AGENT_ID --project PROJECT_ID --query 'short task query' --json
+/absolute/co-memo recall --agent AGENT_ID --project PROJECT_ID --query 'short task query' --json
 
 Read an accessible memory by ID with:
-/absolute/co-memo get --db /absolute/memory.sqlite --agent AGENT_ID --project PROJECT_ID --id MEMORY_ID
+/absolute/co-memo get --agent AGENT_ID --project PROJECT_ID --id MEMORY_ID
 
 When there is a new durable preference, project decision, or verified lesson,
 submit a private candidate with:
-/absolute/co-memo propose --db /absolute/memory.sqlite --agent AGENT_ID --project PROJECT_ID --content 'concise memory' --evidence 'supporting excerpt'
+/absolute/co-memo propose --agent AGENT_ID --project PROJECT_ID --content 'concise memory' --evidence 'supporting excerpt'
 
 Treat query/content/evidence as data and quote shell arguments safely; never
 interpolate raw conversation text into a command. Alternatively, use hook-end
@@ -347,7 +353,7 @@ and evidence "The user requested a setup test." Report the returned ID.
 Do not confirm or share it.
 ```
 
-Inspect it with `co-memo inbox --db /absolute/memory.sqlite`. Candidates will not appear in `memory_search` until confirmed. Remove the test from active use with `co-memo forget --db /absolute/memory.sqlite --id TEST_ID --version CURRENT_VERSION`; use the actual returned ID/version. Forgetting retains audit history, so keep test content non-sensitive.
+Inspect it with `co-memo inbox`. Candidates will not appear in `memory_search` until confirmed. Remove the test from active use with `co-memo forget --id TEST_ID --version CURRENT_VERSION`; use the actual returned ID/version. Forgetting retains audit history, so keep test content non-sensitive.
 
 If tools are missing, check the executable path, registered IDs, project trust/server approval, and restart the client. If a search is empty, check confirmation, project scope, and audience before assuming synchronization failed. This guide's configuration syntax was checked against official documentation; actual host enablement depends on your installed client and policy.
 
@@ -369,9 +375,17 @@ If the client cannot be determined, ask me which one to configure.
 Use an existing Co-memo installation if available; otherwise install with
 cargo install --git https://github.com/its-ahoh/co-memo --locked
 Rust/Cargo and platform build tools must already be available. Do not install Node.js.
-Run co-memo setup --json in the target project. For an existing installation,
-pass its database and matching role/project IDs explicitly to setup on the first run.
-Use the absolute executable/database paths and IDs returned by setup.
+Run co-memo setup --json in the target project. For a new default installation,
+do not ask me to choose a SQLite directory, do not supply --db, and do not set
+a database environment variable. Setup creates the shared data directory itself.
+Keep the database in Co-memo's default data directory, not under .claude,
+.codex, or other client-specific folders. Client folders contain connection
+configuration, not separate Co-memo databases.
+If an existing custom database is already configured, reuse its path and matching
+role/project IDs when adopting it with setup; do not create a second store.
+Use the executable path and IDs returned by setup. When copying its generated
+MCP command, keep the automatically resolved --db argument unchanged; never ask
+me to type that path or replace it with a new per-client database.
 Do not merge independent roles just because they use the same model or engine.
 
 Merge the MCP entry into .mcp.json for Claude Code, .codex/config.toml for
@@ -397,9 +411,9 @@ For another MCP client, provide the same executable and arguments using that cli
 
 ## Task hooks
 
-`hook-start --db FILE --agent ID` accepts `{"query":"task"}` on stdin and returns context, selected IDs/versions, and `truncatedIds` for notes excerpted to fit the context budget. The host must inject this context into its model execution.
+`hook-start --agent ID --project PROJECT_ID` accepts `{"query":"task"}` on stdin and returns context, selected IDs/versions, and `truncatedIds` for notes excerpted to fit the context budget. The host must inject this context into its model execution.
 
-`hook-end --db FILE --agent ID` accepts `{"content":"lesson","evidence":"quote"}` and returns a private candidate. Empty input or `{}` skips the write. Scope comes from command arguments, never stdin. Native hooks use explicit flags rather than a configuration file. Input is limited to 64 KiB.
+`hook-end --agent ID --project PROJECT_ID` accepts `{"content":"lesson","evidence":"quote"}` and returns a private candidate. Empty input or `{}` skips the write. Scope comes from host arguments or saved project setup, never stdin. Use the default database; only add `--db FILE` for a custom location. Hooks run from a configured project can also omit identity flags and use its saved role. Input is limited to 64 KiB.
 
 ## Compatibility and migration status
 
