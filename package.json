@@ -1,0 +1,44 @@
+{
+  "name": "co-memo",
+  "version": "0.4.0",
+  "private": true,
+  "description": "Local shared memory for coding agents",
+  "license": "UNLICENSED",
+  "type": "module",
+  "engines": {
+    "node": ">=24.12.0"
+  },
+  "packageManager": "pnpm@11.21.0",
+  "bin": {
+    "co-memo": "dist/cli.js"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "NOTICE.md",
+    "LICENSES",
+    "docs",
+    "skills"
+  ],
+  "scripts": {
+    "build": "node scripts/clean.mjs && tsc -p tsconfig.json && node scripts/prepare-bin.mjs",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "pnpm build && node --test test/*.test.mjs",
+    "check": "pnpm format:check && pnpm typecheck && pnpm test",
+    "prepack": "pnpm build",
+    "format": "prettier --write src test scripts package.json tsconfig.json .prettierrc.json README.md CONTRIBUTING.md NOTICE.md docs/*.md skills/**/*.md .github/workflows/ci.yml",
+    "format:check": "prettier --check src test scripts package.json tsconfig.json .prettierrc.json README.md CONTRIBUTING.md NOTICE.md docs/*.md skills/**/*.md .github/workflows/ci.yml"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.30.0",
+    "commander": "^15.0.0",
+    "jsonc-parser": "^3.3.1",
+    "smol-toml": "^1.8.0",
+    "zod": "^4.6.5"
+  },
+  "devDependencies": {
+    "@types/node": "^24.13.6",
+    "prettier": "^3.9.8",
+    "typescript": "^7.0.2"
+  }
+}

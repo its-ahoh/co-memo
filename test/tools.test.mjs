@@ -1,0 +1,403 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { spawnSync } from 'node:child_process';
+import {
+  mkdtempSync,
+  mkdirSync,
+  realpathSync,
+  readFileSync,
+  writeFileSync,
+  rmSync,
+  existsSync,
+} from 'node:fs';
+import { join, resolve } from 'node:path';
+import { tmpdir } from 'node:os';
+import { Client } from '@modelcontextprotocol/sdk/client/index.js';
+import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
+import { parse as parseToml } from 'smol-toml';
+import { parse as parseJsonc } from 'jsonc-parser';
+import { Store } from '../dist/store.js';
+
+const cli = resolve('dist/cli.js');
+const read = (path) => readFileSync(path, 'utf8');
+function fixture(t) {
+  const root = realpathSync(mkdtempSync(join(tmpdir(), 'co-memo-tools-')));
+  const project = join(root, "project 'quoted' $literal");
+  mkdirSync(project);
+  const home = join(root, 'home');
+  const argv = ['--home', home, '--project', project];
+  const raw = (...args) =>
+    spawnSync(process.execPath, [cli, ...argv, ...args], {
+      encoding: 'utf8',
+      cwd: root,
+      timeout: 20000,
+    });
+  const run = (...args) => {
+    const r = raw(...args);
+    assert.equal(r.status, 0, r.stderr || r.stdout);
+    return r.stdout.trim() ? JSON.parse(r.stdout) : null;
+  };
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  return { root, project, home, argv, raw, run };
+}
+async function client(t, f, command = process.execPath, args = [cli, ...f.argv, 'serve']) {
+  const transport = new StdioClientTransport({ command, args, cwd: f.root, stderr: 'pipe' });
+  const c = new Client({ name: 'co-memo-test', version: '1' });
+  await c.connect(transport);
+  t.after(() => c.close());
+  const raw = (name, args = {}) => c.callTool({ name, arguments: args });
+  const call = async (name, args = {}) => {
+    const result = await raw(name, args);
+    assert.notEqual(result.isError, true, JSON.stringify(result));
+    return JSON.parse(result.content[0].text);
+  };
+  return { c, call, raw };
+}
+
+test('MCP stdio initializes, discovers tools, saves/updates/forgets, rejects stale and cross-project writes', async (t) => {
+  const f = fixture(t);
+  f.run('setup', 'codex', '--tools-only');
+  const config = parseToml(read(join(f.project, '.codex/config.toml'))).mcp_servers['co-memo'];
+  const { c, call, raw } = await client(t, f, config.command, config.args);
+  const names = (await c.listTools()).tools.map((t) => t.name);
+  assert.ok(names.includes('memory_settings_set'));
+  const note = (await call('memory_remember', { content: '中文 preference', intent: 'explicit' }))
+    .memory;
+  assert.match((await call('memory_context')).context, /中文 preference/);
+  assert.equal((await call('memory_recall', { query: '中文' })).memories[0].id, note.id);
+  const updated = await call('memory_update', {
+    id: note.id,
+    version: 1,
+    content: 'Changed',
+    intent: 'explicit',
+  });
+  assert.equal(updated.memory.version, 2);
+  assert.equal(
+    (await raw('memory_forget', { id: note.id, version: 1, intent: 'explicit' })).isError,
+    true,
+  );
+  assert.equal((await raw('memory_remember', { content: 'missing intent' })).isError, true);
+  const other = join(f.root, 'other');
+  mkdirSync(other);
+  const store = new Store(f.home);
+  let foreign;
+  try {
+    store.lock(() => {
+      const project = store.project(other, true);
+      foreign = store.add('other project', 'project', project.id, 'test').memory;
+    });
+  } finally {
+    store.close();
+  }
+  assert.equal((await raw('memory_get', { id: foreign.id })).isError, true);
+  assert.equal(
+    (
+      await raw('memory_update', {
+        id: foreign.id,
+        version: 1,
+        content: 'attack',
+        intent: 'explicit',
+      })
+    ).isError,
+    true,
+  );
+  await call('memory_forget', { id: note.id, version: 2, intent: 'explicit' });
+  assert.equal((await call('memory_recall')).memories.length, 0);
+  const duplicate = await call('memory_remember', { content: 'Changed', intent: 'explicit' });
+  assert.equal(duplicate.memory.deleted, true);
+  assert.match(duplicate.notice, /deleted/);
+  assert.equal((await call('memory_get', { id: note.id, history: true })).history.length, 3);
+});
+
+test('Settings enforce intent, defaults and user restrictions through tools and CLI', async (t) => {
+  const f = fixture(t);
+  const { call, raw } = await client(t, f);
+  const initial = await call('memory_settings_get');
+  assert.equal(initial.effective.defaultScope, 'project');
+  const configured = await call('memory_settings_set', {
+    scope: 'user',
+    patch: { saveMode: 'explicit', defaultScope: 'user' },
+    userRequested: true,
+  });
+  assert.equal(configured.effective.saveMode, 'explicit');
+  assert.equal(
+    (await raw('memory_settings_set', { scope: 'user', patch: { saveMode: 'auto' } })).isError,
+    true,
+  );
+  assert.equal(
+    (
+      await raw('memory_settings_set', {
+        scope: 'user',
+        patch: { unknown: 1 },
+        userRequested: true,
+      })
+    ).isError,
+    true,
+  );
+  await call('memory_settings_set', {
+    scope: 'project',
+    patch: { saveMode: 'auto' },
+    userRequested: true,
+  });
+  assert.equal((await call('memory_settings_get')).effective.saveMode, 'explicit');
+  assert.equal(
+    (await raw('memory_remember', { content: 'inferred', intent: 'automatic' })).isError,
+    true,
+  );
+  assert.equal(f.raw('add', '--content', 'inferred', '--intent', 'automatic').status, 1);
+  const saved = await call('memory_remember', { content: 'requested', intent: 'explicit' });
+  assert.equal(saved.memory.scope, 'user');
+  assert.equal(f.run('add', '--content', 'CLI default').memory.scope, 'user');
+  assert.equal(
+    (
+      await raw('memory_update', {
+        id: saved.memory.id,
+        version: 1,
+        content: 'automatic edit',
+        intent: 'automatic',
+      })
+    ).isError,
+    true,
+  );
+  assert.equal(
+    (await raw('memory_forget', { id: saved.memory.id, version: 1, intent: 'automatic' })).isError,
+    true,
+  );
+  f.run('settings', 'set', '--scope', 'user', '--reset');
+  assert.equal((await call('memory_settings_get')).effective.saveMode, 'auto');
+});
+
+test('Explicit-only mode preserves rejected Markdown edits without importing or overwriting them', (t) => {
+  const f = fixture(t);
+  f.run('connect', 'pi');
+  f.run('connect', 'codex');
+  f.run('add', '--content', 'original');
+  f.run('settings', 'set', '--save-mode', 'explicit');
+  const path = join(f.project, '.co-memo/pi.md');
+  const edited = read(path).replace('original', 'unapproved');
+  writeFileSync(path, edited);
+  const result = f.raw('sync');
+  assert.equal(result.status, 2);
+  assert.match(result.stdout, /Explicit-only/);
+  assert.equal(read(path), edited);
+  assert.match(read(join(f.project, '.co-memo/codex.md')), /original/);
+  f.run('settings', 'set', '--save-mode', 'auto');
+  f.run('sync');
+  assert.equal(f.run('list')[0].content, 'unapproved');
+});
+
+test('Pause suppresses context, tools and syncing while keeping settings available and files intact', async (t) => {
+  const f = fixture(t);
+  f.run('connect', 'pi');
+  const { call, raw } = await client(t, f);
+  const note = (await call('memory_remember', { content: 'secret preference', intent: 'explicit' }))
+    .memory;
+  await call('memory_settings_set', {
+    scope: 'project',
+    patch: { paused: true },
+    userRequested: true,
+  });
+  assert.doesNotMatch((await call('memory_context')).context, /secret preference/);
+  assert.equal((await raw('memory_get', { id: note.id })).isError, true);
+  assert.equal((await raw('memory_recall')).isError, true);
+  assert.equal(
+    (await raw('memory_remember', { content: 'new', scope: 'user', intent: 'explicit' })).isError,
+    true,
+  );
+  assert.equal(f.raw('add', '--scope', 'user', '--content', 'new').status, 1);
+  const path = join(f.project, '.co-memo/pi.md');
+  const edited = read(path).replace('secret preference', 'pending edit');
+  writeFileSync(path, edited);
+  f.run('sync');
+  assert.equal(read(path), edited);
+  await call('memory_settings_set', {
+    scope: 'project',
+    patch: { paused: false },
+    userRequested: true,
+  });
+  assert.match((await call('memory_context')).context, /pending edit/);
+  f.run('settings', 'set', '--scope', 'user', '--paused', 'true');
+  assert.equal((await call('memory_settings_get')).effective.paused, true);
+});
+
+for (const agent of ['codex', 'claude', 'opencode', 'pi']) {
+  test(`Setup ${agent} preserves unrelated config, installs skill and is idempotent`, (t) => {
+    const f = fixture(t);
+    writeFileSync(join(f.project, 'AGENTS.md'), '# Existing rules\n');
+    if (agent === 'codex') {
+      mkdirSync(join(f.project, '.codex'));
+      writeFileSync(
+        join(f.project, '.codex/config.toml'),
+        '# Keep comment\nmodel = "existing"\n[mcp_servers.other]\ncommand = "other"\n',
+      );
+    } else if (agent === 'opencode') {
+      writeFileSync(
+        join(f.project, 'opencode.jsonc'),
+        '{\n// Keep comment\n"theme":"mine", "mcp": {"other":{"type":"local","command":["other"]}},\n}\n',
+      );
+    } else if (agent === 'claude') {
+      writeFileSync(join(f.project, '.mcp.json'), '{"mcpServers":{"other":{"command":"other"}}}\n');
+    }
+    const first = f.run('setup', agent);
+    const before = first.files.map(read);
+    f.run('setup', agent);
+    assert.deepEqual(first.files.map(read), before);
+    assert.match(read(join(f.project, 'AGENTS.md')), /^# Existing rules/);
+    assert.ok(first.files.some((path) => path.endsWith('/skills/co-memo/SKILL.md')));
+    if (agent === 'codex') {
+      const text = read(join(f.project, '.codex/config.toml'));
+      assert.match(text, /Keep comment/);
+      const conf = parseToml(text);
+      assert.equal(conf.model, 'existing');
+      assert.equal(conf.mcp_servers.other.command, 'other');
+    } else if (agent === 'opencode') {
+      const text = read(join(f.project, 'opencode.jsonc'));
+      assert.match(text, /Keep comment/);
+      assert.equal(parseJsonc(text).theme, 'mine');
+      assert.deepEqual(parseJsonc(text).mcp.other.command, ['other']);
+    }
+    const toolsOnly = f.run('setup', agent, '--tools-only');
+    assert.equal(toolsOnly.mode, 'tools-only');
+    const instructions = read(
+      join(f.project, agent === 'claude' ? 'CLAUDE.local.md' : 'AGENTS.md'),
+    );
+    assert.match(instructions, /Automatic hooks are disabled/);
+    if (agent === 'codex' || agent === 'claude') {
+      const config = JSON.parse(
+        read(
+          join(f.project, agent === 'codex' ? '.codex/hooks.json' : '.claude/settings.local.json'),
+        ),
+      );
+      assert.deepEqual(config.hooks.SessionStart, []);
+    } else {
+      const plugin = read(
+        join(
+          f.project,
+          agent === 'pi' ? '.pi/extensions/co-memo.ts' : '.opencode/plugins/co-memo.ts',
+        ),
+      );
+      assert.doesNotMatch(plugin, /execFile/);
+    }
+  });
+}
+
+test('Setup refuses unmanaged MCP entries and malformed configs before any registration or file changes', (t) => {
+  for (const [agent, filename, content] of [
+    ['claude', '.mcp.json', '{bad'],
+    ['claude', '.mcp.json', '{"mcpServers":{"co-memo":{"command":"mine"}}}'],
+    ['codex', '.codex/config.toml', '[mcp_servers.co-memo]\ncommand = "mine"\n'],
+    ['opencode', 'opencode.jsonc', '{bad'],
+  ]) {
+    const f = fixture(t);
+    if (agent === 'codex') mkdirSync(join(f.project, '.codex'));
+    const path = join(f.project, filename);
+    writeFileSync(path, content);
+    assert.equal(f.raw('setup', agent).status, 1);
+    assert.equal(read(path), content);
+    assert.equal(existsSync(join(f.project, 'AGENTS.md')), false);
+    const store = new Store(f.home);
+    try {
+      assert.deepEqual(store.replicas(), []);
+    } finally {
+      store.close();
+    }
+  }
+});
+
+test('Tools-only fresh setup writes no lifecycle hooks and serves without projections when configured manually', async (t) => {
+  const f = fixture(t);
+  f.run('setup', 'codex', '--tools-only');
+  assert.equal(existsSync(join(f.project, '.codex/hooks.json')), false);
+  const other = fixture(t);
+  const { call } = await client(t, other);
+  await call('memory_remember', { content: 'tools without hooks', intent: 'explicit' });
+  assert.match((await call('memory_context')).context, /tools without hooks/);
+  assert.equal(existsSync(join(other.project, '.co-memo')), false);
+});
+
+test('MCP reports never expose another project conflict or paused memory content', async (t) => {
+  const f = fixture(t);
+  const { call, raw } = await client(t, f);
+  const store = new Store(f.home);
+  let own;
+  try {
+    store.lock(() => {
+      const other = join(f.root, 'private');
+      mkdirSync(other);
+      const p = store.project(other, true);
+      const note = store.add('private conflict content', 'project', p.id, 'test').memory;
+      store.conflict(note, []);
+      own = store.add(
+        'own conflict content',
+        'project',
+        store.project(f.project).id,
+        'test',
+      ).memory;
+      store.conflict(own, []);
+    });
+  } finally {
+    store.close();
+  }
+  const context = await call('memory_context');
+  assert.doesNotMatch(JSON.stringify(context), /private conflict content/);
+  assert.equal((await call('memory_conflicts')).length, 1);
+  const note = await call('memory_remember', { content: 'new note', intent: 'explicit' });
+  assert.doesNotMatch(JSON.stringify(note), /private conflict content/);
+  await call('memory_settings_set', {
+    scope: 'project',
+    patch: { paused: true },
+    userRequested: true,
+  });
+  assert.doesNotMatch(
+    JSON.stringify(await call('memory_context')),
+    /own conflict content|private conflict content/,
+  );
+  assert.equal((await raw('memory_conflicts')).isError, true);
+});
+
+test('OpenCode V2 setup uses mcp.servers, launches MCP and preserves API without a plugin', async (t) => {
+  const f = fixture(t);
+  f.run('setup', 'opencode', '--tools-only', '--opencode-api', 'v2');
+  const path = join(f.project, 'opencode.json');
+  const text = read(path);
+  const config = parseJsonc(text);
+  assert.equal(config.mcp['co-memo'], undefined);
+  const server = config.mcp.servers['co-memo'];
+  assert.equal(server.enabled, undefined);
+  assert.equal(server.type, 'local');
+  const { call } = await client(t, f, server.command[0], server.command.slice(1));
+  assert.equal((await call('memory_settings_get')).effective.paused, false);
+  f.run('setup', 'opencode', '--tools-only');
+  assert.equal(read(path), text);
+  f.run('setup', 'opencode', '--tools-only', '--opencode-api', 'v1');
+  assert.ok(parseJsonc(read(path)).mcp['co-memo']);
+  assert.equal(parseJsonc(read(path)).mcp.servers, undefined);
+  f.run('setup', 'opencode', '--tools-only', '--opencode-api', 'v2');
+  assert.ok(parseJsonc(read(path)).mcp.servers['co-memo']);
+});
+
+test('Schema upgrade preserves existing notes and revisions and rejects future databases', (t) => {
+  const f = fixture(t);
+  let store = new Store(f.home);
+  let note;
+  try {
+    store.lock(() => {
+      note = store.add('existing user note', 'user', null, 'test').memory;
+      store.change(note.id, 1, 'updated user note', 'test');
+      store.db.exec('DROP TABLE settings; PRAGMA user_version=1;');
+    });
+  } finally {
+    store.close();
+  }
+  store = new Store(f.home);
+  try {
+    assert.equal(store.get(note.id).content, 'updated user note');
+    assert.equal(store.history(note.id).length, 2);
+    assert.deepEqual(store.settings(null), {});
+    assert.equal(store.db.prepare('PRAGMA user_version').get().user_version, 2);
+    store.db.exec('PRAGMA user_version=99;');
+  } finally {
+    store.close();
+  }
+  assert.throws(() => new Store(f.home), /newer Co-memo version/);
+});

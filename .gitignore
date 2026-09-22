@@ -1,0 +1,12 @@
+node_modules/
+dist/
+.data/
+output/
+*.sqlite*
+.env*
+.DS_Store
+
+/target/
+.pnpm-store/
+*.tgz
+/.co-memo/
