@@ -20,7 +20,7 @@ Requires **Node.js 24.12+**. Automatic agent setup is supported on macOS and Lin
 pnpm install --frozen-lockfile
 pnpm check
 pnpm pack
-npm install -g ./co-memo-0.4.0.tgz
+npm install -g ./co-memo-0.5.0.tgz
 ```
 
 pnpm is a development dependency; users of the packed npm package need only Node.js and npm. The package is **not published to npm**; registry publication remains disabled while the license for new work is undecided.
@@ -142,4 +142,4 @@ See [agent setup](docs/agent-configuration.md), [CLI reference](docs/reference.m
 
 MCP tests use a real SDK client/server subprocess and cover settings, project isolation and config preservation. Tests also cover the full Pi → Claude → Pi add/edit/delete loop, user/project scoping, conflicts, tombstones, crash recovery, parallel CLI writers, config preservation, generated hook execution, generated Pi extension callbacks, Codex hook execution, and both OpenCode plugin APIs, including four-agent edit/delete propagation. These host adapters are tested with simulated lifecycle events; a live installed-agent smoke test is still required for your host version and trust settings.
 
-Version 0.4 upgrades the existing SQLite schema to add settings. Upgrade connected installations together; 0.3 clients refuse the new schema. Existing TypeScript memory data is retained.
+Version 0.5 upgrades the SQLite schema to version 3, adding full-text indexing and idempotent candidate submissions. Existing notes and history are retained; legacy notes receive default metadata when read. Older clients refuse the new schema. Upgrade connected installations together and rerun setup. See [retrieval and extraction](docs/retrieval-and-extraction.md).

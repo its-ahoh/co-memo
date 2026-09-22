@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
@@ -394,10 +395,231 @@ test('Schema upgrade preserves existing notes and revisions and rejects future d
     assert.equal(store.get(note.id).content, 'updated user note');
     assert.equal(store.history(note.id).length, 2);
     assert.deepEqual(store.settings(null), {});
-    assert.equal(store.db.prepare('PRAGMA user_version').get().user_version, 2);
+    assert.equal(store.db.prepare('PRAGMA user_version').get().user_version, 3);
     store.db.exec('PRAGMA user_version=99;');
   } finally {
     store.close();
   }
   assert.throws(() => new Store(f.home), /newer Co-memo version/);
+});
+
+test('task context ranks Chinese and technical terms, excludes unrelated notes, and verifies receipts', async (t) => {
+  const f = fixture(t);
+  f.run('setup', 'codex', '--tools-only');
+  const { call, raw } = await client(t, f);
+  const save = (content, scope = 'project') =>
+    call('memory_remember', { content, scope, intent: 'explicit' });
+  const chinese = (await save('数据库迁移必须保留历史记录')).memory;
+  const technical = (await save('SQLite migrations use transactions')).memory;
+  await save('Use violet buttons on the landing page');
+  await save('Prefer concise answers', 'user');
+  const chineseContext = (await call('memory_context', { query: '数据库迁移' })).context;
+  assert.ok(chineseContext.includes(chinese.content));
+  assert.ok(!chineseContext.includes('violet'));
+  const context = (await call('memory_context', { query: 'SQLite migrations' })).context;
+  assert.ok(context.includes(technical.content));
+  assert.ok(!context.includes('Prefer concise answers')); // Unpinned preferences must match the task.
+  assert.ok(!context.includes('violet'));
+  const receipt = { id: technical.id, version: technical.version, deleted: false };
+  const verified = await call('memory_checkpoint', {
+    reason: 'task_completed',
+    outcome: 'saved',
+    receipts: [receipt],
+  });
+  assert.equal(verified.verified, true);
+  assert.equal(
+    (await raw('memory_checkpoint', { reason: 'task_completed', outcome: 'saved', receipts: [] }))
+      .isError,
+    true,
+  );
+  await call('memory_update', {
+    id: technical.id,
+    version: technical.version,
+    content: 'SQLite requires transactional migrations',
+    intent: 'explicit',
+  });
+  assert.equal(
+    (
+      await raw('memory_checkpoint', {
+        reason: 'task_completed',
+        outcome: 'saved',
+        receipts: [receipt],
+      })
+    ).isError,
+    true,
+  );
+  assert.equal(
+    (await call('memory_checkpoint', { reason: 'user_correction', outcome: 'nothing_to_save' }))
+      .verified,
+    false,
+  );
+  const forgotten = (
+    await call('memory_forget', { id: chinese.id, version: chinese.version, intent: 'explicit' })
+  ).memory;
+  assert.equal(
+    (
+      await call('memory_checkpoint', {
+        reason: 'user_correction',
+        outcome: 'saved',
+        receipts: [{ id: forgotten.id, version: forgotten.version, deleted: true }],
+      })
+    ).verified,
+    true,
+  );
+  assert.equal(
+    (
+      await raw('memory_checkpoint', {
+        reason: 'user_correction',
+        outcome: 'saved',
+        receipts: [{ id: forgotten.id, version: forgotten.version, deleted: false }],
+      })
+    ).isError,
+    true,
+  );
+  assert.ok(
+    !(await call('memory_context', { query: '数据库迁移' })).context.includes(chinese.content),
+  );
+  assert.equal(
+    f.run('checkpoint', '--reason', 'task_completed', '--outcome', 'nothing_to_save').verified,
+    false,
+  );
+  const foreignRoot = join(f.root, 'foreign');
+  mkdirSync(foreignRoot);
+  const store = new Store(f.home);
+  let foreign;
+  store.lock(() => {
+    const project = store.project(foreignRoot, true);
+    foreign = store.add('foreign secret', 'project', project.id, 'test');
+  });
+  store.close();
+  assert.equal(
+    (
+      await raw('memory_checkpoint', {
+        reason: 'task_completed',
+        outcome: 'saved',
+        receipts: [{ id: foreign.memory.id, version: 1, deleted: false }],
+      })
+    ).isError,
+    true,
+  );
+  await call('memory_settings_set', {
+    scope: 'project',
+    patch: { paused: true },
+    userRequested: true,
+  });
+  const paused = await call('memory_checkpoint', {
+    reason: 'task_completed',
+    outcome: 'saved',
+    receipts: [receipt],
+  });
+  assert.equal(paused.status, 'paused');
+  assert.equal(paused.verified, false);
+});
+
+test('context budget includes guidance and bridge reads task query from host stdin', async (t) => {
+  const f = fixture(t);
+  f.run('setup', 'codex');
+  f.run('add', '--content', 'SQLite migrations require transactions');
+  f.run('add', '--content', 'Unrelated violet buttons');
+  const { context } = await import('../dist/sync.js');
+  const store = new Store(f.home);
+  store.lock(() => {
+    const project = store.project(f.project);
+    for (const budget of [0, 25, 800, 16000])
+      assert.ok(context(store, project.id, budget, 'SQLite').length <= budget);
+  });
+  store.close();
+  const result = spawnSync(
+    process.execPath,
+    [cli, ...f.argv, 'bridge', '--agent', 'codex', '--event', 'UserPromptSubmit', '--stdin'],
+    {
+      encoding: 'utf8',
+      input: JSON.stringify({ prompt: 'SQLite migrations', irrelevantHostField: true }),
+      timeout: 20000,
+    },
+  );
+  assert.equal(result.status, 0, result.stderr);
+  const injected = JSON.parse(result.stdout).hookSpecificOutput.additionalContext;
+  assert.ok(injected.includes('SQLite migrations require transactions'));
+  assert.ok(!injected.includes('Unrelated violet'));
+  const malformed = spawnSync(
+    process.execPath,
+    [cli, ...f.argv, 'bridge', '--agent', 'codex', '--event', 'UserPromptSubmit', '--stdin'],
+    { encoding: 'utf8', input: '{bad', timeout: 20000 },
+  );
+  assert.equal(malformed.status, 1);
+});
+
+test('MCP and CLI submit evidence-backed candidates and resolve them through the public interfaces', async (t) => {
+  const f = fixture(t);
+  f.run('setup', 'codex', '--tools-only');
+  const { c, call, raw } = await client(t, f);
+  assert.ok((await c.listTools()).tools.some((tool) => tool.name === 'memory_submit'));
+  const source = {
+    agent: 'codex',
+    sessionId: 'session-1',
+    messageId: 'message-1',
+    excerpt: 'Remember: use pnpm.',
+  };
+  const input = {
+    requestId: randomUUID(),
+    intent: 'explicit',
+    candidates: [{ action: 'add', kind: 'decision', content: 'Use pnpm dependencies', source }],
+  };
+  const saved = await call('memory_submit', input);
+  assert.equal(saved.results[0].verified, true);
+  const note = saved.results[0].receipt;
+  const file = join(f.root, 'candidate.json');
+  writeFileSync(file, JSON.stringify(input));
+  const retry = f.run('submit', '--file', file);
+  assert.equal(retry.replayed, true);
+  assert.equal(retry.results[0].receipt.id, note.id);
+  const retrieved = (await call('memory_recall', { query: 'pnpm dependencies' })).memories;
+  assert.deepEqual(
+    retrieved.map((m) => m.id),
+    f.run('list', '--query', 'pnpm dependencies').map((m) => m.id),
+  );
+  assert.deepEqual(retrieved[0].metadata.source, source);
+  const conflict = await call('memory_submit', {
+    requestId: randomUUID(),
+    intent: 'automatic',
+    candidates: [
+      {
+        action: 'conflict',
+        id: note.id,
+        version: note.version,
+        kind: 'decision',
+        content: 'Use npm dependencies',
+        source: { ...source, messageId: 'message-2', excerpt: 'Maybe use npm instead?' },
+      },
+    ],
+  });
+  assert.equal(conflict.results[0].verified, false);
+  assert.equal((await call('memory_recall', { query: 'dependencies' })).memories.length, 0);
+  const pending = (await call('memory_conflicts'))[0];
+  await call('memory_resolve', {
+    id: pending.id,
+    take: pending.candidates[0].id,
+    userRequested: true,
+  });
+  const resolved = await call('memory_get', { id: note.id, history: true });
+  assert.equal(resolved.memory.content, 'Use npm dependencies');
+  assert.equal(resolved.memory.metadata.basis, 'user_resolution');
+  assert.equal(resolved.history.length, 2);
+  assert.equal(
+    (
+      await raw('memory_submit', {
+        requestId: randomUUID(),
+        intent: 'explicit',
+        candidates: [
+          { action: 'add', content: 'bad', kind: 'decision', source: { agent: 'codex' } },
+        ],
+      })
+    ).isError,
+    true,
+  );
+  writeFileSync(file, JSON.stringify(input));
+  const stale = f.raw('submit', '--file', file);
+  assert.equal(stale.status, 2);
+  assert.equal(JSON.parse(stale.stdout).results[0].verified, false);
 });

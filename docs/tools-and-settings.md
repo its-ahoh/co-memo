@@ -7,7 +7,7 @@ From a Co-memo checkout, with Node.js 24.12+ and pnpm:
 ```sh
 pnpm install --frozen-lockfile
 pnpm pack
-npm install -g ./co-memo-0.4.0.tgz
+npm install -g ./co-memo-0.5.0.tgz
 ```
 
 The package is not published to npm. Do not use `npx co-memo` or assume the registry package belongs to this project.
@@ -112,8 +112,20 @@ Writes go directly to the central store and then reconcile projections. A commit
 
 ## Upgrade and verification
 
-0.4 upgrades the existing database schema to version 2 to add settings; memory/history remain intact and the filename remains `shared-memory-v1.sqlite`. Older 0.3 clients refuse this schema; upgrade all connected CLI paths and rerun setup. The old Rust database still is not migrated.
+0.5 upgrades the existing database schema to version 3 to add full-text search and candidate submissions; memory/history remain intact and the filename remains `shared-memory-v1.sqlite`. Older clients refuse this schema; upgrade all connected CLI paths and rerun setup. The old Rust database still is not migrated.
 
 Tests use a real SDK client and stdio server subprocess, execute generated launch commands, and cover configuration preservation, intent enforcement, pause/resume, scope isolation and existing sync behavior. Host UI loading/trust and the model's actual tool choice still require live verification.
 
 Sources: [MCP tools](https://modelcontextprotocol.io/specification/draft/server/index), [Codex MCP](https://developers.openai.com/codex/mcp), [Claude MCP](https://code.claude.com/docs/en/mcp), [OpenCode MCP](https://opencode.ai/docs/mcp-servers/), [OpenCode V2 MCP](https://opencode.ai/v2/docs/mcp-servers).
+
+## Task selection and save checkpoints
+
+`memory_context({query: "SQLite migrations"})` or `co-memo context --query "SQLite migrations"` ranks matching notes locally. Ranking uses SQLite FTS5/BM25 with shared Chinese word and code-identifier tokenization; it is not embedding-based semantic search. Only deliberately pinned preferences are eligible for a small always-included budget, even without matching words. Other notes, including user preferences, must match the query. Query searches consider at most 100 matches. Without a query, recent notes are preferred. Conflicted and deleted notes are excluded. The complete context, including guidance, fits the 16,000-character budget. Full notes remain available through recall/get and list/show.
+
+Generated Claude/Codex prompt hooks consume the host's `prompt` field from JSON stdin; Pi uses `before_agent_start.prompt`. OpenCode's generated context hooks currently have no task query: use `memory_context` with `query` for task-specific selection. Prompts used for ranking are not persisted. Re-run `setup AGENT` after upgrading to refresh hooks, instructions and the skill.
+
+Before final replies and after durable corrections or decisions, the injected guidance asks the current agent to consider a memory update and verify its receipts. `memory_checkpoint` takes `reason` (`task_completed`, `user_correction`, `project_decision`), `outcome` (`saved`, `nothing_to_save`, `skipped`) and, for `saved`, `receipts` containing the exact `id`, `version`, and `deleted` returned by writes. CLI: `checkpoint --reason task_completed --outcome saved --receipts '[{"id":"UUID","version":1,"deleted":false}]'`.
+
+Checkpoints reconcile first, reject inaccessible, conflicted or stale receipts, and verify central storage only. Sync failures remain visible in the response. They cannot prove delivery into another agent's active context. Non-save outcomes are declarations; paused checkpoints return `verified: false`. Checkpoints do not mine transcripts, create memories, audit the agent's judgment or force another turn. A host or model can ignore a reminder.
+
+See [retrieval and extraction](retrieval-and-extraction.md) for `memory_submit`, provenance, conflict candidates and idempotent retries. Prefer this interface for agent-selected memories; it verifies writes without a second checkpoint call.

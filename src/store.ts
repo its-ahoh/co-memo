@@ -1,3 +1,4 @@
+import { searchTerms, recent } from './relevance.js';
 import { SettingsPatch, allowWrite } from './settings.js';
 import type { Intent } from './settings.js';
 import { DatabaseSync } from 'node:sqlite';
@@ -15,7 +16,17 @@ import { join, dirname, resolve } from 'node:path';
 import { homedir } from 'node:os';
 import { randomUUID } from 'node:crypto';
 import { z } from 'zod';
-import { Agent, Content, Memory, Snapshot, Pending, Conflict, ensure, hash } from './model.js';
+import {
+  Agent,
+  Content,
+  Memory,
+  Metadata,
+  Snapshot,
+  Pending,
+  Conflict,
+  ensure,
+  hash,
+} from './model.js';
 import type { Scope, Replica, Project, Proposal } from './model.js';
 import { safeParents, readText, absent } from './fs.js';
 
@@ -44,8 +55,9 @@ export class Store {
     this.mutex.exec('PRAGMA busy_timeout=5000;');
     this.lock(() => {
       const version = this.db.prepare('PRAGMA user_version').get();
-      ensure(Number(version?.user_version) <= 2, 'Database is from a newer Co-memo version');
-      this.db.exec(`
+      ensure(Number(version?.user_version) <= 3, 'Database is from a newer Co-memo version');
+      this.transaction(() => {
+        this.db.exec(`
         CREATE TABLE IF NOT EXISTS projects(id TEXT PRIMARY KEY,root TEXT NOT NULL UNIQUE);
         CREATE TABLE IF NOT EXISTS notes(id TEXT PRIMARY KEY,project_id TEXT,scope TEXT NOT NULL,content TEXT NOT NULL,fingerprint TEXT NOT NULL UNIQUE,version INTEGER NOT NULL,deleted INTEGER NOT NULL,payload TEXT NOT NULL);
         CREATE TABLE IF NOT EXISTS revisions(id TEXT NOT NULL,version INTEGER NOT NULL,payload TEXT NOT NULL,PRIMARY KEY(id,version));
@@ -53,8 +65,15 @@ export class Store {
         CREATE TABLE IF NOT EXISTS conflicts(id TEXT PRIMARY KEY,memory_id TEXT NOT NULL UNIQUE,payload TEXT NOT NULL);
         CREATE TABLE IF NOT EXISTS resolutions(id TEXT PRIMARY KEY,payload TEXT NOT NULL);
         CREATE TABLE IF NOT EXISTS settings(scope_key TEXT PRIMARY KEY,payload TEXT NOT NULL);
-        PRAGMA user_version=2;
+        CREATE VIRTUAL TABLE IF NOT EXISTS notes_fts USING fts5(id UNINDEXED, terms, tokenize='unicode61 remove_diacritics 2');
+        CREATE TABLE IF NOT EXISTS submissions(project_id TEXT NOT NULL,request_id TEXT NOT NULL,fingerprint TEXT NOT NULL,payload TEXT NOT NULL,PRIMARY KEY(project_id,request_id));
       `);
+        if (Number(version?.user_version) < 3) {
+          this.db.exec('DELETE FROM notes_fts');
+          for (const memory of this.rows(Memory, 'SELECT payload FROM notes')) this.index(memory);
+        }
+        this.db.exec('PRAGMA user_version=3;');
+      });
     });
     chmodSync(path, 0o600);
     chmodSync(join(this.home, 'sync-lock.sqlite'), 0o600);
@@ -183,6 +202,62 @@ export class Store {
       projectId,
     );
   }
+  /** Shared search path for context, MCP recall and CLI list. Filter before ranking. */
+  search(
+    projectId: string | null,
+    query?: string,
+    includeDeleted = false,
+    includeConflicts = false,
+  ): Memory[] {
+    if (!query?.trim()) {
+      const blocked = new Set(this.conflicts().map((c) => c.memoryId));
+      return recent(this.list(projectId, includeDeleted)).filter(
+        (m) => includeConflicts || !blocked.has(m.id),
+      );
+    }
+    const terms = [...new Set(searchTerms(query.slice(0, 16000)))].slice(0, 64);
+    if (!terms.length) return [];
+    const match = terms.map((term) => '"' + term.replaceAll('"', '""') + '"').join(' OR ');
+    return this.rows(
+      Memory,
+      `SELECT n.payload FROM notes_fts JOIN notes n ON notes_fts.rowid=n.rowid
+      WHERE notes_fts MATCH ? AND (n.scope='user' OR n.project_id=?)
+      ${includeDeleted ? '' : 'AND n.deleted=0'}
+      ${includeConflicts ? '' : 'AND NOT EXISTS (SELECT 1 FROM conflicts c WHERE c.memory_id=n.id)'}
+      ORDER BY bm25(notes_fts), n.rowid DESC LIMIT 100`,
+      match,
+      projectId,
+    );
+  }
+  private index(memory: Memory): void {
+    const row = this.db.prepare('SELECT rowid FROM notes WHERE id=?').get(memory.id);
+    ensure(row, 'Cannot index a missing note');
+    const rowid = row.rowid!;
+    this.db.prepare('DELETE FROM notes_fts WHERE rowid=?').run(rowid);
+    this.db
+      .prepare('INSERT INTO notes_fts(rowid,id,terms) VALUES (?,?,?)')
+      .run(
+        rowid,
+        memory.id,
+        searchTerms(memory.content + ' ' + (memory.metadata.module ?? '')).join(' '),
+      );
+  }
+  submission(
+    projectId: string,
+    requestId: string,
+  ): { fingerprint: string; result: unknown } | null {
+    const row = this.db
+      .prepare('SELECT fingerprint,payload FROM submissions WHERE project_id=? AND request_id=?')
+      .get(projectId, requestId);
+    return row
+      ? { fingerprint: String(row.fingerprint), result: JSON.parse(String(row.payload)) as unknown }
+      : null;
+  }
+  saveSubmission(projectId: string, requestId: string, fingerprint: string, result: unknown): void {
+    this.db
+      .prepare('INSERT INTO submissions VALUES (?,?,?,?)')
+      .run(projectId, requestId, fingerprint, JSON.stringify(result));
+  }
   get(id: string): Memory {
     const memory = this.rows(Memory, 'SELECT payload FROM notes WHERE id=?', id)[0];
     ensure(memory, 'Memory not found');
@@ -209,6 +284,7 @@ export class Store {
     this.db
       .prepare('INSERT INTO revisions VALUES (?,?,?)')
       .run(memory.id, memory.version, JSON.stringify(memory));
+    this.index(memory);
     return memory;
   }
   add(
@@ -217,6 +293,7 @@ export class Store {
     projectId: string | null,
     origin: string,
     intent: Intent = 'explicit',
+    metadata: Metadata = Metadata.parse({}),
   ): { memory: Memory; created: boolean } {
     allowWrite(this, projectId, intent);
     content = Content.parse(content);
@@ -234,6 +311,7 @@ export class Store {
       scope,
       projectId,
       content,
+      metadata: Metadata.parse(metadata),
       version: 1,
       deleted: false,
       origin,
@@ -248,16 +326,24 @@ export class Store {
     content: string | null,
     origin: string,
     intent: Intent = 'explicit',
+    metadata?: Metadata,
   ): Memory {
     const old = this.get(id);
     allowWrite(this, old.projectId, intent);
     ensure(old.version === version, 'Version changed; read the memory again');
     if (content !== null) Content.parse(content);
     ensure(!old.deleted || content === null, 'Deleted memory cannot be revived by a stale edit');
-    if ((content === null && old.deleted) || (!old.deleted && content === old.content)) return old;
+    if ((content === null && old.deleted) || (!metadata && !old.deleted && content === old.content))
+      return old;
     return this.write({
       ...old,
       content: content ?? old.content,
+      metadata: {
+        ...(metadata ?? old.metadata),
+        source: metadata?.source ?? null,
+        basis: metadata?.basis ?? null,
+        supersedes: { id: old.id, version: old.version },
+      },
       deleted: content === null,
       version: old.version + 1,
       origin,
@@ -270,13 +356,18 @@ export class Store {
   conflicts(): Conflict[] {
     return this.rows(Conflict, 'SELECT payload FROM conflicts ORDER BY rowid');
   }
-  conflict(memory: Memory, proposals: Proposal[]): Conflict {
+  conflict(
+    memory: Memory,
+    proposals: Proposal[],
+    candidates: Conflict['candidates'] = [],
+  ): Conflict {
     const conflict: Conflict = {
       id: randomUUID(),
       memoryId: memory.id,
       currentVersion: memory.version,
       currentContent: memory.deleted ? null : memory.content,
       proposals,
+      candidates,
       createdAt: Date.now(),
     };
     this.db
@@ -294,16 +385,32 @@ export class Store {
       'Memory changed since conflict; inspect it again',
     );
     const proposed = conflict.proposals.find((p) => p.replicaId === take);
+    const candidate = conflict.candidates.find((p) => p.id === take);
     ensure(
-      content !== undefined || take === 'current' || proposed,
-      'Choose current or a proposal replicaId',
+      content !== undefined || take === 'current' || proposed || candidate,
+      'Choose current, a replicaId or a candidate ID',
     );
-    const selected = content ?? (take === 'current' ? conflict.currentContent : proposed!.content);
+    const selected =
+      content ??
+      (take === 'current'
+        ? conflict.currentContent
+        : candidate
+          ? candidate.content
+          : proposed!.content);
     // Explicit resolution may restore a deletion, unlike automatic synchronization.
     const memory = this.write({
       ...current,
       content: selected === null ? current.content : Content.parse(selected),
       deleted: selected === null,
+      metadata: {
+        ...(candidate && content === undefined ? candidate.metadata : current.metadata),
+        source:
+          content === undefined
+            ? (candidate?.metadata.source ?? (take === 'current' ? current.metadata.source : null))
+            : null,
+        basis: 'user_resolution',
+        supersedes: { id: current.id, version: current.version },
+      },
       version: current.version + 1,
       origin: `resolve:${id}`,
       updatedAt: Date.now(),

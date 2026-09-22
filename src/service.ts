@@ -116,17 +116,52 @@ export function recall(store: Store, root: string, query?: string, deleted = fal
   const blocked = new Set(store.conflicts().map((c) => c.memoryId));
   return {
     memories: store
-      .list(id, deleted)
-      .filter((m) => !query || m.content.toLowerCase().includes(query.toLowerCase()))
+      .search(id, query, deleted)
       .map((m) => ({ ...m, conflicted: blocked.has(m.id) })),
     sync: scopedReport(store, root, report),
   };
 }
-export function sharedContext(store: Store, root: string) {
+export function sharedContext(store: Store, root: string, query?: string) {
   const report = sync(store);
   return {
-    context: context(store, store.project(root).id),
+    context: context(store, store.project(root).id, 16_000, query),
     settings: configuration(store, root).effective,
+    sync: scopedReport(store, root, report),
+  };
+}
+
+export const CheckpointInput = z.object({
+  reason: z.enum(['task_completed', 'user_correction', 'project_decision']),
+  outcome: z.enum(['saved', 'nothing_to_save', 'skipped']),
+  receipts: z
+    .array(z.object({ id: z.uuid(), version: Version, deleted: z.boolean() }))
+    .max(100)
+    .default([]),
+});
+export function checkpoint(store: Store, root: string, input: z.input<typeof CheckpointInput>) {
+  const args = CheckpointInput.parse(input);
+  ensure(
+    (args.outcome === 'saved') === args.receipts.length > 0,
+    'Saved requires receipts; other outcomes must not include receipts',
+  );
+  if (configuration(store, root).effective.paused) return { status: 'paused', verified: false };
+  const report = sync(store);
+  const conflicts = new Set(store.conflicts().map((c) => c.memoryId));
+  for (const receipt of args.receipts) {
+    const memory = accessible(store, root, receipt.id);
+    ensure(!conflicts.has(memory.id), 'Receipt has an unresolved conflict');
+    ensure(
+      memory.version === receipt.version && memory.deleted === receipt.deleted,
+      'Receipt does not match stored version/deletion state; reread the memory',
+    );
+  }
+  return {
+    status: args.outcome,
+    reason: args.reason,
+    verified: args.outcome === 'saved',
+    receipts: args.receipts,
+    notice:
+      'Verification covers the central store at this instant, not whether another agent loaded the note. Non-save outcomes are agent declarations.',
     sync: scopedReport(store, root, report),
   };
 }

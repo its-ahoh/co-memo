@@ -11,11 +11,38 @@ export const Content = z
   .refine((s) => !s.includes('<!-- co-memo:'), 'Reserved Co-memo marker in content');
 export const Scope = z.enum(['user', 'project']);
 export type Scope = z.infer<typeof Scope>;
+export const MemoryKind = z.enum(['note', 'preference', 'decision', 'constraint', 'lesson']);
+export const Evidence = z.strictObject({
+  agent: z.string().trim().min(1).max(100),
+  sessionId: z.string().trim().min(1).max(200),
+  messageId: z.string().trim().min(1).max(200),
+  excerpt: z.string().trim().min(1).max(2000),
+});
+export const Metadata = z.strictObject({
+  kind: MemoryKind.default('note'),
+  source: Evidence.nullable().default(null),
+  module: z.string().trim().min(1).max(300).nullable().default(null),
+  pinned: z.boolean().default(false),
+  basis: z.enum(['user_correction', 'verified_change', 'user_resolution']).nullable().default(null),
+  supersedes: z
+    .object({ id: z.uuid(), version: z.number().int().positive() })
+    .nullable()
+    .default(null),
+});
+export type Metadata = z.infer<typeof Metadata>;
 export const Memory = z.object({
   id: z.uuid(),
   scope: Scope,
   projectId: z.uuid().nullable(),
   content: Content,
+  metadata: Metadata.default({
+    kind: 'note',
+    source: null,
+    module: null,
+    pinned: false,
+    basis: null,
+    supersedes: null,
+  }),
   version: z.number().int().positive(),
   deleted: z.boolean(),
   origin: z.string(),
@@ -66,6 +93,7 @@ export const Conflict = z.object({
   currentVersion: z.number().int().positive(),
   currentContent: Content.nullable(),
   proposals: z.array(Proposal),
+  candidates: z.array(z.object({ id: z.uuid(), content: Content, metadata: Metadata })).default([]),
   createdAt: z.number(),
 });
 export type Conflict = z.infer<typeof Conflict>;

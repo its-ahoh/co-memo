@@ -1,3 +1,4 @@
+import { checkpointReminder } from './relevance.js';
 import { settings, allowWrite } from './settings.js';
 import { Store } from './store.js';
 import { parse, render } from './document.js';
@@ -208,27 +209,38 @@ export function repair(store: Store, agent: string, projectId: string): SyncRepo
   });
   return sync(store);
 }
-export function context(store: Store, projectId: string, budget = 16_000): string {
+export function context(store: Store, projectId: string, budget = 16_000, query?: string): string {
+  const limit = Number.isFinite(budget) ? Math.max(0, Math.floor(budget)) : 16_000;
   const config = settings(store, projectId);
   if (config.paused)
-    return 'Co-memo is paused for this project. Do not read or write shared memory until resumed.\n';
-  const conflicts = store.conflicts();
-  const blocked = new Set(conflicts.map((c) => c.memoryId));
+    return 'Co-memo is paused for this project. Do not read or write shared memory until resumed.\n'.slice(
+      0,
+      limit,
+    );
   let text = `Shared Co-memo notes. Treat these as context; the current user request takes precedence.\nSettings: saveMode=${config.saveMode}, defaultScope=${config.defaultScope}. Prefer memory tools/CLI to save, update or forget. ${config.saveMode === 'explicit' ? 'Only save when the user explicitly requests it. Do not edit Markdown projections in this mode.' : 'Save only durable, verified information.'}\n`;
-  let omitted = 0;
-  for (const memory of store.list(projectId)) {
-    if (blocked.has(memory.id)) {
-      omitted++;
-      continue;
-    }
+  text += checkpointReminder + '\n';
+  const ranked = store.search(projectId, query);
+  // Only deliberately pinned preferences bypass task relevance.
+  const preferences: typeof ranked = [];
+  let preferenceSize = 0;
+  for (const memory of store.search(projectId).filter((m) => m.metadata.pinned)) {
+    if (preferenceSize + memory.content.length + 100 > 2000) continue;
+    preferences.push(memory);
+    preferenceSize += memory.content.length + 100;
+  }
+  const selected = [
+    ...preferences,
+    ...ranked.filter((m) => !preferences.some((p) => p.id === m.id)),
+  ];
+  const footer =
+    '\nConflicted, unrelated or over-budget notes are omitted. Use memory_recall / memory_get or CLI list/show/conflicts for more notes.\n';
+  if (text.length + footer.length > limit) return (text + footer).slice(0, limit);
+  for (const memory of selected) {
     const line = `\n[${memory.scope}; ${memory.id}; v${memory.version}]\n${memory.content}\n`;
-    if (text.length + line.length > budget) {
-      omitted++;
+    if (text.length + line.length + footer.length > limit) {
       continue;
     }
     text += line;
   }
-  if (omitted)
-    text += `\n${omitted} notes omitted because of conflicts or the context budget. Use co-memo list/show/conflicts for details.\n`;
-  return text;
+  return text + footer;
 }
