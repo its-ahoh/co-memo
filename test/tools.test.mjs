@@ -395,7 +395,7 @@ test('Schema upgrade preserves existing notes and revisions and rejects future d
     assert.equal(store.get(note.id).content, 'updated user note');
     assert.equal(store.history(note.id).length, 2);
     assert.deepEqual(store.settings(null), {});
-    assert.equal(store.db.prepare('PRAGMA user_version').get().user_version, 3);
+    assert.equal(store.db.prepare('PRAGMA user_version').get().user_version, 4);
     store.db.exec('PRAGMA user_version=99;');
   } finally {
     store.close();

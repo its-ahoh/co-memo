@@ -59,3 +59,5 @@ The source, memory type, intent and update basis are agent declarations. The pro
 ## Upgrade
 
 Schema 3 adds FTS5 and submission records transactionally, indexes existing current notes and retains history without rewriting it. The filename remains `shared-memory-v1.sqlite`. Upgrade all connected CLI installations and rerun `setup AGENT`; older clients reject this schema. No new external database, model credential or service is required.
+
+Schema 4 (Co-memo 0.6) adds explicit worktree links and allows multiple worktree replicas for the same agent. Existing replica IDs, baselines, pending publications and note histories are preserved transactionally. Older clients reject schema 4; update all connected installations before opening an upgraded store.

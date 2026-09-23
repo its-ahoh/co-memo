@@ -26,7 +26,11 @@ export const Candidate = z.discriminatedUnion('action', [
   z.strictObject({ action: z.literal('skip'), reason: z.string().trim().min(1).max(1000) }),
 ]);
 export const Submission = z.strictObject({
-  requestId: z.uuid(),
+  requestId: z
+    .uuid()
+    .describe(
+      'A UUID, for example a newly generated random UUID. Reuse only for identical retries; descriptive labels are invalid.',
+    ),
   intent: IntentSchema,
   candidates: z.array(Candidate).min(1).max(20),
 });

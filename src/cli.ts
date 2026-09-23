@@ -1,4 +1,11 @@
 #!/usr/bin/env node
+import { createInterface } from 'node:readline/promises';
+import { detectAgents, planSetup, describePlan, applySetup } from './onboarding.js';
+import { repository } from './worktrees.js';
+import { verifyRoundTrip } from './verification.js';
+import { indexEmbeddings } from './semantic.js';
+import { retrieve } from './service.js';
+import { doctor } from './doctor.js';
 import { Submission, submit } from './candidates.js';
 import { configuration, configure, remember, change, checkpoint } from './service.js';
 import { allowWrite } from './settings.js';
@@ -19,7 +26,7 @@ import type { SyncReport, Memory } from './model.js';
 
 const app = new Command()
   .name('co-memo')
-  .version('0.5.0')
+  .version('0.6.0')
   .enablePositionalOptions()
   .description('One local memory store for your coding agents')
   .option('--home <directory>', 'Local data directory (or CO_MEMO_HOME)')
@@ -40,6 +47,32 @@ function using<T>(fn: (store: Store, root: string) => T): T {
     store.close();
   }
 }
+async function usingAsync<T>(fn: (store: Store, root: string) => Promise<T>): Promise<T> {
+  const opts = options(),
+    store = new Store(opts.home);
+  try {
+    return await fn(store, opts.project);
+  } finally {
+    store.close();
+  }
+}
+app
+  .command('index')
+  .description(
+    'Explicitly send eligible user/project memories to the configured embedding provider',
+  )
+  .option('--limit <count>', 'Maximum notes to index (1..1000)', positive, 100)
+  .action(async (opts: { limit: number }) => {
+    const result = await usingAsync(async (store, root) => {
+      const id = store.lock(() => {
+        sync(store);
+        return store.project(root).id;
+      });
+      return indexEmbeddings(store, id, opts.limit);
+    });
+    print(result);
+    if (result.failed) process.exitCode = 2;
+  });
 function reportExit(report: SyncReport): void {
   if (report.errors.length || report.conflicts.length) process.exitCode = 2;
 }
@@ -53,6 +86,136 @@ function checkScope(store: Store, id: string, root: string): Memory {
 }
 const scoped = (command: Command) =>
   command.addOption(new Option('--scope <scope>', 'Memory scope').choices(['project', 'user']));
+app
+  .command('init')
+  .description('Discover agents, preview setup, then optionally configure and probe them')
+  .option('--agents <names>', 'Comma-separated agents: codex,claude,opencode,pi')
+  .option('--apply', 'Apply the displayed setup plan; otherwise noninteractive runs only preview')
+  .option('--hooks', 'Include lifecycle hooks (default: tools-only)')
+  .addOption(new Option('--opencode-api <version>', 'OpenCode plugin API').choices(['v1', 'v2']))
+  .action(
+    async (opts: {
+      agents?: string;
+      apply?: boolean;
+      hooks?: boolean;
+      opencodeApi?: 'v1' | 'v2';
+    }) => {
+      const global = options(),
+        detected = detectAgents(global.project);
+      let selected = opts.agents;
+      const interactive = process.stdin.isTTY && process.stdout.isTTY;
+      const terminal = interactive
+        ? createInterface({ input: process.stdin, output: process.stdout })
+        : null;
+      try {
+        if (!selected && terminal) {
+          print({ detected });
+          selected = await terminal.question('Agents to connect (comma-separated): ');
+        }
+        const agents = selected
+          ? selected.split(',').map((a) => Agent.parse(a.trim()))
+          : detected.filter((a) => a.executable).map((a) => a.agent);
+        if (!agents.length) {
+          print({ detected, next: 'No agents found. Pass --agents to select explicitly.' });
+          return;
+        }
+        const input = {
+          ...global,
+          root: global.project,
+          agents,
+          toolsOnly: !opts.hooks,
+          opencodeApi: opts.opencodeApi,
+        };
+        const plan = planSetup(input);
+        if (terminal) print(describePlan(plan));
+        const apply =
+          opts.apply ||
+          (terminal &&
+            (await terminal.question('Apply this plan? [y/N] ')).trim().toLowerCase() === 'y');
+        if (!apply) {
+          if (!terminal)
+            print({
+              applied: false,
+              plan: describePlan(plan),
+              next: 'Rerun with --apply to configure these agents.',
+            });
+          return;
+        }
+        const result = await applySetup(input, plan);
+        print({ plan: describePlan(plan), ...result });
+        if (result.status !== 'configured') process.exitCode = 2;
+      } finally {
+        terminal?.close();
+      }
+    },
+  );
+app
+  .command('verify')
+  .description('Run real host models against temporary synthetic memory; uses existing login/quota')
+  .addOption(
+    new Option('--from <agent>', 'Writer host').choices(['codex', 'claude']).default('codex'),
+  )
+  .addOption(
+    new Option('--to <agent>', 'Reader host').choices(['codex', 'claude']).default('claude'),
+  )
+  .option('--round-trip', 'Also verify the reverse direction')
+  .option('--keep', 'Retain synthetic store, generated configs and verification report')
+  .action(
+    async (opts: {
+      from: 'codex' | 'claude';
+      to: 'codex' | 'claude';
+      roundTrip?: boolean;
+      keep?: boolean;
+    }) => {
+      const result = await verifyRoundTrip(opts, (message) => process.stderr.write(message + '\n'));
+      print(result);
+      if (result.status !== 'passed') process.exitCode = 2;
+    },
+  );
+const worktreeCommand = app
+  .command('worktree')
+  .description('Explicitly share repository memories across Git worktrees');
+worktreeCommand.command('inspect').action(() =>
+  print({
+    ...repository(options().project),
+    policy:
+      'Independent until explicitly linked. Linking shares all project memories and settings.',
+  }),
+);
+worktreeCommand
+  .command('link')
+  .requiredOption('--to <directory>', 'An already connected worktree of the same repository')
+  .action((opts: { to: string }) =>
+    print(
+      using((store, root) => {
+        const project = store.transaction(() => store.linkWorktree(root, opts.to));
+        return {
+          project,
+          repository: store.projectById(project.id).root,
+          shared: 'All project memories, settings and conflicts',
+          next: 'Run init or setup in this worktree to connect its agents.',
+        };
+      }),
+    ),
+  );
+app
+  .command('doctor [agent]')
+  .description('Inspect store/configuration without syncing; optionally probe the local MCP server')
+  .option(
+    '--probe',
+    'Initialize this installation’s MCP and read settings; no model or memory writes',
+  )
+  .action(async (name: string | undefined, opts: { probe?: boolean }) => {
+    const config = options();
+    const result = await doctor({
+      home: config.home,
+      root: config.project,
+      agent: name ? Agent.parse(name) : undefined,
+      probe: opts.probe,
+    });
+    print(result);
+    if (result.status === 'needs_attention') process.exitCode = 2;
+  });
 app
   .command('connect <agent>')
   .description('Connect pi, claude, codex or opencode in this project')
@@ -113,17 +276,26 @@ app
   .command('list')
   .description('List user notes and this project’s notes')
   .option('--deleted', 'Include tombstones')
-  .option('--query <text>', 'Local full-text search (BM25, up to 100 matches)')
-  .action((opts: { deleted?: boolean; query?: string }) =>
+  .option('--query <text>', 'Full-text search with optional cached semantic ranking')
+  .option('--explain', 'Include retrieval mode and fallback reason')
+  .action(async (opts: { deleted?: boolean; query?: string; explain?: boolean }) => {
+    const result = await usingAsync(async (store, root) => {
+      // Human CLI inspection remains available while paused, without provider requests.
+      const inspection = store.lock(() => {
+        if (!configuration(store, root).effective.paused) return null;
+        return {
+          memories: store.search(store.project(root).id, opts.query, opts.deleted),
+          retrieval: { mode: 'lexical', reason: 'paused' },
+          sync: sync(store),
+        };
+      });
+      return inspection ?? (await retrieve(store, root, opts.query, opts.deleted));
+    });
+    reportExit(result.sync);
     print(
-      using((store, root) => {
-        const project = store.project(root);
-        const report = sync(store);
-        reportExit(report);
-        return store.search(project.id, opts.query, opts.deleted);
-      }),
-    ),
-  );
+      opts.explain ? { memories: result.memories, retrieval: result.retrieval } : result.memories,
+    );
+  });
 app
   .command('show <id>')
   .description('Read a full memory')
@@ -228,7 +400,9 @@ app
   .description('Recreate a missing replica from central memory; never overwrite a file')
   .action((name: string) => {
     const agent = Agent.parse(name),
-      report = using((store, root) => repair(store, agent, store.project(root).id));
+      report = using((store, root) =>
+        repair(store, agent, store.project(root).id, store.project(root).root),
+      );
     print(report);
     reportExit(report);
   });
@@ -279,6 +453,8 @@ app
           memories: store.list(project.id).length,
           conflicts: store.conflicts(),
           runtime: process.version,
+          sharedRepository: store.projectById(project.id).root,
+          linkedWorktrees: store.worktrees(project.id),
           settings: configuration(store, root),
         };
       }),
@@ -287,15 +463,11 @@ app
 app
   .command('context')
   .description('Print bounded context for this project')
-  .option('--query <text>', 'Current task for local lexical ranking')
-  .action((opts: { query?: string }) => {
-    process.stdout.write(
-      using((store, root) => {
-        const report = sync(store);
-        reportExit(report);
-        return context(store, store.project(root).id, 16_000, opts.query);
-      }),
-    );
+  .option('--query <text>', 'Current task for optional hybrid ranking')
+  .action(async (opts: { query?: string }) => {
+    const result = await usingAsync((store, root) => retrieve(store, root, opts.query));
+    reportExit(result.sync);
+    process.stdout.write(result.context);
   });
 app
   .command('submit')
@@ -362,7 +534,14 @@ app
     const result = using((store, root) => {
       const project = store.project(root);
       ensure(
-        store.replicas().some((r) => r.projectId === project.id && r.agent === agent),
+        store
+          .replicas()
+          .some(
+            (r) =>
+              r.projectId === project.id &&
+              r.agent === agent &&
+              r.path === join(project.root, '.co-memo', `${agent}.md`),
+          ),
         'Agent is not connected',
       );
       const report = sync(store);

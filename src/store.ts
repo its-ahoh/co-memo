@@ -1,3 +1,4 @@
+import { repository } from './worktrees.js';
 import { searchTerms, recent } from './relevance.js';
 import { SettingsPatch, allowWrite } from './settings.js';
 import type { Intent } from './settings.js';
@@ -5,6 +6,7 @@ import { DatabaseSync } from 'node:sqlite';
 import type { SQLInputValue } from 'node:sqlite';
 import {
   mkdirSync,
+  existsSync,
   realpathSync,
   statSync,
   chmodSync,
@@ -55,7 +57,7 @@ export class Store {
     this.mutex.exec('PRAGMA busy_timeout=5000;');
     this.lock(() => {
       const version = this.db.prepare('PRAGMA user_version').get();
-      ensure(Number(version?.user_version) <= 3, 'Database is from a newer Co-memo version');
+      ensure(Number(version?.user_version) <= 4, 'Database is from a newer Co-memo version');
       this.transaction(() => {
         this.db.exec(`
         CREATE TABLE IF NOT EXISTS projects(id TEXT PRIMARY KEY,root TEXT NOT NULL UNIQUE);
@@ -72,7 +74,17 @@ export class Store {
           this.db.exec('DELETE FROM notes_fts');
           for (const memory of this.rows(Memory, 'SELECT payload FROM notes')) this.index(memory);
         }
-        this.db.exec('PRAGMA user_version=3;');
+        if (Number(version?.user_version) < 4) {
+          this.db.exec(`
+            ALTER TABLE replicas RENAME TO replicas_v3;
+            CREATE TABLE replicas(id TEXT PRIMARY KEY,project_id TEXT NOT NULL,agent TEXT NOT NULL,path TEXT NOT NULL UNIQUE,baseline TEXT,pending TEXT);
+            INSERT INTO replicas SELECT * FROM replicas_v3;
+            DROP TABLE replicas_v3;
+          `);
+        }
+        this.db.exec(
+          'CREATE TABLE IF NOT EXISTS project_links(root TEXT PRIMARY KEY,project_id TEXT NOT NULL,git_common TEXT NOT NULL); PRAGMA user_version=4;',
+        );
       });
     });
     chmodSync(path, 0o600);
@@ -111,10 +123,16 @@ export class Store {
   project(path: string, create = false): Project {
     let root = realpathSync(path);
     ensure(statSync(root).isDirectory(), 'Expected project directory');
+    const linked = this.linkedProject(root);
+    if (linked) return linked;
     if (!create) {
       while (true) {
+        const linked = this.linkedProject(root);
+        if (linked) return linked;
         const row = this.db.prepare('SELECT * FROM projects WHERE root=?').get(root);
         if (row) return { id: z.string().parse(row.id), root };
+        // A nested repository/worktree must not inherit its enclosing project's identity.
+        if (existsSync(join(root, '.git'))) break;
         const parent = dirname(root);
         if (parent === root) break;
         root = parent;
@@ -126,6 +144,52 @@ export class Store {
     const project = { id: randomUUID(), root };
     this.db.prepare('INSERT INTO projects VALUES (?,?)').run(project.id, root);
     return project;
+  }
+  private linkedProject(root: string): Project | null {
+    const link = this.db
+      .prepare('SELECT project_id,git_common FROM project_links WHERE root=?')
+      .get(root);
+    if (!link) return null;
+    const actual = repository(root);
+    ensure(
+      actual.root === root && actual.common === link.git_common,
+      'Worktree identity changed; inspect its Co-memo link',
+    );
+    return { id: z.string().parse(link.project_id), root };
+  }
+  linkWorktree(path: string, target: string): Project {
+    const source = repository(path),
+      destination = repository(target);
+    ensure(
+      source.root !== destination.root && source.common === destination.common,
+      'Both paths must be distinct worktrees of the same local Git repository',
+    );
+    ensure(
+      !this.db.prepare('SELECT id FROM projects WHERE root=?').get(source.root),
+      'Worktree already has an independent project; automatic merging is not supported',
+    );
+    const project = this.project(destination.root);
+    ensure(
+      project.root === destination.root,
+      'Connect the repository root before linking a worktree',
+    );
+    const existing = this.db
+      .prepare('SELECT project_id,git_common FROM project_links WHERE root=?')
+      .get(source.root);
+    ensure(
+      !existing || (existing.project_id === project.id && existing.git_common === source.common),
+      'Worktree is already linked elsewhere',
+    );
+    this.db
+      .prepare('INSERT OR IGNORE INTO project_links VALUES (?,?,?)')
+      .run(source.root, project.id, source.common);
+    return { id: project.id, root: source.root };
+  }
+  worktrees(projectId: string) {
+    return this.db
+      .prepare('SELECT root FROM project_links WHERE project_id=? ORDER BY root')
+      .all(projectId)
+      .map((row) => z.string().parse(row.root));
   }
   projectById(id: string): Project {
     const row = this.db.prepare('SELECT * FROM projects WHERE id=?').get(id);
@@ -148,9 +212,9 @@ export class Store {
       }));
   }
   connect(project: Project, agent: Agent): Replica {
-    const existing = this.replicas().find((r) => r.projectId === project.id && r.agent === agent);
-    if (existing) return existing;
     const path = join(project.root, '.co-memo', `${agent}.md`);
+    const existing = this.replicas().find((r) => r.projectId === project.id && r.path === path);
+    if (existing) return existing;
     ensure(
       readText(path) === null,
       `Unregistered memory file already exists: ${path}; import or move it first`,

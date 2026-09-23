@@ -14,8 +14,20 @@ export type Scope = z.infer<typeof Scope>;
 export const MemoryKind = z.enum(['note', 'preference', 'decision', 'constraint', 'lesson']);
 export const Evidence = z.strictObject({
   agent: z.string().trim().min(1).max(100),
-  sessionId: z.string().trim().min(1).max(200),
-  messageId: z.string().trim().min(1).max(200),
+  sessionId: z
+    .string()
+    .trim()
+    .min(1)
+    .max(200)
+    .describe(
+      'Actual known session identifier. Never invent one; use memory_remember when unavailable.',
+    ),
+  messageId: z
+    .string()
+    .trim()
+    .min(1)
+    .max(200)
+    .describe('Actual known source-message identifier, not a fabricated placeholder.'),
   excerpt: z.string().trim().min(1).max(2000),
 });
 export const Metadata = z.strictObject({

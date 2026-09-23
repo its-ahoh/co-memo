@@ -1,3 +1,4 @@
+import { semanticRanking, hybridSearch } from './semantic.js';
 import { z } from 'zod';
 import { Store } from './store.js';
 import type { SyncReport } from './model.js';
@@ -164,4 +165,35 @@ export function checkpoint(store: Store, root: string, input: z.input<typeof Che
       'Verification covers the central store at this instant, not whether another agent loaded the note. Non-save outcomes are agent declarations.',
     sync: scopedReport(store, root, report),
   };
+}
+
+/** Owns its short lock sections; callers must not wrap this in Store.lock. */
+export async function retrieve(store: Store, root: string, query?: string, deleted = false) {
+  const id = store.lock(() => {
+    const id = store.project(root).id;
+    sync(store);
+    return id;
+  });
+  const ranking = await semanticRanking(store, id, query, deleted);
+  return store.lock(() => {
+    const report = sync(store);
+    const effective = configuration(store, root).effective;
+    const memories = hybridSearch(store, id, query, deleted, ranking);
+    return {
+      memories: memories.map((m) => ({ ...m, conflicted: false })),
+      context: context(
+        store,
+        id,
+        16000,
+        query,
+        memories.filter((m) => !m.deleted),
+      ),
+      settings: effective,
+      retrieval: {
+        mode: effective.paused ? 'lexical' : ranking.mode,
+        reason: effective.paused ? 'paused' : ranking.reason,
+      },
+      sync: scopedReport(store, root, report),
+    };
+  });
 }

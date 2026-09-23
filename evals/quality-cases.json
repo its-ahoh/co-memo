@@ -1,0 +1,41 @@
+{
+  "version": 1,
+  "memories": [
+    { "key": "packages", "content": "Use pnpm for project dependencies and lockfiles.", "scope": "project" },
+    { "key": "language", "content": "默认用中文回答。", "scope": "user", "pinned": true },
+    { "key": "migration", "content": "数据库迁移必须使用事务，并保留历史记录。", "scope": "project" },
+    { "key": "tests", "content": "Run pnpm test before submitting changes.", "scope": "project" },
+    { "key": "parser", "content": "parseHTTP_response lives in src/protocol/parser.ts.", "scope": "project" },
+    { "key": "rollback", "content": "Rollback a failed deployment by restoring the previous release.", "scope": "project" },
+    { "key": "ui", "content": "Use violet buttons on the settings page.", "scope": "project" },
+    { "key": "module", "content": "Writes must be atomic.", "module": "storage/sqlite", "scope": "project" },
+    { "key": "other", "content": "Use npm for project dependencies and lockfiles.", "scope": "other" },
+    { "key": "deleted", "content": "Obsolete MongoDB database decision.", "scope": "project", "deleted": true },
+    { "key": "conflict", "content": "Unsettled Redis caching strategy.", "scope": "project", "conflicted": true }
+  ],
+  "retrieval": [
+    { "id": "packages", "group": "lexical", "query": "pnpm dependencies", "relevant": ["packages"] },
+    { "id": "chinese", "group": "lexical", "query": "数据库迁移 事务", "relevant": ["migration"] },
+    { "id": "identifier", "group": "lexical", "query": "parseHTTP_response", "relevant": ["parser"] },
+    { "id": "path", "group": "lexical", "query": "src/protocol/parser.ts", "relevant": ["parser"] },
+    { "id": "case", "group": "lexical", "query": "PNPM TEST", "relevant": ["tests", "packages"] },
+    { "id": "module", "group": "lexical", "query": "storage sqlite", "relevant": ["module"] },
+    { "id": "scope", "group": "lexical", "query": "dependencies lockfiles", "relevant": ["packages"] },
+    { "id": "no-result", "group": "lexical", "query": "Kubernetes ingress", "relevant": [] },
+    { "id": "deleted", "group": "lexical", "query": "MongoDB", "relevant": [] },
+    { "id": "conflict", "group": "lexical", "query": "Redis", "relevant": [] },
+    { "id": "synonym", "group": "semantic", "query": "How should I install libraries?", "relevant": ["packages"] },
+    { "id": "cross-language", "group": "semantic", "query": "How do we migrate the database safely?", "relevant": ["migration"] },
+    { "id": "implicit", "group": "semantic", "query": "发布坏了，怎么恢复服务？", "relevant": ["rollback"] }
+  ],
+  "extraction": [
+    { "id": "preference", "messages": [{ "id": "u1", "role": "user", "content": "记住，以后所有项目都默认用中文回答。" }], "expected": [{ "kind": "preference", "scope": "user", "aliases": ["默认用中文回答。", "所有项目默认用中文回答。"], "sourceMessageId": "u1" }] },
+    { "id": "decision", "messages": [{ "id": "u1", "role": "user", "content": "这个项目确定用 SQLite，因为需要离线运行。请记住这个决策。" }], "expected": [{ "kind": "decision", "scope": "project", "aliases": ["项目使用 SQLite，因为需要离线运行。"], "sourceMessageId": "u1" }] },
+    { "id": "correction", "existing": [{ "key": "packages", "content": "项目使用 npm。" }], "messages": [{ "id": "u1", "role": "user", "content": "项目已经从 npm 迁移到 pnpm。更新之前的记忆。" }], "expected": [{ "kind": "decision", "scope": "project", "aliases": ["项目使用 pnpm。"], "sourceMessageId": "u1", "replaces": "packages" }] },
+    { "id": "speculation", "messages": [{ "id": "u1", "role": "user", "content": "下一步我准备试试 Redis，还没决定要不要用。" }], "expected": [] },
+    { "id": "temporary", "messages": [{ "id": "u1", "role": "user", "content": "这一次请只输出两行，之后照常。" }], "expected": [] },
+    { "id": "unverified", "messages": [{ "id": "a1", "role": "assistant", "content": "我猜加上 WAL 就能修复问题，不过还没跑测试。" }], "expected": [] },
+    { "id": "explicit-only", "settings": { "saveMode": "explicit" }, "messages": [{ "id": "u1", "role": "user", "content": "我们通常用 pnpm。先继续修复问题。" }], "expected": [] },
+    { "id": "paused", "settings": { "paused": true }, "messages": [{ "id": "u1", "role": "user", "content": "记住这个项目使用 SQLite。" }], "expected": [] }
+  ]
+}

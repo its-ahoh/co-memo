@@ -7,7 +7,7 @@ From a Co-memo checkout, with Node.js 24.12+ and pnpm:
 ```sh
 pnpm install --frozen-lockfile
 pnpm pack
-npm install -g ./co-memo-0.5.0.tgz
+npm install -g ./co-memo-0.6.0.tgz
 ```
 
 The package is not published to npm. Do not use `npx co-memo` or assume the registry package belongs to this project.
@@ -95,18 +95,20 @@ co-memo --home /path/to/data --project /path/to/project serve
 
 It registers the project if necessary and also works without Markdown replicas or hooks. It exposes no HTTP listener, API key requirement, arbitrary shell tool or caller-selectable project path. Each operation reads current settings and acquires the shared store lock; multiple hosts use the same database.
 
-| Tool                  | Purpose                                                  |
-| --------------------- | -------------------------------------------------------- |
-| `memory_context`      | Bounded shared context and effective settings            |
-| `memory_recall`       | Literal search/list; conflicts marked explicitly         |
-| `memory_get`          | Full note, current version and optional revision history |
-| `memory_remember`     | Save with scope and declared intent                      |
-| `memory_update`       | Compare-and-update using the last-read version           |
-| `memory_forget`       | Version-checked deletion with tombstone                  |
-| `memory_conflicts`    | User/current-project conflicts                           |
-| `memory_resolve`      | User-directed choice or merged content                   |
-| `memory_settings_get` | Overrides and effective settings                         |
-| `memory_settings_set` | Apply a minimal settings patch or reset one scope        |
+| Tool                  | Purpose                                                             |
+| --------------------- | ------------------------------------------------------------------- |
+| `memory_context`      | Bounded shared context and effective settings                       |
+| `memory_recall`       | FTS5/BM25 with optional cached semantic ranking; conflicts excluded |
+| `memory_submit`       | Atomic evidence-backed candidates with verified receipts            |
+| `memory_checkpoint`   | Verify legacy write receipts against current storage                |
+| `memory_get`          | Full note, current version and optional revision history            |
+| `memory_remember`     | Save with scope and declared intent                                 |
+| `memory_update`       | Compare-and-update using the last-read version                      |
+| `memory_forget`       | Version-checked deletion with tombstone                             |
+| `memory_conflicts`    | User/current-project conflicts                                      |
+| `memory_resolve`      | User-directed choice or merged content                              |
+| `memory_settings_get` | Overrides and effective settings                                    |
+| `memory_settings_set` | Apply a minimal settings patch or reset one scope                   |
 
 Writes go directly to the central store and then reconcile projections. A committed write can still return file-publication errors; inspect the returned memory and sync report before retrying. MCP results filter conflicts/errors to the configured project and user scope. The local store remains a single-user system, not a multi-user security boundary.
 
@@ -120,7 +122,7 @@ Sources: [MCP tools](https://modelcontextprotocol.io/specification/draft/server/
 
 ## Task selection and save checkpoints
 
-`memory_context({query: "SQLite migrations"})` or `co-memo context --query "SQLite migrations"` ranks matching notes locally. Ranking uses SQLite FTS5/BM25 with shared Chinese word and code-identifier tokenization; it is not embedding-based semantic search. Only deliberately pinned preferences are eligible for a small always-included budget, even without matching words. Other notes, including user preferences, must match the query. Query searches consider at most 100 matches. Without a query, recent notes are preferred. Conflicted and deleted notes are excluded. The complete context, including guidance, fits the 16,000-character budget. Full notes remain available through recall/get and list/show.
+`memory_context({query: "SQLite migrations"})` or `co-memo context --query "SQLite migrations"` ranks matching notes locally. Default ranking uses SQLite FTS5/BM25 with shared Chinese word and code-identifier tokenization. [Optional semantic retrieval](semantic-retrieval.md) merges cached embedding matches through rank fusion; MCP responses include retrieval mode and fallback reason. Native hooks remain lexical. Only deliberately pinned preferences are eligible for a small always-included budget, even without matching words. Other notes, including user preferences, must match the query. Query searches consider at most 100 matches. Without a query, recent notes are preferred. Conflicted and deleted notes are excluded. The complete context, including guidance, fits the 16,000-character budget. Full notes remain available through recall/get and list/show.
 
 Generated Claude/Codex prompt hooks consume the host's `prompt` field from JSON stdin; Pi uses `before_agent_start.prompt`. OpenCode's generated context hooks currently have no task query: use `memory_context` with `query` for task-specific selection. Prompts used for ranking are not persisted. Re-run `setup AGENT` after upgrading to refresh hooks, instructions and the skill.
 

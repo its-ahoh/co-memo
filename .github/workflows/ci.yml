@@ -21,4 +21,5 @@ jobs:
       - uses: pnpm/action-setup@v4
       - run: pnpm install --frozen-lockfile
       - run: pnpm check
+      - run: node scripts/eval-quality.mjs --check
       - run: pnpm pack

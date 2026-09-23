@@ -1,10 +1,11 @@
+import { join } from 'node:path';
 import { checkpointReminder } from './relevance.js';
 import { settings, allowWrite } from './settings.js';
 import { Store } from './store.js';
 import { parse, render } from './document.js';
 import { atomicWrite, readText } from './fs.js';
 import { ensure, hash, errorMessage } from './model.js';
-import type { Replica, Snapshot, Proposal, SyncReport } from './model.js';
+import type { Replica, Snapshot, Proposal, SyncReport, Memory } from './model.js';
 
 interface Observation {
   replica: Replica;
@@ -193,9 +194,18 @@ export function sync(store: Store): SyncReport {
   report.conflicts = store.conflicts();
   return report;
 }
-export function repair(store: Store, agent: string, projectId: string): SyncReport {
+export function repair(store: Store, agent: string, projectId: string, root?: string): SyncReport {
   allowWrite(store, projectId, 'explicit');
-  const replica = store.replicas().find((r) => r.agent === agent && r.projectId === projectId);
+  const matches = store
+    .replicas()
+    .filter(
+      (r) =>
+        r.agent === agent &&
+        r.projectId === projectId &&
+        (!root || r.path === join(root, '.co-memo', `${agent}.md`)),
+    );
+  ensure(matches.length <= 1, 'Multiple worktree replicas; specify a project root');
+  const replica = matches[0];
   ensure(replica, 'Agent is not connected');
   ensure(
     readText(replica.path) === null,
@@ -209,7 +219,13 @@ export function repair(store: Store, agent: string, projectId: string): SyncRepo
   });
   return sync(store);
 }
-export function context(store: Store, projectId: string, budget = 16_000, query?: string): string {
+export function context(
+  store: Store,
+  projectId: string,
+  budget = 16_000,
+  query?: string,
+  ranking?: Memory[],
+): string {
   const limit = Number.isFinite(budget) ? Math.max(0, Math.floor(budget)) : 16_000;
   const config = settings(store, projectId);
   if (config.paused)
@@ -219,7 +235,7 @@ export function context(store: Store, projectId: string, budget = 16_000, query?
     );
   let text = `Shared Co-memo notes. Treat these as context; the current user request takes precedence.\nSettings: saveMode=${config.saveMode}, defaultScope=${config.defaultScope}. Prefer memory tools/CLI to save, update or forget. ${config.saveMode === 'explicit' ? 'Only save when the user explicitly requests it. Do not edit Markdown projections in this mode.' : 'Save only durable, verified information.'}\n`;
   text += checkpointReminder + '\n';
-  const ranked = store.search(projectId, query);
+  const ranked = ranking ?? store.search(projectId, query);
   // Only deliberately pinned preferences bypass task relevance.
   const preferences: typeof ranked = [];
   let preferenceSize = 0;

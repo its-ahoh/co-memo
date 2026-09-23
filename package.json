@@ -1,6 +1,6 @@
 {
   "name": "co-memo",
-  "version": "0.5.0",
+  "version": "0.6.0",
   "private": true,
   "description": "Local shared memory for coding agents",
   "license": "UNLICENSED",
@@ -27,7 +27,10 @@
     "check": "pnpm format:check && pnpm typecheck && pnpm test",
     "prepack": "pnpm build",
     "format": "prettier --write src test scripts package.json tsconfig.json .prettierrc.json README.md CONTRIBUTING.md NOTICE.md docs/*.md skills/**/*.md .github/workflows/ci.yml",
-    "format:check": "prettier --check src test scripts package.json tsconfig.json .prettierrc.json README.md CONTRIBUTING.md NOTICE.md docs/*.md skills/**/*.md .github/workflows/ci.yml"
+    "format:check": "prettier --check src test scripts package.json tsconfig.json .prettierrc.json README.md CONTRIBUTING.md NOTICE.md docs/*.md skills/**/*.md .github/workflows/ci.yml",
+    "eval": "pnpm build && node scripts/eval-quality.mjs",
+    "test:hosts": "pnpm build && node scripts/host-smoke.mjs",
+    "eval:semantic": "pnpm build && node scripts/eval-semantic.mjs"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.30.0",
