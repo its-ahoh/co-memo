@@ -35,6 +35,14 @@ Restart the selected agents and accept their project/tool trust prompts. `init` 
 
 Local archives are also supported with `npm install -g /path/to/ahoh.tech-co-memo-0.6.0.tgz`. Prefer a persistent installation over `npx`/`pnpm dlx`: generated MCP, hook and skill instructions pin the Node executable and CLI to absolute paths, and disposable caches may disappear.
 
+The exact 0.6.0 registry tarball is also installable directly:
+
+```sh
+npm install -g https://registry.npmjs.org/@ahoh.tech/co-memo/-/co-memo-0.6.0.tgz
+```
+
+This is useful when a newly published version is available at its version/tarball endpoints but the package index still returns 404. The registry tarball was checked against the local release SHA-512 and independently installed with successful CLI and Claude/Codex MCP probes.
+
 ## Upgrade or repair an installation path
 
 Run `npm install -g @ahoh.tech/co-memo@latest` (or install a new archive), then rerun setup from the new executable in each connected project. Keep the same `--home` if you originally selected a custom memory directory. Preview first:
