@@ -112,6 +112,7 @@ test('MCP stdio initializes, discovers tools, saves/updates/forgets, rejects sta
 
 test('Settings enforce intent, defaults and user restrictions through tools and CLI', async (t) => {
   const f = fixture(t);
+  f.run('setup', 'codex', '--tools-only');
   const { call, raw } = await client(t, f);
   const initial = await call('memory_settings_get');
   assert.equal(initial.effective.defaultScope, 'project');
@@ -318,6 +319,7 @@ test('Tools-only fresh setup writes no lifecycle hooks and serves without projec
 
 test('MCP reports never expose another project conflict or paused memory content', async (t) => {
   const f = fixture(t);
+  f.run('setup', 'codex', '--tools-only');
   const { call, raw } = await client(t, f);
   const store = new Store(f.home);
   let own;
@@ -622,4 +624,114 @@ test('MCP and CLI submit evidence-backed candidates and resolve them through the
   const stale = f.raw('submit', '--file', file);
   assert.equal(stale.status, 2);
   assert.equal(JSON.parse(stale.stdout).results[0].verified, false);
+});
+
+test('Projectless MCP keeps personal memory independent without registering a project', async (t) => {
+  const f = fixture(t);
+  const { call, raw } = await client(t, f, process.execPath, [cli, '--home', f.home, 'serve']);
+  assert.equal((await call('memory_settings_get')).effective.defaultScope, 'project');
+  assert.equal(
+    (await raw('memory_remember', { content: 'Unclassified note', intent: 'explicit' })).isError,
+    true,
+  );
+  const note = (
+    await call('memory_remember', {
+      content: 'Personal language preference',
+      scope: 'user',
+      intent: 'explicit',
+    })
+  ).memory;
+  assert.equal(note.scope, 'user');
+  assert.equal(note.projectId, null);
+  assert.equal((await call('memory_get', { id: note.id })).memory.id, note.id);
+  assert.equal((await call('memory_recall')).memories[0].id, note.id);
+  assert.match((await call('memory_context')).context, /Personal language preference/);
+  assert.deepEqual(await call('memory_conflicts'), []);
+  assert.equal(
+    (
+      await raw('memory_remember', {
+        content: 'Project only',
+        scope: 'project',
+        intent: 'explicit',
+      })
+    ).isError,
+    true,
+  );
+  await call('memory_update', {
+    id: note.id,
+    version: 1,
+    content: 'Updated personal preference',
+    intent: 'explicit',
+  });
+  await call('memory_forget', { id: note.id, version: 2, intent: 'explicit' });
+  assert.deepEqual((await call('memory_recall')).memories, []);
+  const submission = {
+    requestId: randomUUID(),
+    intent: 'explicit',
+    candidates: [
+      {
+        action: 'add',
+        scope: 'user',
+        kind: 'preference',
+        content: 'Personal submitted preference',
+        source: {
+          agent: 'codex',
+          sessionId: 'test-session',
+          messageId: 'test-message',
+          excerpt: 'Personal submitted preference',
+        },
+      },
+    ],
+  };
+  const saved = await call('memory_submit', submission);
+  assert.equal(saved.results[0].verified, true);
+  assert.equal((await call('memory_submit', submission)).replayed, true);
+  assert.equal(
+    (await call('memory_get', { id: saved.results[0].receipt.id })).memory.scope,
+    'user',
+  );
+  const store = new Store(f.home);
+  try {
+    assert.throws(() => store.project(f.project), /Project not connected/);
+  } finally {
+    store.close();
+  }
+});
+
+test('Shared MCP accepts the current agent workspace and scopes personal versus project content', async (t) => {
+  const f = fixture(t);
+  const { call, raw } = await client(t, f, process.execPath, [cli, '--home', f.home, 'serve']);
+  const second = join(f.root, 'second-workspace');
+  mkdirSync(second);
+  const local = (
+    await call('memory_remember', {
+      projectPath: f.project,
+      scope: 'project',
+      content: 'Workspace-specific architecture',
+      intent: 'explicit',
+    })
+  ).memory;
+  const personal = (
+    await call('memory_remember', {
+      projectPath: f.project,
+      scope: 'user',
+      content: 'Always answer in Chinese',
+      intent: 'explicit',
+    })
+  ).memory;
+  assert.equal(local.scope, 'project');
+  assert.equal(personal.projectId, null);
+  assert.deepEqual(
+    new Set((await call('memory_recall', { projectPath: f.project })).memories.map((m) => m.id)),
+    new Set([local.id, personal.id]),
+  );
+  assert.deepEqual(
+    (await call('memory_recall', { projectPath: second })).memories.map((m) => m.id),
+    [personal.id],
+  );
+  assert.equal((await raw('memory_get', { projectPath: second, id: local.id })).isError, true);
+  assert.deepEqual(
+    (await call('memory_recall')).memories.map((m) => m.id),
+    [personal.id],
+  );
 });

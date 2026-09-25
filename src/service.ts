@@ -10,13 +10,17 @@ import { context, sync } from './sync.js';
 export const IntentSchema = z.enum(['explicit', 'automatic']);
 export const Version = z.number().int().positive().safe();
 export function projectId(store: Store, root: string): string | null {
-  try {
-    return store.project(root).id;
-  } catch (e) {
-    if (e instanceof Error && e.message.startsWith('Project not connected;')) return null;
-    throw e;
-  }
+  return store.autoProject(root)?.id ?? null;
 }
+export function requireProjectId(store: Store, root: string): string {
+  const id = projectId(store, root);
+  ensure(
+    id,
+    'No project context detected. Supply the agent workspace via --project or projectPath for project memory; use user scope only for cross-project personal information.',
+  );
+  return id;
+}
+
 export function scopedReport(store: Store, root: string, report: SyncReport): SyncReport {
   const id = projectId(store, root);
   const paused = settings(store, id).paused;
@@ -52,14 +56,14 @@ export function configure(
   patch: SettingsPatch,
   reset = false,
 ) {
-  const id = scope === 'project' ? store.project(root).id : null;
+  const id = scope === 'project' ? requireProjectId(store, root) : null;
   store.transaction(() => store.configure(id, patch, reset));
   return configuration(store, root);
 }
 export function accessible(store: Store, root: string, id: string) {
   const memory = store.get(id);
   ensure(
-    memory.scope === 'user' || memory.projectId === store.project(root).id,
+    memory.scope === 'user' || memory.projectId === projectId(store, root),
     'Memory belongs to another project',
   );
   return memory;
@@ -76,7 +80,7 @@ export function remember(
   Content.parse(input.content);
   writable(store, root, input.intent);
   const scope = input.scope ?? configuration(store, root).effective.defaultScope;
-  const id = scope === 'project' ? store.project(root).id : null;
+  const id = scope === 'project' ? requireProjectId(store, root) : null;
   const before = sync(store);
   const result = store.transaction(() => store.add(input.content, scope, id, origin, input.intent));
   return {
@@ -108,7 +112,7 @@ export function change(
   return { memory, sync: scopedReport(store, root, sync(store)) };
 }
 export function recall(store: Store, root: string, query?: string, deleted = false) {
-  const id = store.project(root).id;
+  const id = projectId(store, root);
   ensure(
     !settings(store, id).paused,
     'Co-memo is paused; resume it in settings before recalling memories',
@@ -125,7 +129,7 @@ export function recall(store: Store, root: string, query?: string, deleted = fal
 export function sharedContext(store: Store, root: string, query?: string) {
   const report = sync(store);
   return {
-    context: context(store, store.project(root).id, 16_000, query),
+    context: context(store, projectId(store, root), 16_000, query),
     settings: configuration(store, root).effective,
     sync: scopedReport(store, root, report),
   };
@@ -170,7 +174,7 @@ export function checkpoint(store: Store, root: string, input: z.input<typeof Che
 /** Owns its short lock sections; callers must not wrap this in Store.lock. */
 export async function retrieve(store: Store, root: string, query?: string, deleted = false) {
   const id = store.lock(() => {
-    const id = store.project(root).id;
+    const id = projectId(store, root);
     sync(store);
     return id;
   });

@@ -100,12 +100,12 @@ function cached(store: Store, config: Config, memory: Memory): number[] | null {
     return null; // A corrupt or missing derived cache must never break lexical recall.
   }
 }
-function eligible(store: Store, projectId: string) {
+function eligible(store: Store, projectId: string | null) {
   return settings(store, projectId).paused ? [] : store.search(projectId);
 }
 
 /** Explicit indexing only: sends eligible memory text, never runs implicitly on a read. */
-export async function indexEmbeddings(store: Store, projectId: string, limit = 100) {
+export async function indexEmbeddings(store: Store, projectId: string | null, limit = 100) {
   const config = embeddingConfig();
   ensure(config, 'Semantic retrieval is disabled; set CO_MEMO_SEMANTIC=1 and configure a provider');
   ensure(Number.isSafeInteger(limit) && limit > 0 && limit <= 1000, 'Index limit must be 1..1000');
@@ -181,7 +181,7 @@ export interface SemanticRanking {
 /** Snapshot under lock, await outside it, then merge only against current eligible notes. */
 export async function semanticRanking(
   store: Store,
-  projectId: string,
+  projectId: string | null,
   query?: string,
   deleted = false,
 ): Promise<SemanticRanking> {
@@ -234,7 +234,7 @@ export async function semanticRanking(
 /** Called with the store lock held; never returns the asynchronous snapshot's note text. */
 export function hybridSearch(
   store: Store,
-  projectId: string,
+  projectId: string | null,
   query: string | undefined,
   deleted: boolean,
   ranking: SemanticRanking,

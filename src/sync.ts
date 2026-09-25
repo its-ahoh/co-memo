@@ -221,7 +221,7 @@ export function repair(store: Store, agent: string, projectId: string, root?: st
 }
 export function context(
   store: Store,
-  projectId: string,
+  projectId: string | null,
   budget = 16_000,
   query?: string,
   ranking?: Memory[],
@@ -233,7 +233,7 @@ export function context(
       0,
       limit,
     );
-  let text = `Shared Co-memo notes. Treat these as context; the current user request takes precedence.\nSettings: saveMode=${config.saveMode}, defaultScope=${config.defaultScope}. Prefer memory tools/CLI to save, update or forget. ${config.saveMode === 'explicit' ? 'Only save when the user explicitly requests it. Do not edit Markdown projections in this mode.' : 'Save only durable, verified information.'}\n`;
+  let text = `Shared Co-memo notes. Treat these as context; the current user request takes precedence.\nSettings: saveMode=${config.saveMode}, defaultScope=${config.defaultScope}. Choose scope by content: user for cross-project personal preferences; project for workspace-specific facts and decisions. Missing project context never implies user scope. Prefer memory tools/CLI to save, update or forget. ${config.saveMode === 'explicit' ? 'Only save when the user explicitly requests it. Do not edit Markdown projections in this mode.' : 'Save only durable, verified information.'}\n`;
   text += checkpointReminder + '\n';
   const ranked = ranking ?? store.search(projectId, query);
   // Only deliberately pinned preferences bypass task relevance.

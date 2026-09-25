@@ -54,6 +54,16 @@ After setup and host reload, requests can include:
 
 The agent uses memory tools, or the pinned CLI for Pi/fallback. It should report actual tool results, not just acknowledge that it will remember.
 
+## Personal versus project memory
+
+The agent chooses scope from content: `user` for personal preferences and habits that apply across projects; `project` for a workspace's facts, tooling conventions, architecture and decisions. Being inside a repository does not turn a personal preference into a project note. Missing project context does not turn a project note into a personal preference. Agents should pass the chosen scope explicitly; omitted scope still uses `defaultScope` for compatibility.
+
+Memory operations automatically identify a project from the current working directory using registered workspace roots, Git roots/worktrees or common manifests (`package.json`, `pyproject.toml`, `Cargo.toml`, `go.mod`, `pom.xml`, Gradle build files). Git boundaries take priority over package manifests inside a repository. No manual `connect` or `setup` is required to create the internal project identity. Detection does not install hooks or create Markdown replicas; setup still handles host integration.
+
+For non-Git workspaces without a manifest, the agent supplies its known workspace path through CLI `--project PATH` or the optional `projectPath` argument on memory tools. A shared MCP server can use a different `projectPath` per call; it does not retain the previous call's path. Otherwise it detects from its launch directory (or the explicit launch `--project`). The agent must supply the active workspace when that differs from the launch context. Unlinked Git worktrees remain independent.
+
+Reads combine user notes and current-project notes. Without a detected workspace, personal reads and explicit `scope=user` writes work normally; project writes fail with a missing-context message instead of silently changing scope. User and project pause/intent restrictions continue to apply.
+
 ## Settings
 
 ```sh
@@ -65,7 +75,7 @@ co-memo settings set --scope project --paused false
 co-memo settings set --scope project --reset
 ```
 
-Settings are stored in SQLite, separate from memory text. Responses show user overrides, project overrides and effective values. Project settings require a registered project; user settings can be changed before setup.
+Settings are stored in SQLite, separate from memory text. Responses show user overrides, project overrides and effective values. Project settings use the automatically detected workspace; user settings can be changed without a project.
 
 | Setting        | Default   | Behavior                                                                                                                                                 |
 | -------------- | --------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |

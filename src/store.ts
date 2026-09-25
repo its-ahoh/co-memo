@@ -145,6 +145,39 @@ export class Store {
     this.db.prepare('INSERT INTO projects VALUES (?,?)').run(project.id, root);
     return project;
   }
+  /** Discover a workspace without installing adapters or asking the user to connect it. */
+  autoProject(path: string, explicit = false): Project | null {
+    const start = realpathSync(path);
+    ensure(statSync(start).isDirectory(), 'Expected project directory');
+    // Git boundaries take precedence over package manifests inside a monorepo.
+    let root = start;
+    let manifestRoot: string | null = null;
+    while (true) {
+      const linked = this.linkedProject(root);
+      if (linked) return linked;
+      if (existsSync(join(root, '.git'))) return this.project(root, true);
+      const row = this.db.prepare('SELECT id FROM projects WHERE root=?').get(root);
+      if (row) return { id: z.string().parse(row.id), root };
+      const parent = dirname(root);
+      if (parent === root || root === homedir()) break;
+      if (
+        !manifestRoot &&
+        [
+          'package.json',
+          'pyproject.toml',
+          'Cargo.toml',
+          'go.mod',
+          'pom.xml',
+          'build.gradle',
+          'build.gradle.kts',
+        ].some((name) => existsSync(join(root, name)))
+      )
+        manifestRoot = root;
+      root = parent;
+    }
+    const detected = manifestRoot ?? (explicit ? start : null);
+    return detected ? this.project(detected, true) : null;
+  }
   private linkedProject(root: string): Project | null {
     const link = this.db
       .prepare('SELECT project_id,git_common FROM project_links WHERE root=?')

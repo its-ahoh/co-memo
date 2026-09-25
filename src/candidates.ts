@@ -1,3 +1,4 @@
+import { projectId as resolveProjectId, requireProjectId } from './service.js';
 import { randomUUID } from 'node:crypto';
 import { z } from 'zod';
 import { Content, Scope, Evidence, MemoryKind, Metadata, ensure, hash } from './model.js';
@@ -54,11 +55,13 @@ const Results = z.array(Result);
 /** Call under Store.lock. Atomic candidate batch; model judgments remain caller declarations. */
 export function submit(store: Store, root: string, input: z.input<typeof Submission>) {
   const args = Submission.parse(input);
-  const projectId = store.project(root).id;
+  const projectId = resolveProjectId(store, root);
   allowWrite(store, projectId, args.intent);
   const fingerprint = hash(JSON.stringify(args));
   const before = sync(store);
-  const previous = store.submission(projectId, args.requestId);
+  // Empty namespace is reserved for personal submissions; project IDs are UUIDs.
+  const submissionScope = projectId ?? '';
+  const previous = store.submission(submissionScope, args.requestId);
   let results: z.infer<typeof Results>;
   if (previous) {
     ensure(
@@ -88,7 +91,7 @@ export function submit(store: Store, root: string, input: z.input<typeof Submiss
           const { memory, created } = store.add(
             candidate.content,
             scope,
-            scope === 'project' ? projectId : null,
+            scope === 'project' ? requireProjectId(store, root) : null,
             'candidate:' + candidate.source.agent,
             args.intent,
             metadata,
@@ -135,7 +138,7 @@ export function submit(store: Store, root: string, input: z.input<typeof Submiss
           receipt: { id: memory.id, version: memory.version, deleted: memory.deleted },
         };
       });
-      store.saveSubmission(projectId, args.requestId, fingerprint, output);
+      store.saveSubmission(submissionScope, args.requestId, fingerprint, output);
       return output;
     });
   }
