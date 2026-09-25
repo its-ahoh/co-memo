@@ -14,6 +14,7 @@
   "files": [
     "dist",
     "README.md",
+    "README.zh-CN.md",
     "NOTICE.md",
     "LICENSES",
     "docs",
@@ -26,8 +27,8 @@
     "test": "pnpm build && node --test test/*.test.mjs",
     "check": "pnpm format:check && pnpm typecheck && pnpm test",
     "prepack": "pnpm build",
-    "format": "prettier --write src test scripts package.json tsconfig.json .prettierrc.json README.md CONTRIBUTING.md NOTICE.md docs/*.md skills/**/*.md .github/workflows/ci.yml",
-    "format:check": "prettier --check src test scripts package.json tsconfig.json .prettierrc.json README.md CONTRIBUTING.md NOTICE.md docs/*.md skills/**/*.md .github/workflows/ci.yml",
+    "format": "prettier --write src test scripts package.json tsconfig.json .prettierrc.json README.md README.zh-CN.md CONTRIBUTING.md NOTICE.md docs/*.md skills/**/*.md .github/workflows/ci.yml",
+    "format:check": "prettier --check src test scripts package.json tsconfig.json .prettierrc.json README.md README.zh-CN.md CONTRIBUTING.md NOTICE.md docs/*.md skills/**/*.md .github/workflows/ci.yml",
     "eval": "pnpm build && node scripts/eval-quality.mjs",
     "test:hosts": "pnpm build && node scripts/host-smoke.mjs",
     "eval:semantic": "pnpm build && node scripts/eval-semantic.mjs",
