@@ -2,7 +2,7 @@
 
 ## Publication status
 
-The intended public npm package is `co-memo`, distributed under the MIT license. Version 0.6.0 is prepared, but initial publication is pending publisher 2FA. Until publication is confirmed, use a local `.tgz`. Install a specific release with `npm install -g co-memo@0.6.0`, or the latest release with `npm install -g co-memo`.
+The public npm package is [`@ahoh.tech/co-memo`](https://www.npmjs.com/package/@ahoh.tech/co-memo), distributed under the MIT license. Install a specific release with `npm install -g @ahoh.tech/co-memo@0.6.0`, or the latest release with `npm install -g @ahoh.tech/co-memo`.
 
 Users of the package need Node.js 24.12+ and npm; they do not need pnpm, TypeScript, or the source repository. Automatic agent configuration currently supports macOS and Linux.
 
@@ -26,18 +26,18 @@ This proves package installation and local protocol readiness. It does not prove
 Install from npm:
 
 ```sh
-npm install -g co-memo
+npm install -g @ahoh.tech/co-memo
 cd /path/to/your/project
 co-memo init --agents claude,codex --apply
 ```
 
 Restart the selected agents and accept their project/tool trust prompts. `init` defaults to tools-only; use `--hooks` if automatic lifecycle delivery is desired. Ask the running agent to call `memory_context` to confirm it can actually retrieve shared context.
 
-Local archives are also supported with `npm install -g /path/to/co-memo-0.6.0.tgz`. Prefer a persistent installation over `npx`/`pnpm dlx`: generated MCP, hook and skill instructions pin the Node executable and CLI to absolute paths, and disposable caches may disappear.
+Local archives are also supported with `npm install -g /path/to/ahoh.tech-co-memo-0.6.0.tgz`. Prefer a persistent installation over `npx`/`pnpm dlx`: generated MCP, hook and skill instructions pin the Node executable and CLI to absolute paths, and disposable caches may disappear.
 
 ## Upgrade or repair an installation path
 
-Run `npm install -g co-memo@latest` (or install a new archive), then rerun setup from the new executable in each connected project. Keep the same `--home` if you originally selected a custom memory directory. Preview first:
+Run `npm install -g @ahoh.tech/co-memo@latest` (or install a new archive), then rerun setup from the new executable in each connected project. Keep the same `--home` if you originally selected a custom memory directory. Preview first:
 
 ```sh
 co-memo init --agents claude,codex
@@ -61,7 +61,7 @@ The first command previews file changes without opening or migrating the store. 
 
 Malformed, unmanaged or symlinked files are refused before changes. Changes detected after preview are also refused. Multi-file removal is not one filesystem transaction: an I/O failure can leave a partial disconnect; backups are written before changes, and retrying after fixing the error is supported. Restart the host after removal: already loaded tools and text cannot be removed from a live session by this command. Reconnecting creates a fresh projection from central memory; archived unsaved edits are not automatically restored.
 
-Then `npm uninstall -g co-memo` removes the installed program only; it never deletes the central memory store.
+Then `npm uninstall -g @ahoh.tech/co-memo` removes the installed program only; it never deletes the central memory store.
 
 ## Maintainer publication checklist
 

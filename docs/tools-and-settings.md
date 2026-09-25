@@ -2,10 +2,10 @@
 
 ## Install and set up
 
-The registry release is pending publisher 2FA. Until it is confirmed, install a local `.tgz` as described in the README. After publication, with Node.js 24.12+:
+With Node.js 24.12+:
 
 ```sh
-npm install -g co-memo
+npm install -g @ahoh.tech/co-memo
 ```
 
 No source checkout or pnpm is required. Prefer a persistent installation over `npx`: generated agent configuration pins the installed CLI path.
