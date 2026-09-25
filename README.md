@@ -1,6 +1,7 @@
 <p align="center"><img src="docs/assets/co-memo-logo.png" width="112" alt="Co-memo" /></p>
 <h1 align="center">Co-memo</h1>
 <p align="center"><strong>Your memory. Across coding agents.</strong></p>
+<p align="center">English | <a href="README.zh-CN.md">简体中文</a></p>
 
 Co-memo gives **Pi, Claude Code, Codex, and OpenCode one local memory store**. Remember a preference or project decision in one agent, then carry it into the next. Changes and deletions propagate too.
 
@@ -9,6 +10,19 @@ Co-memo gives **Pi, Claude Code, Codex, and OpenCode one local memory store**. R
 - **Local and model-free synchronization:** SQLite, editable Markdown, no account, API key, embeddings, or extra model service required. Optional semantic retrieval is opt-in. The coding agent still uses its own model to decide what to remember.
 - **Reviewable conflicts:** competing edits are preserved. No silent last-writer-wins.
 - **Deletion that sticks:** tombstones prevent stale replicas from restoring forgotten notes.
+
+## Personal and project memory
+
+| Scope               | What belongs here                                        | Example                                          |
+| ------------------- | -------------------------------------------------------- | ------------------------------------------------ |
+| Personal (`user`)   | Preferences and habits that apply across projects        | “Keep explanations short and answer in Chinese.” |
+| Project (`project`) | Facts, conventions and decisions specific to a workspace | “This project uses pnpm and SQLite.”             |
+
+The agent chooses scope from the content. A personal preference stays personal even when discussed inside a repository. If a project-specific fact has no identifiable workspace, it must not be silently saved as personal memory. Callers that omit scope retain the configured `defaultScope` for compatibility.
+
+Co-memo detects project context from registered roots, Git roots/worktrees and common manifests. For a workspace without those markers, the agent can supply its known path through CLI `--project PATH` or MCP `projectPath`; the user does not need a separate binding step. A shared MCP server should receive the current workspace path on each call when it differs from its launch context.
+
+Reads combine personal and current-project memory. Outside a detected project, personal memory remains readable and explicit `--scope user` writes work. Agents using the same store share those personal notes. Project detection creates an internal identity only; **installing tools, skills and hooks into an agent is a separate setup step**.
 
 ## Install
 
@@ -25,6 +39,8 @@ You can also install the exact release directly from the official npm tarball, i
 ```sh
 npm install -g https://registry.npmjs.org/@ahoh.tech/co-memo/-/co-memo-0.6.0.tgz
 ```
+
+The automatic workspace detection described here reflects the current checkout. The pinned 0.6.0 tarball predates this change; build from this checkout to test it with that release.
 
 The npm package contains compiled JavaScript. Users do not need pnpm, TypeScript, an API key for Co-memo, or a checkout of this repository. Restart your agents after setup. Add `--hooks` to `init` for automatic lifecycle delivery; without it, agents must call the memory tools.
 
@@ -83,9 +99,9 @@ Saving a note makes it available in the shared store. Other agents receive it th
 
 ```sh
 # Save a project decision for connected agents to retrieve on their next read.
-co-memo add --content 'Use pnpm for this project.'
+co-memo add --scope project --content 'Use pnpm for this project.'
 
-# A preference for every connected project.
+# A personal preference shared across projects and agents.
 co-memo add --scope user --content 'Prefer concise explanations in Chinese.'
 
 co-memo list
@@ -110,7 +126,7 @@ Settings are persisted and checked by the program. Explicit-only mode rejects au
 
 ## Editable Markdown
 
-Each agent gets an editable projection:
+Each agent configured through `init`, `setup` or `connect` gets an editable projection:
 
 ```text
 project/
