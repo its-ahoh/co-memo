@@ -4,7 +4,7 @@ import { detectAgents, planSetup, describePlan, applySetup } from './onboarding.
 import { repository } from './worktrees.js';
 import { verifyRoundTrip } from './verification.js';
 import { indexEmbeddings } from './semantic.js';
-import { retrieve } from './service.js';
+import { retrieve, projectId, requireProjectId } from './service.js';
 import { doctor } from './doctor.js';
 import { projects } from './projects.js';
 import { createBackup, verifyBackup, restoreBackup } from './backup.js';
@@ -33,7 +33,11 @@ const app = new Command()
   .enablePositionalOptions()
   .description('One local memory store for your coding agents')
   .option('--home <directory>', 'Local data directory (or CO_MEMO_HOME)')
-  .option('--project <directory>', 'Project directory', process.cwd());
+  .option(
+    '--project <directory>',
+    'Agent workspace (otherwise detected from the working directory)',
+    process.cwd(),
+  );
 const print = (value: unknown) => {
   process.stdout.write(JSON.stringify(value, null, 2) + '\n');
 };
@@ -41,11 +45,36 @@ const positive = (s: string) => z.number().int().positive().safe().parse(Number(
 function options(): { home?: string | undefined; project: string } {
   return z.object({ home: z.string().optional(), project: z.string() }).parse(app.opts());
 }
+function prepareMemoryProject(store: Store, root: string): void {
+  const command = app.args[0];
+  if (
+    app.getOptionValueSource('project') === 'cli' &&
+    [
+      'add',
+      'list',
+      'show',
+      'history',
+      'edit',
+      'forget',
+      'import',
+      'index',
+      'context',
+      'submit',
+      'checkpoint',
+      'settings',
+      'status',
+    ].includes(command ?? '')
+  )
+    store.autoProject(root, true);
+}
 function using<T>(fn: (store: Store, root: string) => T): T {
   const opts = options(),
     store = new Store(opts.home);
   try {
-    return store.lock(() => fn(store, opts.project));
+    return store.lock(() => {
+      prepareMemoryProject(store, opts.project);
+      return fn(store, opts.project);
+    });
   } finally {
     store.close();
   }
@@ -54,6 +83,7 @@ async function usingAsync<T>(fn: (store: Store, root: string) => Promise<T>): Pr
   const opts = options(),
     store = new Store(opts.home);
   try {
+    store.lock(() => prepareMemoryProject(store, opts.project));
     return await fn(store, opts.project);
   } finally {
     store.close();
@@ -111,7 +141,7 @@ app
     const result = await usingAsync(async (store, root) => {
       const id = store.lock(() => {
         sync(store);
-        return store.project(root).id;
+        return projectId(store, root);
       });
       return indexEmbeddings(store, id, opts.limit);
     });
@@ -124,7 +154,7 @@ function reportExit(report: SyncReport): void {
 function checkScope(store: Store, id: string, root: string): Memory {
   const memory = store.get(id);
   ensure(
-    memory.scope === 'user' || store.project(root).id === memory.projectId,
+    memory.scope === 'user' || projectId(store, root) === memory.projectId,
     'Memory belongs to another project',
   );
   return memory;
@@ -319,7 +349,7 @@ scoped(
 );
 app
   .command('list')
-  .description('List user notes and this project’s notes')
+  .description('List personal notes and the automatically detected project’s notes')
   .option('--deleted', 'Include tombstones')
   .option('--query <text>', 'Full-text search with optional cached semantic ranking')
   .option('--explain', 'Include retrieval mode and fallback reason')
@@ -329,7 +359,7 @@ app
       const inspection = store.lock(() => {
         if (!configuration(store, root).effective.paused) return null;
         return {
-          memories: store.search(store.project(root).id, opts.query, opts.deleted),
+          memories: store.search(projectId(store, root), opts.query, opts.deleted),
           retrieval: { mode: 'lexical', reason: 'paused' },
           sync: sync(store),
         };
@@ -405,7 +435,7 @@ scoped(
       const config = configuration(store, root);
       const scope = Scope.parse(opts.scope ?? config.effective.defaultScope);
       ensure(!config.effective.paused, 'Co-memo is paused');
-      allowWrite(store, scope === 'project' ? store.project(root).id : null, 'explicit');
+      allowWrite(store, scope === 'project' ? requireProjectId(store, root) : null, 'explicit');
       ensure(!lstatSync(path).isSymbolicLink(), 'Linked import paths are not supported');
       const absolute = realpathSync(path);
       const paths = statSync(absolute).isDirectory()
@@ -422,7 +452,7 @@ scoped(
         return { file, content: Content.parse(text) };
       });
       sync(store);
-      const projectId = scope === 'project' ? store.project(root).id : null;
+      const projectId = scope === 'project' ? requireProjectId(store, root) : null;
       const result = store.transaction(() =>
         notes.map((n) => store.add(n.content, scope, projectId, `import:${n.file}`)),
       );
@@ -482,24 +512,24 @@ app
   .action(() =>
     print(
       using((store, root) => {
-        const project = store.project(root);
+        const project = store.autoProject(root);
         return {
           home: store.home,
           project,
           agents: store
             .replicas()
-            .filter((r) => r.projectId === project.id)
+            .filter((r) => r.projectId === project?.id)
             .map((r) => ({
               agent: r.agent,
               path: r.path,
               pending: r.pending !== null,
               exists: readText(r.path) !== null,
             })),
-          memories: store.list(project.id).length,
+          memories: store.list(project?.id ?? null).length,
           conflicts: store.conflicts(),
           runtime: process.version,
-          sharedRepository: store.projectById(project.id).root,
-          linkedWorktrees: store.worktrees(project.id),
+          sharedRepository: project ? store.projectById(project.id).root : null,
+          linkedWorktrees: project ? store.worktrees(project.id) : [],
           settings: configuration(store, root),
         };
       }),
@@ -670,10 +700,10 @@ app
 app
   .command('serve')
   .option('--co-memo-managed', 'Marks generated MCP launch configurations')
-  .description('Run a project-bound MCP server over stdio')
+  .description('Run an MCP server over stdio with automatic workspace detection')
   .action(async () => {
     const opts = options();
-    await serve(opts.home, opts.project);
+    await serve(opts.home, opts.project, app.getOptionValueSource('project') === 'cli');
   });
 const settingsCommand = app.command('settings').description('Inspect or configure memory behavior');
 settingsCommand

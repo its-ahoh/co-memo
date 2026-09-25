@@ -407,3 +407,43 @@ test('New adapters refuse malformed hooks and unmanaged plugins before any setup
     }
   }
 });
+
+test('CLI personal memory works without connecting a project, including paused inspection', (t) => {
+  const f = fixture(t);
+  assert.deepEqual(f.run('list'), []);
+  const note = f.run(
+    'add',
+    '--scope',
+    'user',
+    '--content',
+    'Personal preference for Chinese',
+  ).memory;
+  assert.equal(note.scope, 'user');
+  assert.equal(note.projectId, null);
+  const store = new Store(f.home);
+  try {
+    const other = store.project(f.root, true);
+    store.add('Private project preference', 'project', other.id, 'test');
+  } finally {
+    store.close();
+  }
+  // A nested repository must not inherit the registered parent project.
+  mkdirSync(join(f.project, '.git'));
+  assert.deepEqual(
+    f.run('list').map((m) => m.id),
+    [note.id],
+  );
+  assert.equal(f.run('list', '--query', 'Chinese')[0].id, note.id);
+  assert.equal(f.run('show', note.id).id, note.id);
+  f.run('settings', 'set', '--scope', 'user', '--paused', 'true');
+  const paused = f.run('list', '--explain');
+  assert.equal(paused.retrieval.reason, 'paused');
+  assert.deepEqual(
+    paused.memories.map((m) => m.id),
+    [note.id],
+  );
+  f.run('settings', 'set', '--scope', 'user', '--paused', 'false');
+  f.run('forget', note.id, '--version', '1');
+  assert.deepEqual(f.run('list'), []);
+  assert.equal(f.run('list', '--deleted')[0].id, note.id);
+});

@@ -5,7 +5,7 @@
 Co-memo gives **Pi, Claude Code, Codex, and OpenCode one local memory store**. Remember a preference or project decision in one agent, then carry it into the next. Changes and deletions propagate too.
 
 - **Shared by default:** agents are sources, not separate owners of your memory.
-- **Two scopes:** project notes stay in their project; user preferences follow you across connected projects.
+- **Two scopes:** project facts, conventions and decisions stay with their workspace; personal (`user`) preferences apply across projects and agents. Agents choose scope from content. Workspaces are detected automatically from Git, common manifests or the agent-supplied workspace path, without a manual connection step. Missing project context never turns a project note into personal memory.
 - **Local and model-free synchronization:** SQLite, editable Markdown, no account, API key, embeddings, or extra model service required. Optional semantic retrieval is opt-in. The coding agent still uses its own model to decide what to remember.
 - **Reviewable conflicts:** competing edits are preserved. No silent last-writer-wins.
 - **Deletion that sticks:** tombstones prevent stale replicas from restoring forgotten notes.
