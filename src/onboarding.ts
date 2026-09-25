@@ -145,6 +145,9 @@ export async function applySetup(input: InitOptions, plan = planSetup(input)) {
       sync: report,
       checks,
       hostVerified: false,
+      delivery: input.toolsOnly
+        ? 'agent-tool-call-required'
+        : 'hooks-configured-host-reload-required',
       next: 'Restart the selected agents and review host trust/tool approvals. Protocol probes do not establish model behavior.',
     };
   } finally {

@@ -12,7 +12,19 @@ Co-memo gives **Pi, Claude Code, Codex, and OpenCode one local memory store**. R
 
 This is a new implementation in **TypeScript + Node.js**, managed with **pnpm**. It does not migrate the previous Rust database or preserve its CLI.
 
-## Install from this checkout
+## Install
+
+Requires **Node.js 24.12+**. Automatic agent setup supports macOS and Linux.
+
+```sh
+npm install -g co-memo
+cd /path/to/your/project
+co-memo init --agents claude,codex --apply
+```
+
+The npm package contains compiled JavaScript. Users do not need pnpm, TypeScript, an API key for Co-memo, or a checkout of this repository. Restart your agents after setup. Add `--hooks` to `init` for automatic lifecycle delivery; without it, agents must call the memory tools.
+
+## Build from this checkout
 
 Requires **Node.js 24.12+**. Automatic agent setup is supported on macOS and Linux.
 
@@ -23,9 +35,17 @@ pnpm pack
 npm install -g ./co-memo-0.6.0.tgz
 ```
 
-pnpm is a development dependency; users of the packed npm package need only Node.js and npm. The package is **not published to npm**; registry publication remains disabled while the license for new work is undecided.
+pnpm is only required for development. Co-memo is distributed under the [MIT license](LICENSE).
 
 ## Connect your agents
+
+For guided setup, run `co-memo init` in your project. For noninteractive setup:
+
+```sh
+co-memo init --agents claude,codex --apply
+```
+
+`init` defaults to tools-only: the agent must call `memory_context` to load memories. Add `--hooks` for automatic lifecycle delivery. Configuration and MCP probes do not prove that a running agent has loaded memory.
 
 From the project where you use your agents:
 
@@ -153,3 +173,11 @@ From the checkout, run `pnpm eval` for retrieval quality and `pnpm test:hosts` f
 See [optional semantic retrieval](docs/semantic-retrieval.md) for provider configuration, explicit indexing, cache validity and model evaluation.
 
 For agent discovery and guided setup, run `co-memo init`. See [guided setup, explicit worktree sharing and real-host verification](docs/onboarding-and-worktrees.md) for previews, linking rules and `co-memo verify --round-trip`.
+
+## Installation maintenance
+
+See [release and installation validation](docs/releasing.md) for package verification, upgrades, and repairing pinned paths after moving your installation or changing Node versions.
+
+Back up the central store with `co-memo backup /path/to/new-backup`. Restore first previews and always uses a new data directory; see [backup and restore](docs/backup-and-restore.md).
+
+List connected projects with `co-memo projects`, or inspect them together with `co-memo projects --check`. See [diagnostics and evaluation](docs/diagnostics-and-evaluation.md) for real Hook tests, autonomous saving checks and larger retrieval regressions.

@@ -1,0 +1,389 @@
+{
+  "datasetVersion": 2,
+  "distractors": 1000,
+  "corpusSize": 1011,
+  "runtime": "v26.8.1",
+  "retrieval": {
+    "groups": {
+      "lexical": {
+        "cases": 18,
+        "recallAt5": 1,
+        "precisionAt5": 0.6461538461538463,
+        "mrr": 1,
+        "falsePositiveEmptyQueries": 0
+      },
+      "semantic": {
+        "cases": 3,
+        "recallAt5": 0,
+        "precisionAt5": null,
+        "mrr": 0,
+        "falsePositiveEmptyQueries": 0
+      }
+    },
+    "leaks": 0,
+    "contextBudgetViolations": 0,
+    "p95Ms": 1.1489589999999907,
+    "details": [
+      {
+        "id": "packages",
+        "group": "lexical",
+        "returned": [
+          "packages",
+          "tests",
+          "noise-999",
+          "noise-997",
+          "noise-993"
+        ],
+        "relevant": [
+          "packages"
+        ],
+        "recallAt5": 1,
+        "precisionAt5": 0.2,
+        "reciprocalRank": 1,
+        "falsePositiveEmptyQuery": false,
+        "leaked": false,
+        "contextWithinBudget": true,
+        "elapsedMs": 1.3686249999999802
+      },
+      {
+        "id": "chinese",
+        "group": "lexical",
+        "returned": [
+          "migration"
+        ],
+        "relevant": [
+          "migration"
+        ],
+        "recallAt5": 1,
+        "precisionAt5": 1,
+        "reciprocalRank": 1,
+        "falsePositiveEmptyQuery": false,
+        "leaked": false,
+        "contextWithinBudget": true,
+        "elapsedMs": 0.18541699999997263
+      },
+      {
+        "id": "identifier",
+        "group": "lexical",
+        "returned": [
+          "parser"
+        ],
+        "relevant": [
+          "parser"
+        ],
+        "recallAt5": 1,
+        "precisionAt5": 1,
+        "reciprocalRank": 1,
+        "falsePositiveEmptyQuery": false,
+        "leaked": false,
+        "contextWithinBudget": true,
+        "elapsedMs": 0.26941700000000424
+      },
+      {
+        "id": "path",
+        "group": "lexical",
+        "returned": [
+          "parser",
+          "noise-998",
+          "noise-996",
+          "noise-994",
+          "noise-992"
+        ],
+        "relevant": [
+          "parser"
+        ],
+        "recallAt5": 1,
+        "precisionAt5": 0.2,
+        "reciprocalRank": 1,
+        "falsePositiveEmptyQuery": false,
+        "leaked": false,
+        "contextWithinBudget": true,
+        "elapsedMs": 1.1441670000000101
+      },
+      {
+        "id": "case",
+        "group": "lexical",
+        "returned": [
+          "tests",
+          "packages",
+          "noise-999",
+          "noise-997",
+          "noise-993"
+        ],
+        "relevant": [
+          "tests",
+          "packages"
+        ],
+        "recallAt5": 1,
+        "precisionAt5": 0.4,
+        "reciprocalRank": 1,
+        "falsePositiveEmptyQuery": false,
+        "leaked": false,
+        "contextWithinBudget": true,
+        "elapsedMs": 1.0592919999999992
+      },
+      {
+        "id": "module",
+        "group": "lexical",
+        "returned": [
+          "module"
+        ],
+        "relevant": [
+          "module"
+        ],
+        "recallAt5": 1,
+        "precisionAt5": 1,
+        "reciprocalRank": 1,
+        "falsePositiveEmptyQuery": false,
+        "leaked": false,
+        "contextWithinBudget": true,
+        "elapsedMs": 0.0857910000000004
+      },
+      {
+        "id": "scope",
+        "group": "lexical",
+        "returned": [
+          "packages"
+        ],
+        "relevant": [
+          "packages"
+        ],
+        "recallAt5": 1,
+        "precisionAt5": 1,
+        "reciprocalRank": 1,
+        "falsePositiveEmptyQuery": false,
+        "leaked": false,
+        "contextWithinBudget": true,
+        "elapsedMs": 0.1208340000000021
+      },
+      {
+        "id": "no-result",
+        "group": "lexical",
+        "returned": [],
+        "relevant": [],
+        "recallAt5": null,
+        "precisionAt5": null,
+        "reciprocalRank": 0,
+        "falsePositiveEmptyQuery": false,
+        "leaked": false,
+        "contextWithinBudget": true,
+        "elapsedMs": 0.0850420000000156
+      },
+      {
+        "id": "deleted",
+        "group": "lexical",
+        "returned": [],
+        "relevant": [],
+        "recallAt5": null,
+        "precisionAt5": null,
+        "reciprocalRank": 0,
+        "falsePositiveEmptyQuery": false,
+        "leaked": false,
+        "contextWithinBudget": true,
+        "elapsedMs": 0.1436249999999859
+      },
+      {
+        "id": "conflict",
+        "group": "lexical",
+        "returned": [],
+        "relevant": [],
+        "recallAt5": null,
+        "precisionAt5": null,
+        "reciprocalRank": 0,
+        "falsePositiveEmptyQuery": false,
+        "leaked": false,
+        "contextWithinBudget": true,
+        "elapsedMs": 0.12220800000000054
+      },
+      {
+        "id": "synonym",
+        "group": "semantic",
+        "returned": [],
+        "relevant": [
+          "packages"
+        ],
+        "recallAt5": 0,
+        "precisionAt5": null,
+        "reciprocalRank": 0,
+        "falsePositiveEmptyQuery": false,
+        "leaked": false,
+        "contextWithinBudget": true,
+        "elapsedMs": 0.11445899999998232
+      },
+      {
+        "id": "cross-language",
+        "group": "semantic",
+        "returned": [],
+        "relevant": [
+          "migration"
+        ],
+        "recallAt5": 0,
+        "precisionAt5": null,
+        "reciprocalRank": 0,
+        "falsePositiveEmptyQuery": false,
+        "leaked": false,
+        "contextWithinBudget": true,
+        "elapsedMs": 0.11079100000000608
+      },
+      {
+        "id": "implicit",
+        "group": "semantic",
+        "returned": [],
+        "relevant": [
+          "rollback"
+        ],
+        "recallAt5": 0,
+        "precisionAt5": null,
+        "reciprocalRank": 0,
+        "falsePositiveEmptyQuery": false,
+        "leaked": false,
+        "contextWithinBudget": true,
+        "elapsedMs": 0.2023749999999893
+      },
+      {
+        "id": "fullwidth",
+        "group": "lexical",
+        "returned": [
+          "packages",
+          "tests",
+          "noise-999",
+          "noise-997",
+          "noise-993"
+        ],
+        "relevant": [
+          "packages"
+        ],
+        "recallAt5": 1,
+        "precisionAt5": 0.2,
+        "reciprocalRank": 1,
+        "falsePositiveEmptyQuery": false,
+        "leaked": false,
+        "contextWithinBudget": true,
+        "elapsedMs": 1.1046249999999986
+      },
+      {
+        "id": "mixed-language",
+        "group": "lexical",
+        "returned": [
+          "migration"
+        ],
+        "relevant": [
+          "migration"
+        ],
+        "recallAt5": 1,
+        "precisionAt5": 1,
+        "reciprocalRank": 1,
+        "falsePositiveEmptyQuery": false,
+        "leaked": false,
+        "contextWithinBudget": true,
+        "elapsedMs": 0.09466700000001538
+      },
+      {
+        "id": "user-preference",
+        "group": "lexical",
+        "returned": [
+          "language"
+        ],
+        "relevant": [
+          "language"
+        ],
+        "recallAt5": 1,
+        "precisionAt5": 1,
+        "reciprocalRank": 1,
+        "falsePositiveEmptyQuery": false,
+        "leaked": false,
+        "contextWithinBudget": true,
+        "elapsedMs": 0.08362500000001205
+      },
+      {
+        "id": "path-backslash",
+        "group": "lexical",
+        "returned": [
+          "parser",
+          "noise-998",
+          "noise-996",
+          "noise-994",
+          "noise-992"
+        ],
+        "relevant": [
+          "parser"
+        ],
+        "recallAt5": 1,
+        "precisionAt5": 0.2,
+        "reciprocalRank": 1,
+        "falsePositiveEmptyQuery": false,
+        "leaked": false,
+        "contextWithinBudget": true,
+        "elapsedMs": 1.0759999999999934
+      },
+      {
+        "id": "case-identifier",
+        "group": "lexical",
+        "returned": [
+          "parser",
+          "noise-998",
+          "noise-996",
+          "noise-994",
+          "noise-992"
+        ],
+        "relevant": [
+          "parser"
+        ],
+        "recallAt5": 1,
+        "precisionAt5": 0.2,
+        "reciprocalRank": 1,
+        "falsePositiveEmptyQuery": false,
+        "leaked": false,
+        "contextWithinBudget": true,
+        "elapsedMs": 1.1489589999999907
+      },
+      {
+        "id": "punctuation",
+        "group": "lexical",
+        "returned": [],
+        "relevant": [],
+        "recallAt5": null,
+        "precisionAt5": null,
+        "reciprocalRank": 0,
+        "falsePositiveEmptyQuery": false,
+        "leaked": false,
+        "contextWithinBudget": true,
+        "elapsedMs": 0.014999999999986358
+      },
+      {
+        "id": "quoting",
+        "group": "lexical",
+        "returned": [
+          "packages"
+        ],
+        "relevant": [
+          "packages"
+        ],
+        "recallAt5": 1,
+        "precisionAt5": 1,
+        "reciprocalRank": 1,
+        "falsePositiveEmptyQuery": false,
+        "leaked": false,
+        "contextWithinBudget": true,
+        "elapsedMs": 0.15212500000001228
+      },
+      {
+        "id": "negative-unrelated",
+        "group": "lexical",
+        "returned": [],
+        "relevant": [],
+        "recallAt5": null,
+        "precisionAt5": null,
+        "reciprocalRank": 0,
+        "falsePositiveEmptyQuery": false,
+        "leaked": false,
+        "contextWithinBudget": true,
+        "elapsedMs": 0.07162499999998317
+      }
+    ]
+  },
+  "extraction": {
+    "status": "not_run",
+    "reason": "No actual agent extraction output supplied. Storage tests are not extraction accuracy."
+  }
+}

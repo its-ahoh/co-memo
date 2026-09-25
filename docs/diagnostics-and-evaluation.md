@@ -13,6 +13,8 @@ The optional probe starts **this installation's pinned Node/CLI**, only after fi
 
 Checks return `pass`, `info`, `warn`, or `fail`, with remedies. CLI exit 2 means at least one failure; warnings alone exit 0. `hostVerified` remains false (an informational finding, not a failed check): checking files or speaking MCP directly cannot prove a host loaded its project config, approved hooks, or that a model followed memory instructions. Re-run `setup AGENT` to refresh generated files, preserving `--tools-only` and the intended OpenCode API version.
 
+The `readiness` field separates configuration inspection, protocol probe results, and `hostMemoryLoaded: "unverified"`. This last state is deliberate: no durable observation of your currently running host is recorded. Ask that host to call `memory_context` and inspect its tool result. `init` also reports `delivery`: `agent-tool-call-required` for tools-only, or `hooks-configured-host-reload-required` when hooks are enabled.
+
 ## Real host readiness checks
 
 ```sh
@@ -85,3 +87,33 @@ The grader checks reviewed text aliases, kind, scope, evidence-message ID and re
 ## Optional embedding comparison
 
 `pnpm eval:semantic` runs the same synthetic retrieval fixture with an explicitly configured embedding provider and compares it with the lexical baseline. It uses a temporary store, never production memories. Provider fallback makes the report incomplete. See [semantic retrieval](semantic-retrieval.md) for configuration, thresholds and the optional quality gate. The deterministic baseline above remains model-free.
+
+## Real Claude lifecycle hooks
+
+```sh
+pnpm test:hooks
+```
+
+This opt-in check uses the installed Claude CLI and existing login/model quota (one invocation with `--max-budget-usd 1`), never ordinary CI. It creates a disposable project/store with a random synthetic fact and instruments the generated local Hook commands to record their actual completion. Only local settings are selected; MCP servers, built-in tools and slash commands are disabled. The model must return a random value absent from its prompt, and SessionStart/UserPromptSubmit must have delivered it through `additionalContext`. Stop must also complete successfully. No broad permission bypass is used.
+
+The script prints only verification results and removes its temporary data on completion or handled failure. An externally killed process can leave temporary files. Host authentication, quota, project trust or incompatible CLI behavior can cause failure. This validates native event dispatch plus memory delivery under these controlled settings; it does not validate automatic memory extraction, arbitrary global plugin combinations, or every host version.
+
+## Autonomous saving evaluation
+
+```sh
+pnpm eval:autonomous
+```
+
+This opt-in evaluation runs seven isolated Claude sessions using the installed CLI and existing authentication, with a per-invocation budget flag of USD 1. It is not part of CI. Prompts describe ordinary project decisions/preferences/corrections or temporary/speculative requests; none explicitly requests memory saving. Generated Co-memo instructions and its MCP tools remain available, while built-in tools, hooks and slash commands are disabled. Only local settings are loaded. No target answer or grading rubric is sent to the model.
+
+The evaluator checks actual successful tool calls, `automatic` intent, central-store contents, user/project scope, and same-ID version advancement for a correction. Non-save cases must not even attempt a write: a policy-rejected attempted save does not count as good extraction. A launch/quota/model failure stops the run as incomplete. Regex-based content checks are deliberately narrow and the output includes synthetic saved text for manual review. Passing these seven examples is not a general accuracy estimate, evidence of factual verification, or proof across all models and long conversations.
+
+## Larger retrieval regression
+
+```sh
+pnpm eval:scale
+```
+
+Dataset version 2 adds full-width characters, mixed-language terms, path separators, quoted queries and negative/punctuation queries. Scale mode adds 1,000 reproducible synthetic distractors, including partial keyword overlap and inaccessible foreign-project notes. CI checks Recall@5 >= 0.9, zero forbidden-memory leaks/false positives for empty-result queries, and the context character budget. Reports include precision and p95 query latency; there is no hardware-independent latency gate.
+
+This is a stress regression, not a real-user benchmark. The current large-corpus run still retrieves some weak partial matches, and lexical search still misses the three semantic-only cases. Do not tune away these limits by relabeling the fixtures or claim embedding accuracy without running an actual provider evaluation. Optional semantic retrieval remains off by default.

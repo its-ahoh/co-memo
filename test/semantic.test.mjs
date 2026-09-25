@@ -267,7 +267,13 @@ test('CLI index/list and MCP recall/context use the configured hybrid path', asy
     ).stdout,
   );
   assert.equal(evaluation.status, 'scored');
-  assert.equal(evaluation.hybrid.details.length, 13);
+  const fixtureCases = JSON.parse(
+    readFileSync(new URL('../evals/quality-cases.json', import.meta.url), 'utf8'),
+  );
+  assert.deepEqual(
+    evaluation.hybrid.details.map((item) => item.id).sort(),
+    fixtureCases.retrieval.map((item) => item.id).sort(),
+  );
   assert.equal(evaluation.hybrid.leaks, 0);
   assert.equal(evaluation.hybrid.fallbackQueries, 0);
   f.store.lock(() => f.store.configure(f.project.id, { paused: true }));

@@ -6,6 +6,9 @@ import { verifyRoundTrip } from './verification.js';
 import { indexEmbeddings } from './semantic.js';
 import { retrieve } from './service.js';
 import { doctor } from './doctor.js';
+import { projects } from './projects.js';
+import { createBackup, verifyBackup, restoreBackup } from './backup.js';
+import { planDisconnect, describeDisconnect, applyDisconnect } from './disconnect.js';
 import { Submission, submit } from './candidates.js';
 import { configuration, configure, remember, change, checkpoint } from './service.js';
 import { allowWrite } from './settings.js';
@@ -56,6 +59,48 @@ async function usingAsync<T>(fn: (store: Store, root: string) => Promise<T>): Pr
     store.close();
   }
 }
+app
+  .command('projects')
+  .description('List registered projects/worktrees without synchronizing or creating a store')
+  .option('--check', 'Run read-only diagnostics for each registered root')
+  .option('--probe', 'Also probe configured MCP servers; never runs host models')
+  .action(async (opts: { check?: boolean; probe?: boolean }) => {
+    const report = await projects(options().home, opts.check, opts.probe);
+    print(report);
+    if (
+      report.projects.some(
+        (p) => (p.diagnostics as { status?: string } | undefined)?.status === 'needs_attention',
+      )
+    )
+      process.exitCode = 2;
+  });
+app
+  .command('backup <directory>')
+  .description('Create a verified snapshot of the entire central store in a new directory')
+  .action(async (directory: string) => print(await createBackup(directory, options().home)));
+app
+  .command('backup-check <directory>')
+  .description('Verify backup checksum, schema, integrity and row counts without restoring')
+  .action(async (directory: string) => print(await verifyBackup(directory)));
+app
+  .command('restore <directory>')
+  .description('Preview or restore a backup into a new data home; detach old replicas')
+  .requiredOption('--to <directory>', 'New, non-existing memory home')
+  .option('--apply', 'Perform the restore; otherwise validate and preview only')
+  .action(async (directory: string, opts: { to: string; apply?: boolean }) =>
+    print(await restoreBackup(directory, opts.to, opts.apply)),
+  );
+app
+  .command('disconnect <agent>')
+  .description(
+    'Preview removal of managed integration; keep central memories and archive local files',
+  )
+  .option('--apply', 'Apply the previewed removal for this project and agent')
+  .action((name: string, opts: { apply?: boolean }) => {
+    const plan = planDisconnect(options().project, Agent.parse(name));
+    if (!opts.apply) print(describeDisconnect(plan));
+    else print(using((store) => applyDisconnect(store, plan)));
+  });
 app
   .command('index')
   .description(

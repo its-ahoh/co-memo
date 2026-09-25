@@ -332,6 +332,15 @@ export async function doctor(input: {
     home,
     transport,
     hostVerified: false,
+    readiness: {
+      configuration:
+        checks.some((c) => c.id.endsWith(':binding') && c.status === 'fail') || !ready
+          ? 'needs_attention'
+          : 'inspected',
+      protocol: transport,
+      hostMemoryLoaded: 'unverified',
+      next: 'Restart the host and ask it to call memory_context. A successful doctor probe is from this CLI, not from your running agent. Tools-only delivery requires the agent to call a memory tool.',
+    },
     checks,
   };
 }

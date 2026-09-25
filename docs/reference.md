@@ -67,3 +67,33 @@ See [tools and settings](tools-and-settings.md) for MCP schemas, host configurat
 `index [--limit N]` explicitly builds optional embedding caches for eligible user/project memories. It requires provider configuration, sends note text to that provider, defaults to 100 notes, and reports remaining work. See [semantic retrieval](semantic-retrieval.md).
 
 `init [--agents codex,claude] [--apply] [--hooks]` discovers agents and previews setup; noninteractive runs need `--apply` to write. `worktree inspect` shows Git identity; `worktree link --to ROOT` explicitly shares an already connected repository’s project memory. `verify --from codex --to claude [--round-trip] [--keep]` runs real models with temporary synthetic memory and consumes host quota. See [the setup/worktree/verification guide](onboarding-and-worktrees.md) for scope and schema compatibility.
+
+## Disconnect an agent
+
+```sh
+co-memo --project /path/to/project disconnect claude
+co-memo --project /path/to/project disconnect claude --apply
+```
+
+Preview is read-only. Apply removes the selected agent's managed integration and replica registration, archives affected originals in the memory home, and retains central notes and other agents. Close the host first and restart it afterward. See [installation maintenance](releasing.md) for backup, pending-edit and partial-failure behavior.
+
+## Backup and restore
+
+```sh
+co-memo backup /path/to/new-backup
+co-memo backup-check /path/to/new-backup
+co-memo restore /path/to/new-backup --to /path/to/new-home
+co-memo restore /path/to/new-backup --to /path/to/new-home --apply
+```
+
+These operate on the whole central store, not just the current project. Restore requires a new home and detaches old replica registrations. See [backup and restore](backup-and-restore.md) for snapshot scope, unsynchronized files, verification and switching agent bindings.
+
+## Manage connected projects
+
+```sh
+co-memo projects
+co-memo projects --check
+co-memo projects --probe
+```
+
+Works outside a project and does not create or migrate a missing store. Lists registered roots and linked worktrees, per-root agents, existence and project-memory counts without printing memory text. `--check` performs read-only diagnostics per root; `--probe` additionally initializes the pinned MCP server after binding validation. Neither launches a host model nor proves its active session loaded memory. Any diagnostic failure returns exit code 2. Use the original project's `disconnect` command to remove an agent; project identities remain listed for access to retained history.

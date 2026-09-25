@@ -2,15 +2,13 @@
 
 ## Install and set up
 
-From a Co-memo checkout, with Node.js 24.12+ and pnpm:
+With Node.js 24.12+:
 
 ```sh
-pnpm install --frozen-lockfile
-pnpm pack
-npm install -g ./co-memo-0.6.0.tgz
+npm install -g co-memo
 ```
 
-The package is not published to npm. Do not use `npx co-memo` or assume the registry package belongs to this project.
+No source checkout or pnpm is required. Prefer a persistent installation over `npx`: generated agent configuration pins the installed CLI path.
 
 In your working project, run setup for each agent you use:
 

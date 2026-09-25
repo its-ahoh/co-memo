@@ -22,4 +22,5 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm check
       - run: node scripts/eval-quality.mjs --check
-      - run: pnpm pack
+      - run: node scripts/eval-quality.mjs --distractors 1000 --check
+      - run: node scripts/test-package.mjs

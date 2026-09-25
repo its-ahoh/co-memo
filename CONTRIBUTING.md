@@ -22,4 +22,4 @@ The npm package ships `dist/`; users do not need TypeScript, pnpm, Python or Rus
 - Keep unrelated host settings and instructions intact. Test generated adapters, not just configuration shapes.
 - Do not use real agent stores as test fixtures.
 
-See [architecture](docs/architecture.md) and [agent setup](docs/agent-configuration.md). The public license for new work remains undecided; see [NOTICE](NOTICE.md).
+See [architecture](docs/architecture.md) and [agent setup](docs/agent-configuration.md). The project uses the [MIT license](LICENSE); retain the attribution in [NOTICE](NOTICE.md). See [release and installation validation](docs/releasing.md) before publishing.

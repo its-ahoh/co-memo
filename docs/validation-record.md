@@ -58,3 +58,15 @@ The new `co-memo verify --from codex --to claude --round-trip` command passed bo
 The full Node 26 regression suite passed 78 tests before the final nested-worktree boundary addition. After that fix, all 29 Node 24 onboarding, verification-parser, diagnostics and MCP/settings tests passed, including the new nested-worktree isolation case. Formatting, type checking and the lexical evaluation gate passed. Schema 3 → 4 migration tests preserve notes, replica IDs, baselines and pending publication state. Setup tests verify read-only preview, multi-agent preflight, stale-plan rejection, repeatability and actual MCP probes.
 
 Worktree sharing is deliberately explicit and project-wide. The current version does not add a branch/task memory scope or automatically merge existing independent project stores. See [guided setup and worktrees](onboarding-and-worktrees.md).
+
+## Native Claude hooks — 2026-09-24
+
+The new opt-in `pnpm test:hooks` check passed locally with Claude Code 2.1.281. The real host launched the instrumented generated SessionStart, UserPromptSubmit and Stop commands, all with exit status 0. Both input events delivered the synthetic random memory through Hook output. With MCP and built-in tools disabled, the model returned the random value, which was absent from its prompt. Stop completed synchronization and did not inject context, as intended. No real user memories, repository source or global settings were used or modified; temporary project/data files were cleaned up.
+
+This establishes controlled native Hook dispatch and model-visible delivery for that host version. It does not establish autonomous extraction or behavior with arbitrary user plugins. Earlier entries above describe the checks available at their respective dates.
+
+## Autonomous extraction and scale regression — 2026-09-24
+
+The real Claude autonomous run passed all seven isolated scenarios. Host-reported model: `claude-opus-5-5`. It saved an implicit SQLite/offline project decision and a Chinese-language user preference with `intent=automatic`, and changed the existing npm decision to pnpm on the same memory ID at version 2. Speculation, a one-off response format, explicit-only mode and pause generated no write attempts. Saved synthetic text and actual tool-call summaries are retained in [the evaluation output](../evals/results/claude-autonomous-2026-09-24.json). These narrow content checks were also manually reviewed; no broad model-quality claim follows from seven cases.
+
+The 1,011-memory scale regression passed: lexical Recall@5 1.0, MRR 1.0, precision approximately 0.646, zero forbidden-scope/deletion/conflict leaks, zero empty-query false positives and zero context-budget violations. Local p95 search latency was approximately 1.15 ms; timings vary by machine. All three semantic-only queries remained misses under lexical search. See [the full scale output](../evals/results/retrieval-scale-2026-09-24.json). The observed precision gap is retained transparently rather than masking distractors or weakening expected labels.

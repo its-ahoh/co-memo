@@ -92,7 +92,8 @@ export function extractionMetrics(input) {
     details,
   };
 }
-export function evaluate(predictions) {
+export function evaluate(predictions, { distractors = 0 } = {}) {
+  z.number().int().min(0).max(100000).parse(distractors);
   const root = realpathSync(mkdtempSync(join(tmpdir(), 'co-memo-quality-')));
   const store = new Store(join(root, 'data'));
   try {
@@ -120,6 +121,19 @@ export function evaluate(predictions) {
         if (item.conflicted) store.conflict(note, []);
       }
     });
+    store.transaction(() => {
+      for (let i = 0; i < distractors; i++) {
+        const foreign = i % 5 === 0;
+        const content = `Historical task ${i}: ${i % 2 ? 'pnpm formatting configuration' : 'parser module documentation'} archive.`;
+        const memory = store.add(
+          content,
+          'project',
+          foreign ? other.id : main.id,
+          'synthetic-distractor',
+        ).memory;
+        keys.set(memory.id, foreign ? `forbidden-noise-${i}` : `noise-${i}`);
+      }
+    });
     const details = cases.retrieval.map((item) => {
       const start = performance.now();
       const found = store
@@ -142,7 +156,10 @@ export function evaluate(predictions) {
         precisionAt5: found.length ? hit / found.length : null,
         reciprocalRank: rank < 0 ? 0 : 1 / (rank + 1),
         falsePositiveEmptyQuery: item.relevant.length === 0 && found.length > 0,
-        leaked: forbidden.some((m) => found.includes(m.key) || injected.includes(m.content)),
+        leaked:
+          found.some((key) => key?.startsWith('forbidden-noise-')) ||
+          forbidden.some((m) => found.includes(m.key) || injected.includes(m.content)),
+        contextWithinBudget: injected.length <= 16000,
         elapsedMs,
       };
     });
@@ -164,8 +181,18 @@ export function evaluate(predictions) {
     );
     return {
       datasetVersion: cases.version,
+      distractors,
+      corpusSize: cases.memories.length + distractors,
       runtime: process.version,
-      retrieval: { groups, leaks: details.filter((r) => r.leaked).length, details },
+      retrieval: {
+        groups,
+        leaks: details.filter((r) => r.leaked).length,
+        contextBudgetViolations: details.filter((r) => !r.contextWithinBudget).length,
+        p95Ms: details.map((r) => r.elapsedMs).sort((a, b) => a - b)[
+          Math.ceil(details.length * 0.95) - 1
+        ],
+        details,
+      },
       extraction: predictions
         ? extractionMetrics(predictions)
         : {
@@ -197,13 +224,17 @@ if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1]
   }
   const fileIndex = args.indexOf('--extractions');
   if (fileIndex >= 0 && !args[fileIndex + 1]) throw new Error('--extractions requires a JSON file');
+  const scaleIndex = args.indexOf('--distractors');
+  const distractors = scaleIndex < 0 ? 0 : Number(args[scaleIndex + 1]);
   const report = evaluate(
     fileIndex < 0 ? undefined : JSON.parse(readFileSync(args[fileIndex + 1], 'utf8')),
+    { distractors },
   );
   console.log(JSON.stringify(report, null, 2));
   if (
     args.includes('--check') &&
     (report.retrieval.leaks ||
+      report.retrieval.contextBudgetViolations ||
       report.retrieval.groups.lexical.recallAt5 < 0.9 ||
       report.retrieval.groups.lexical.falsePositiveEmptyQueries ||
       (fileIndex >= 0 &&

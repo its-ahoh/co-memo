@@ -1,9 +1,8 @@
 {
   "name": "co-memo",
   "version": "0.6.0",
-  "private": true,
   "description": "Local shared memory for coding agents",
-  "license": "UNLICENSED",
+  "license": "MIT",
   "type": "module",
   "engines": {
     "node": ">=24.12.0"
@@ -18,7 +17,8 @@
     "NOTICE.md",
     "LICENSES",
     "docs",
-    "skills"
+    "skills",
+    "evals/results"
   ],
   "scripts": {
     "build": "node scripts/clean.mjs && tsc -p tsconfig.json && node scripts/prepare-bin.mjs",
@@ -30,7 +30,11 @@
     "format:check": "prettier --check src test scripts package.json tsconfig.json .prettierrc.json README.md CONTRIBUTING.md NOTICE.md docs/*.md skills/**/*.md .github/workflows/ci.yml",
     "eval": "pnpm build && node scripts/eval-quality.mjs",
     "test:hosts": "pnpm build && node scripts/host-smoke.mjs",
-    "eval:semantic": "pnpm build && node scripts/eval-semantic.mjs"
+    "eval:semantic": "pnpm build && node scripts/eval-semantic.mjs",
+    "test:package": "pnpm build && node scripts/test-package.mjs",
+    "test:hooks": "pnpm build && node scripts/verify-claude-hooks.mjs",
+    "eval:autonomous": "pnpm build && node scripts/eval-autonomous.mjs",
+    "eval:scale": "pnpm build && node scripts/eval-quality.mjs --distractors 1000 --check"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.30.0",
@@ -43,5 +47,17 @@
     "@types/node": "^24.13.6",
     "prettier": "^3.9.8",
     "typescript": "^7.0.2"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/its-ahoh/co-memo.git"
+  },
+  "homepage": "https://github.com/its-ahoh/co-memo#readme",
+  "bugs": {
+    "url": "https://github.com/its-ahoh/co-memo/issues"
+  },
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org/"
   }
 }

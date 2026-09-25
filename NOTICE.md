@@ -4,6 +4,6 @@ Co-memo has been rewritten as a TypeScript/Node.js local shared-memory tool. The
 
 Earlier versions originated in Codey's memory engine. Its MIT copyright and permission notice remains preserved in [LICENSES/original-engine-MIT.txt](LICENSES/original-engine-MIT.txt).
 
-The public license for new work remains undecided. `package.json` uses `UNLICENSED` and `private: true` to prevent accidental npm registry publication. Local packing and installation are supported. Public source hosting does not supersede existing license terms.
+The current implementation is distributed under the MIT license in [LICENSE](LICENSE). The original engine notice above remains included. The npm package is named `co-memo`; this repository does not automatically publish on push.
 
 Runtime databases, generated projections, build output and dependency directories are excluded from version control. Tests contain synthetic notes only.

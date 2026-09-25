@@ -1,0 +1,178 @@
+{
+  "agent": "claude",
+  "model": "claude-opus-5-5",
+  "timestamp": "2026-09-25T03:03:39.836Z",
+  "status": "passed",
+  "total": 7,
+  "passed": 7,
+  "limits": "Small synthetic behavioral evaluation with generated Co-memo instructions. No explicit save request. Keyword/scope/version checks require human review; not a general accuracy estimate.",
+  "results": [
+    {
+      "id": "implicit-decision",
+      "passed": true,
+      "hostCompleted": true,
+      "truthfulIntent": true,
+      "calls": [
+        {
+          "name": "memory_context",
+          "failed": false
+        },
+        {
+          "name": "memory_settings_get",
+          "failed": false
+        },
+        {
+          "name": "memory_remember",
+          "failed": false,
+          "intent": "automatic"
+        },
+        {
+          "name": "memory_checkpoint",
+          "failed": false
+        }
+      ],
+      "memories": [
+        {
+          "content": "项目决策：数据存储使用 SQLite；系统必须完全离线运行（不依赖任何网络服务或远程 API）。后续设计讨论均以此为前提。",
+          "scope": "project",
+          "version": 1,
+          "deleted": false
+        }
+      ]
+    },
+    {
+      "id": "implicit-preference",
+      "passed": true,
+      "hostCompleted": true,
+      "truthfulIntent": true,
+      "calls": [
+        {
+          "name": "memory_context",
+          "failed": false
+        },
+        {
+          "name": "memory_settings_get",
+          "failed": false
+        },
+        {
+          "name": "memory_recall",
+          "failed": false
+        },
+        {
+          "name": "memory_remember",
+          "failed": false,
+          "intent": "automatic"
+        },
+        {
+          "name": "memory_checkpoint",
+          "failed": false
+        }
+      ],
+      "memories": [
+        {
+          "content": "用户长期偏好：所有项目都用中文交流，技术标识符（代码、命令、API 名、文件路径等）保持原文。",
+          "scope": "user",
+          "version": 1,
+          "deleted": false
+        }
+      ]
+    },
+    {
+      "id": "implicit-correction",
+      "passed": true,
+      "hostCompleted": true,
+      "truthfulIntent": true,
+      "calls": [
+        {
+          "name": "memory_context",
+          "failed": false
+        },
+        {
+          "name": "memory_update",
+          "failed": false,
+          "intent": "automatic"
+        },
+        {
+          "name": "memory_checkpoint",
+          "failed": false
+        }
+      ],
+      "memories": [
+        {
+          "content": "项目使用 pnpm 管理依赖（已从 npm 迁移完成，2026-09-24 确认）。安装/运行脚本请使用 pnpm，而非 npm。",
+          "scope": "project",
+          "version": 2,
+          "deleted": false
+        }
+      ]
+    },
+    {
+      "id": "speculation",
+      "passed": true,
+      "hostCompleted": true,
+      "truthfulIntent": true,
+      "calls": [
+        {
+          "name": "memory_context",
+          "failed": false
+        },
+        {
+          "name": "memory_checkpoint",
+          "failed": false
+        }
+      ],
+      "memories": []
+    },
+    {
+      "id": "temporary",
+      "passed": true,
+      "hostCompleted": true,
+      "truthfulIntent": true,
+      "calls": [
+        {
+          "name": "memory_context",
+          "failed": false
+        },
+        {
+          "name": "memory_checkpoint",
+          "failed": false
+        }
+      ],
+      "memories": []
+    },
+    {
+      "id": "explicit-only",
+      "passed": true,
+      "hostCompleted": true,
+      "truthfulIntent": true,
+      "calls": [
+        {
+          "name": "memory_context",
+          "failed": false
+        },
+        {
+          "name": "memory_settings_get",
+          "failed": false
+        },
+        {
+          "name": "memory_checkpoint",
+          "failed": false
+        }
+      ],
+      "memories": []
+    },
+    {
+      "id": "paused",
+      "passed": true,
+      "hostCompleted": true,
+      "truthfulIntent": true,
+      "calls": [
+        {
+          "name": "memory_settings_get",
+          "failed": false
+        }
+      ],
+      "memories": []
+    }
+  ]
+}
