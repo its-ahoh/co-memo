@@ -2,7 +2,7 @@
 
 ## Publication status
 
-The public npm package is `co-memo`, distributed under the MIT license. Install a specific release with `npm install -g co-memo@0.6.0`, or the latest release with `npm install -g co-memo`.
+The intended public npm package is `co-memo`, distributed under the MIT license. Version 0.6.0 is prepared, but initial publication is pending publisher 2FA. Until publication is confirmed, use a local `.tgz`. Install a specific release with `npm install -g co-memo@0.6.0`, or the latest release with `npm install -g co-memo`.
 
 Users of the package need Node.js 24.12+ and npm; they do not need pnpm, TypeScript, or the source repository. Automatic agent configuration currently supports macOS and Linux.
 

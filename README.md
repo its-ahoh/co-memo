@@ -14,6 +14,8 @@ This is a new implementation in **TypeScript + Node.js**, managed with **pnpm**.
 
 ## Install
 
+**Registry release pending:** the `0.6.0` package is prepared; npm publishing currently requires the maintainer to complete 2FA. Use a local `.tgz` until publication is confirmed. The registry command below is the intended installation flow.
+
 Requires **Node.js 24.12+**. Automatic agent setup supports macOS and Linux.
 
 ```sh

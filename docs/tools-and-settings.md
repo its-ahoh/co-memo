@@ -2,7 +2,7 @@
 
 ## Install and set up
 
-With Node.js 24.12+:
+The registry release is pending publisher 2FA. Until it is confirmed, install a local `.tgz` as described in the README. After publication, with Node.js 24.12+:
 
 ```sh
 npm install -g co-memo
