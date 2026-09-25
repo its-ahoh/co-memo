@@ -22,6 +22,12 @@ cd /path/to/your/project
 co-memo init --agents claude,codex --apply
 ```
 
+You can also install the exact release directly from the official npm tarball, including while a new version is unavailable through the package index:
+
+```sh
+npm install -g https://registry.npmjs.org/@ahoh.tech/co-memo/-/co-memo-0.6.0.tgz
+```
+
 The npm package contains compiled JavaScript. Users do not need pnpm, TypeScript, an API key for Co-memo, or a checkout of this repository. Restart your agents after setup. Add `--hooks` to `init` for automatic lifecycle delivery; without it, agents must call the memory tools.
 
 ## Build from this checkout
