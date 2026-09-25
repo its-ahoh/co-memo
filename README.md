@@ -14,12 +14,10 @@ This is a new implementation in **TypeScript + Node.js**, managed with **pnpm**.
 
 ## Install
 
-**Registry release pending:** the `0.6.0` package is prepared; npm publishing currently requires the maintainer to complete 2FA. Use a local `.tgz` until publication is confirmed. The registry command below is the intended installation flow.
-
 Requires **Node.js 24.12+**. Automatic agent setup supports macOS and Linux.
 
 ```sh
-npm install -g co-memo
+npm install -g @ahoh.tech/co-memo
 cd /path/to/your/project
 co-memo init --agents claude,codex --apply
 ```
@@ -34,7 +32,7 @@ Requires **Node.js 24.12+**. Automatic agent setup is supported on macOS and Lin
 pnpm install --frozen-lockfile
 pnpm check
 pnpm pack
-npm install -g ./co-memo-0.6.0.tgz
+npm install -g ./ahoh.tech-co-memo-0.6.0.tgz
 ```
 
 pnpm is only required for development. Co-memo is distributed under the [MIT license](LICENSE).
