@@ -32,6 +32,7 @@ try {
     'dist/ui/app.js',
     'dist/ui/style.css',
     'dist/ui/theme.js',
+    'dist/ui/logo.png',
     'skills/co-memo/SKILL.md',
     'NOTICE.md',
     'LICENSE',

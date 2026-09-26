@@ -22,7 +22,8 @@ async function body(req: IncomingMessage): Promise<unknown> {
 export async function startUI(home?: string, root = process.cwd(), port = 4318) {
   const store = new Store(home);
   const token = randomBytes(32).toString('hex');
-  const assets = new Map([
+  const assets = new Map<string, [string, string | Buffer]>([
+    ['/logo.png', ['image/png', readFileSync(new URL('./ui/logo.png', import.meta.url))]],
     [
       '/theme.js',
       [
