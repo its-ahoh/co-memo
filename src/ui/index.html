@@ -19,20 +19,23 @@
         <h2 class="projects-label">Projects</h2>
         <div id="project-nav"></div>
       </nav>
+      <div class="sidebar-footer">
+        <label class="theme-control"
+          >Appearance
+          <select id="theme" aria-label="Color theme">
+            <option value="system">System</option>
+            <option value="dark">Dark</option>
+            <option value="light">Light</option>
+          </select>
+        </label>
+      </div>
     </aside>
     <main>
       <header>
         <h1 id="scope-title">All memories</h1>
         <div class="header-actions">
           <button class="primary" id="add">+ New memory</button>
-          <label class="theme-control"
-            >Theme
-            <select id="theme" aria-label="Color theme">
-              <option value="system">System</option>
-              <option value="dark">Dark</option>
-              <option value="light">Light</option>
-            </select></label
-          ><button id="refresh">↻ Refresh</button>
+          <button id="refresh" aria-label="Refresh memories" title="Refresh memories">↻</button>
         </div>
       </header>
       <p id="scope-path" class="scope-path" hidden></p>
@@ -44,7 +47,9 @@
               id="search"
               type="search"
               placeholder="Search content, origin, or module…"
-              aria-label="Search memories" /></label
+              aria-label="Search memories"
+            /><kbd title="Press / to search">/</kbd
+            ><button id="clear-search" aria-label="Clear search" hidden>×</button></label
           ><select id="status" aria-label="Filter status">
             <option value="active">Active memories</option>
             <option value="archived">Archived</option>
@@ -52,13 +57,18 @@
           </select>
         </div>
         <div class="list-heading">
-          <span id="count"></span>
+          <span id="count" aria-live="polite"></span>
+          <select id="sort" aria-label="Sort memories">
+            <option value="updated">Recently updated</option>
+            <option value="created">Newest created</option>
+            <option value="oldest">Oldest created</option>
+          </select>
         </div>
         <div id="message" role="status" aria-live="polite"></div>
         <div id="list" class="grid"></div>
       </section>
     </main>
-    <dialog id="editor">
+    <dialog id="editor" aria-labelledby="dialog-title">
       <form id="form">
         <div class="dialog-heading">
           <h2 id="dialog-title">New memory</h2>
@@ -84,8 +94,8 @@
         </div>
       </form>
     </dialog>
-    <dialog id="deletion">
-      <h2>Permanently delete this memory?</h2>
+    <dialog id="deletion" aria-labelledby="delete-title">
+      <h2 id="delete-title">Permanently delete this memory?</h2>
       <p>
         This removes the memory and all revision history. It cannot be undone. Use Archive to keep
         them. Existing backups and conversations are unaffected.
