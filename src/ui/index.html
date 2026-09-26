@@ -14,17 +14,17 @@
       <a class="brand" href="/" aria-label="Co-memo home"
         ><img src="/logo.png" width="36" height="36" alt="" />co-memo</a
       >
-      <div class="aside-label">WORKSPACE</div>
-      <button class="nav active" id="all">[ ] &nbsp; Memories</button>
-      <div class="aside-command"><span>OPEN FROM TERMINAL</span><code>$ co-memo ui</code></div>
-      <div class="aside-note">
-        <span class="dot"></span> Local store<br /><small>Context that persists.</small>
-      </div>
+      <nav aria-label="Memory scopes">
+        <div id="scope-nav"></div>
+        <h2 class="projects-label">Projects</h2>
+        <div id="project-nav"></div>
+      </nav>
     </aside>
     <main>
       <header>
-        <span>workspace / memories</span>
+        <h1 id="scope-title">All memories</h1>
         <div class="header-actions">
+          <button class="primary" id="add">+ New memory</button>
           <label class="theme-control"
             >Theme
             <select id="theme" aria-label="Color theme">
@@ -35,22 +35,7 @@
           ><button id="refresh">↻ Refresh</button>
         </div>
       </header>
-      <section class="intro">
-        <div class="eyebrow">// SHARED CONTEXT FOR YOUR AGENTS</div>
-        <div class="heading">
-          <div>
-            <h1>Memory console<span>_</span></h1>
-            <p>Inspect, edit, and keep your agents on the same page.</p>
-          </div>
-          <button class="primary" id="add">+ New memory</button>
-        </div>
-      </section>
-      <section class="stats" aria-label="Memory statistics">
-        <div><span>Active memories</span><strong id="total">—</strong></div>
-        <div><span>Personal memories</span><strong id="personal">—</strong></div>
-        <div><span>Project memories</span><strong id="project-count">—</strong></div>
-        <div><span>Registered projects</span><strong id="projects-count">—</strong></div>
-      </section>
+      <p id="scope-path" class="scope-path" hidden></p>
       <section class="library">
         <div class="tools">
           <label class="search"
@@ -60,9 +45,6 @@
               type="search"
               placeholder="Search content, origin, or module…"
               aria-label="Search memories" /></label
-          ><select id="project" aria-label="Filter project">
-            <option value="all">All projects</option>
-            <option value="user">Personal only</option></select
           ><select id="status" aria-label="Filter status">
             <option value="active">Active memories</option>
             <option value="deleted">Deleted</option>
@@ -70,13 +52,11 @@
           </select>
         </div>
         <div class="list-heading">
-          <h2><span class="code-mark">#</span> Stored memories</h2>
           <span id="count"></span>
         </div>
         <div id="message" role="status" aria-live="polite"></div>
         <div id="list" class="grid"></div>
       </section>
-      <footer>LOCAL ONLY / SQLITE <span id="home"></span></footer>
     </main>
     <dialog id="editor">
       <form id="form">
@@ -84,7 +64,6 @@
           <h2 id="dialog-title">New memory</h2>
           <button type="button" id="close" aria-label="Close">×</button>
         </div>
-        <p>Save context worth carrying into the next session.</p>
         <label>Scope<select id="destination" required></select></label
         ><label
           >Content<textarea

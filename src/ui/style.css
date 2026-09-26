@@ -139,12 +139,6 @@ aside {
 .code-mark {
   color: var(--accent);
 }
-.aside-label {
-  font-size: 10px;
-  letter-spacing: 1.6px;
-  color: var(--muted);
-  margin: 48px 10px 13px;
-}
 .nav {
   width: 100%;
   text-align: left;
@@ -153,39 +147,6 @@ aside {
   border: 1px solid transparent;
   border-left: 2px solid var(--accent);
   padding: 12px;
-}
-.aside-command {
-  margin-top: 36px;
-  padding: 12px 10px;
-  color: var(--muted);
-}
-.aside-command span {
-  font-size: 9px;
-  letter-spacing: 1px;
-}
-.aside-command code {
-  display: block;
-  font-size: 12px;
-  margin-top: 12px;
-  color: var(--text);
-}
-.aside-note {
-  position: absolute;
-  bottom: 26px;
-  font-size: 11px;
-  line-height: 2;
-  color: var(--muted);
-}
-.aside-note small {
-  font-size: 10px;
-}
-.dot {
-  display: inline-block;
-  width: 6px;
-  height: 6px;
-  background: var(--accent);
-  border-radius: 50%;
-  margin-right: 6px;
 }
 main {
   margin-left: 220px;
@@ -221,28 +182,11 @@ header {
 header button {
   background: transparent;
 }
-.intro {
-  padding: 36px 0 25px;
-}
-.eyebrow {
-  font-size: 10px;
-  letter-spacing: 1.2px;
-  color: var(--accent);
-}
-.heading {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 20px;
-}
 h1 {
   font-size: 30px;
   letter-spacing: -1.5px;
   font-weight: 650;
   margin: 14px 0 10px;
-}
-h1 span {
-  color: var(--accent);
 }
 p {
   font-size: 12px;
@@ -259,32 +203,6 @@ p {
 .primary:hover {
   background: var(--primary-hover);
   border-color: var(--primary-hover);
-}
-.stats {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  background: var(--panel);
-  margin-bottom: 28px;
-}
-.stats > div {
-  padding: 18px 20px;
-  border-right: 1px solid var(--border);
-}
-.stats > div:last-child {
-  border-right: 0;
-}
-.stats span {
-  font-size: 10px;
-  color: var(--muted);
-}
-.stats strong {
-  display: block;
-  font-size: 26px;
-  font-weight: 500;
-  margin-top: 10px;
-  font-variant-numeric: tabular-nums;
 }
 .tools {
   display: flex;
@@ -444,15 +362,6 @@ h2 {
 #delete-error {
   color: var(--danger);
 }
-footer {
-  display: flex;
-  justify-content: space-between;
-  gap: 20px;
-  font-size: 9px;
-  color: var(--muted);
-  padding: 30px 0;
-  overflow-wrap: anywhere;
-}
 dialog {
   border: 1px solid var(--border);
   border-radius: 8px;
@@ -547,9 +456,6 @@ pre {
     width: calc(100% - 185px);
     padding: 0 24px;
   }
-  .stats > div {
-    padding: 16px 12px;
-  }
   .grid {
     grid-template-columns: 1fr;
   }
@@ -585,9 +491,6 @@ pre {
   }
   .aside-label,
   .aside-note,
-  .aside-command {
-    display: none;
-  }
   .nav {
     width: auto;
     font-size: 11px;
@@ -612,28 +515,8 @@ pre {
   .theme-control {
     gap: 5px;
   }
-  .intro {
-    padding-top: 27px;
-  }
-  .eyebrow {
-    font-size: 8px;
-    letter-spacing: 0.5px;
-  }
   h1 {
     font-size: 27px;
-  }
-  .heading {
-    flex-wrap: wrap;
-    gap: 8px;
-  }
-  .heading p {
-    margin-bottom: 4px;
-  }
-  .heading .primary {
-    margin-top: 4px;
-  }
-  .stats {
-    grid-template-columns: repeat(2, 1fr);
   }
   .stats > div:nth-child(2) {
     border-right: 0;
@@ -646,10 +529,6 @@ pre {
   }
   .card-bottom {
     flex-wrap: wrap;
-  }
-  footer {
-    flex-direction: column;
-    gap: 10px;
   }
 }
 
@@ -678,4 +557,134 @@ pre {
   overflow-wrap: anywhere;
   user-select: all;
   color: var(--text);
+}
+
+/* Scope navigation replaces decorative dashboard chrome. */
+aside {
+  width: 250px;
+  overflow-y: auto;
+}
+main {
+  margin-left: 250px;
+  width: calc(100% - 250px);
+}
+aside nav {
+  margin-top: 32px;
+}
+#scope-nav,
+#project-nav {
+  display: grid;
+  gap: 5px;
+}
+.projects-label {
+  margin: 30px 10px 12px;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 500;
+}
+.nav {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 5px 10px;
+  background: transparent;
+  color: var(--text);
+  border: 1px solid transparent;
+  padding: 11px 10px;
+}
+.nav.active {
+  background: var(--accent-bg);
+  color: var(--accent);
+  border-left: 2px solid var(--accent);
+}
+.nav-title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.nav-count {
+  color: var(--muted);
+  font-size: 10px;
+  align-self: center;
+}
+.nav-path {
+  grid-column: 1/-1;
+  color: var(--muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 9px;
+  line-height: 1.5;
+}
+header {
+  min-height: 98px;
+}
+header h1 {
+  font-size: 22px;
+  margin: 0;
+  letter-spacing: -0.6px;
+  overflow-wrap: anywhere;
+}
+.header-actions {
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+.scope-path {
+  overflow-wrap: anywhere;
+  margin: 18px 0 0;
+  font-size: 11px;
+}
+.library {
+  padding: 26px 0;
+}
+.list-heading {
+  margin: 16px 0;
+}
+@media (max-width: 1100px) {
+  aside {
+    width: 220px;
+  }
+  main {
+    margin-left: 220px;
+    width: calc(100% - 220px);
+  }
+  header {
+    flex-wrap: wrap;
+    padding: 20px 0;
+  }
+  .header-actions {
+    justify-content: flex-start;
+  }
+}
+@media (max-width: 650px) {
+  aside {
+    display: block;
+    width: 100%;
+    max-height: 320px;
+  }
+  aside nav {
+    margin-top: 18px;
+  }
+  #scope-nav {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .nav {
+    width: 100%;
+  }
+  .projects-label {
+    margin: 18px 10px 10px;
+  }
+  main {
+    width: 100%;
+    margin: 0;
+  }
+  header {
+    gap: 16px;
+  }
+  .header-actions {
+    margin-left: 0;
+    gap: 8px;
+  }
+  header h1 {
+    font-size: 22px;
+  }
 }

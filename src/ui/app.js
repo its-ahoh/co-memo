@@ -3,7 +3,8 @@ const token = document.querySelector('meta[name="co-memo-token"]').content;
 let data = { memories: [], projects: [] },
   editing = null,
   deleting = null,
-  busy = false;
+  busy = false,
+  selectedScope = 'all';
 const names = {
   note: 'note',
   preference: 'preference',
@@ -42,14 +43,48 @@ function projectName(id) {
   const root = data.projects.find((p) => p.id === id)?.root;
   return root ? root.split('/').filter(Boolean).pop() : 'Unknown project';
 }
-function render() {
+function renderNavigation() {
   const active = data.memories.filter((m) => !m.deleted);
-  $('total').textContent = active.length;
-  $('personal').textContent = active.filter((m) => m.scope === 'user').length;
-  $('project-count').textContent = active.filter((m) => m.scope === 'project').length;
-  $('projects-count').textContent = data.projects.length;
+  const button = (id, label, count, path) => {
+    const item = node('button', '', 'nav' + (selectedScope === id ? ' active' : ''));
+    item.type = 'button';
+    item.setAttribute('aria-pressed', String(selectedScope === id));
+    item.setAttribute('aria-label', label + (path ? ' — ' + path : ''));
+    const title = node('span', label, 'nav-title');
+    item.append(title, node('span', String(count), 'nav-count'));
+    if (path) {
+      item.title = path;
+      item.append(node('span', path, 'nav-path'));
+    }
+    item.onclick = () => {
+      selectedScope = id;
+      render();
+    };
+    return item;
+  };
+  $('scope-nav').replaceChildren(
+    button('all', 'All memories', active.length),
+    button('user', 'Personal', active.filter((m) => m.scope === 'user').length),
+  );
+  $('project-nav').replaceChildren(
+    ...data.projects.map((p) =>
+      button(p.id, projectName(p.id), active.filter((m) => m.projectId === p.id).length, p.root),
+    ),
+  );
+  if (!data.projects.length) $('project-nav').append(node('p', 'No projects registered.', 'meta'));
+  const project = data.projects.find((p) => p.id === selectedScope);
+  $('scope-title').textContent = project
+    ? projectName(project.id)
+    : selectedScope === 'user'
+      ? 'Personal'
+      : 'All memories';
+  $('scope-path').textContent = project?.root || '';
+  $('scope-path').hidden = !project;
+}
+function render() {
+  renderNavigation();
   const q = $('search').value.trim().toLowerCase(),
-    p = $('project').value,
+    p = selectedScope,
     s = $('status').value;
   const memories = data.memories
     .filter(
@@ -59,7 +94,7 @@ function render() {
         [m.content, m.origin, m.metadata.module || ''].join(' ').toLowerCase().includes(q),
     )
     .sort((a, b) => b.updatedAt - a.updatedAt);
-  $('count').textContent = `${memories.length} records`;
+  $('count').textContent = `${memories.length} ${memories.length === 1 ? 'record' : 'records'}`;
   $('list').replaceChildren();
   if (!memories.length)
     $('list').append(
@@ -145,18 +180,14 @@ async function load() {
   $('refresh').disabled = true;
   try {
     data = await api('/api/memories');
-    const selected = $('project').value;
-    $('project').replaceChildren(
-      new Option('All projects', 'all'),
-      new Option('Personal only', 'user'),
-    );
+    if (
+      selectedScope !== 'all' &&
+      selectedScope !== 'user' &&
+      !data.projects.some((p) => p.id === selectedScope)
+    )
+      selectedScope = 'all';
     $('destination').replaceChildren(new Option('Personal / shared across projects', 'user'));
-    for (const p of data.projects) {
-      $('project').add(new Option(p.root, p.id));
-      $('destination').add(new Option(p.root, p.id));
-    }
-    if ([...$('project').options].some((o) => o.value === selected)) $('project').value = selected;
-    $('home').textContent = data.home;
+    for (const p of data.projects) $('destination').add(new Option(p.root, p.id));
     render();
   } finally {
     $('refresh').disabled = false;
@@ -168,8 +199,8 @@ function openEditor(memory = null) {
   $('content').value = memory?.content || '';
   $('destination').value = memory
     ? memory.projectId || 'user'
-    : $('project').value !== 'all'
-      ? $('project').value
+    : selectedScope !== 'all'
+      ? selectedScope
       : 'user';
   $('destination').disabled = !!memory;
   $('form-error').textContent = '';
@@ -273,14 +304,7 @@ $('refresh').onclick = () => {
   load().catch((e) => notify(e.message, true));
 };
 $('search').oninput = render;
-$('project').onchange = render;
 $('status').onchange = render;
-$('all').onclick = () => {
-  $('search').value = '';
-  $('project').value = 'all';
-  $('status').value = 'active';
-  render();
-};
 load().catch((e) => notify('Unable to load memories: ' + e.message, true));
 
 $('theme').value = document.documentElement.dataset.theme || 'system';
