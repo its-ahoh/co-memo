@@ -86,7 +86,7 @@ export function remember(
   return {
     ...result,
     ...(result.memory.deleted
-      ? { notice: 'This exact memory was deleted; it has not been resurrected.' }
+      ? { notice: 'This exact memory is archived; it has not been restored.' }
       : {}),
     sync: scopedReport(store, root, sync(store)),
     priorErrors: scopedReport(store, root, before).errors,
@@ -110,6 +110,34 @@ export function change(
     store.change(input.id, input.version, input.content, origin, input.intent),
   );
   return { memory, sync: scopedReport(store, root, sync(store)) };
+}
+/** Permanent deletion does not ingest unrelated pending edits first. */
+export function remove(store: Store, root: string, input: { id: string; version: number }) {
+  writable(store, root, 'explicit');
+  accessible(store, root, input.id);
+  store.transaction(() => store.purge(input.id, input.version));
+  // Return all cleanup errors, including personal replicas in other projects.
+  const report = sync(store);
+  return {
+    id: input.id,
+    permanent: true,
+    sync: { ...scopedReport(store, root, report), errors: report.errors },
+  };
+}
+export function restore(
+  store: Store,
+  root: string,
+  input: { id: string; version: number },
+  origin: string,
+) {
+  writable(store, root, 'explicit');
+  accessible(store, root, input.id);
+  ensure(
+    !store.conflicts().some((c) => c.memoryId === input.id),
+    'Memory has a conflict; resolve it explicitly',
+  );
+  const memory = store.transaction(() => store.restore(input.id, input.version, origin));
+  return { memory, sync: sync(store) };
 }
 export function recall(store: Store, root: string, query?: string, deleted = false) {
   const id = projectId(store, root);

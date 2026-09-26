@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <meta name="co-memo-token" content="__TOKEN__" />
+    <title>Co-memo / Memory console</title>
+    <script src="/theme.js"></script>
+    <link rel="stylesheet" href="/style.css" />
+    <script src="/app.js" defer></script>
+  </head>
+  <body>
+    <aside>
+      <a class="brand" href="/" aria-label="Co-memo home"
+        ><img src="/logo.png" width="36" height="36" alt="" />co-memo</a
+      >
+      <nav aria-label="Memory scopes">
+        <div id="scope-nav"></div>
+        <h2 class="projects-label">Projects</h2>
+        <div id="project-nav"></div>
+      </nav>
+    </aside>
+    <main>
+      <header>
+        <h1 id="scope-title">All memories</h1>
+        <div class="header-actions">
+          <button class="primary" id="add">+ New memory</button>
+          <label class="theme-control"
+            >Theme
+            <select id="theme" aria-label="Color theme">
+              <option value="system">System</option>
+              <option value="dark">Dark</option>
+              <option value="light">Light</option>
+            </select></label
+          ><button id="refresh">↻ Refresh</button>
+        </div>
+      </header>
+      <p id="scope-path" class="scope-path" hidden></p>
+      <section class="library">
+        <div class="tools">
+          <label class="search"
+            >⌕
+            <input
+              id="search"
+              type="search"
+              placeholder="Search content, origin, or module…"
+              aria-label="Search memories" /></label
+          ><select id="status" aria-label="Filter status">
+            <option value="active">Active memories</option>
+            <option value="archived">Archived</option>
+            <option value="all">All states</option>
+          </select>
+        </div>
+        <div class="list-heading">
+          <span id="count"></span>
+        </div>
+        <div id="message" role="status" aria-live="polite"></div>
+        <div id="list" class="grid"></div>
+      </section>
+    </main>
+    <dialog id="editor">
+      <form id="form">
+        <div class="dialog-heading">
+          <h2 id="dialog-title">New memory</h2>
+          <button type="button" id="close" aria-label="Close">×</button>
+        </div>
+        <label>Scope<select id="destination" required></select></label
+        ><label
+          >Content<textarea
+            id="content"
+            rows="9"
+            maxlength="32000"
+            required
+            placeholder="For example: Use pnpm for package management in this project."
+          ></textarea>
+        </label>
+        <div class="editor-meta">
+          <span id="edit-meta"></span><span id="length">0 / 32000</span>
+        </div>
+        <p id="form-error" role="alert"></p>
+        <div class="dialog-actions">
+          <button type="button" id="cancel">Cancel</button
+          ><button class="primary" id="save" type="submit">Save memory</button>
+        </div>
+      </form>
+    </dialog>
+    <dialog id="deletion">
+      <h2>Permanently delete this memory?</h2>
+      <p>
+        This removes the memory and all revision history. It cannot be undone. Use Archive to keep
+        them. Existing backups and conversations are unaffected.
+      </p>
+      <pre id="delete-preview"></pre>
+      <p id="delete-error" role="alert"></p>
+      <div class="dialog-actions">
+        <button id="keep">Cancel</button
+        ><button class="danger" id="confirm-delete">Delete permanently</button>
+      </div>
+    </dialog>
+  </body>
+</html>

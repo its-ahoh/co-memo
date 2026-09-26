@@ -1,3 +1,4 @@
+import { shortcutPaths } from '../dist/shortcuts.js';
 import { randomUUID } from 'node:crypto';
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -106,8 +107,13 @@ test('MCP stdio initializes, discovers tools, saves/updates/forgets, rejects sta
   assert.equal((await call('memory_recall')).memories.length, 0);
   const duplicate = await call('memory_remember', { content: 'Changed', intent: 'explicit' });
   assert.equal(duplicate.memory.deleted, true);
-  assert.match(duplicate.notice, /deleted/);
+  assert.match(duplicate.notice, /archived/);
   assert.equal((await call('memory_get', { id: note.id, history: true })).history.length, 3);
+  await call('memory_restore', { id: note.id, version: 3, userRequested: true });
+  await call('memory_archive', { id: note.id, version: 4, intent: 'explicit' });
+  const removed = await call('memory_delete', { id: note.id, version: 5, userRequested: true });
+  assert.equal(removed.permanent, true);
+  assert.equal((await raw('memory_get', { id: note.id })).isError, true);
 });
 
 test('Settings enforce intent, defaults and user restrictions through tools and CLI', async (t) => {
@@ -245,7 +251,24 @@ for (const agent of ['codex', 'claude', 'opencode', 'pi']) {
     f.run('setup', agent);
     assert.deepEqual(first.files.map(read), before);
     assert.match(read(join(f.project, 'AGENTS.md')), /^# Existing rules/);
-    assert.ok(first.files.some((path) => path.endsWith('/skills/co-memo/SKILL.md')));
+    const skillPath = first.files.find((path) => path.endsWith('/skills/co-memo/SKILL.md'));
+    assert.ok(skillPath);
+    assert.equal(read(skillPath), read('skills/co-memo/SKILL.md'));
+    const hostRoot = { codex: '.agents', claude: '.claude', pi: '.pi', opencode: '.opencode' }[
+      agent
+    ];
+    for (const shortcut of shortcutPaths(agent)) {
+      const content = read(join(f.project, hostRoot, shortcut.path));
+      assert.ok(content.includes(JSON.stringify(skillPath)));
+      assert.ok(content.includes(`Action: ${shortcut.action}\n`));
+      assert.ok(content.includes('User arguments: $ARGUMENTS'));
+    }
+    if (agent === 'opencode') {
+      assert.equal(
+        read(join(f.project, '.opencode/commands/co-memo.md')),
+        read('skills/co-memo/opencode-command.md'),
+      );
+    }
     if (agent === 'codex') {
       const text = read(join(f.project, '.codex/config.toml'));
       assert.match(text, /Keep comment/);
@@ -397,7 +420,7 @@ test('Schema upgrade preserves existing notes and revisions and rejects future d
     assert.equal(store.get(note.id).content, 'updated user note');
     assert.equal(store.history(note.id).length, 2);
     assert.deepEqual(store.settings(null), {});
-    assert.equal(store.db.prepare('PRAGMA user_version').get().user_version, 4);
+    assert.equal(store.db.prepare('PRAGMA user_version').get().user_version, 5);
     store.db.exec('PRAGMA user_version=99;');
   } finally {
     store.close();
@@ -735,3 +758,32 @@ test('Shared MCP accepts the current agent workspace and scopes personal versus 
     [personal.id],
   );
 });
+
+test('Setup preserves an unmanaged OpenCode slash command without partial configuration', (t) => {
+  const f = fixture(t);
+  const path = join(f.project, '.opencode/commands/co-memo.md');
+  mkdirSync(join(f.project, '.opencode/commands'), { recursive: true });
+  writeFileSync(path, 'My custom command');
+  const result = f.raw('setup', 'opencode');
+  assert.equal(result.status, 1);
+  assert.match(result.stderr, /command is not managed/);
+  assert.equal(read(path), 'My custom command');
+  assert.equal(existsSync(join(f.project, 'opencode.json')), false);
+  assert.equal(existsSync(join(f.project, '.opencode/skills/co-memo/SKILL.md')), false);
+});
+
+for (const agent of ['claude', 'pi', 'opencode']) {
+  test(`Setup ${agent} refuses unmanaged namespaced shortcuts without partial installation`, (t) => {
+    const f = fixture(t);
+    const hostRoot = { claude: '.claude', pi: '.pi', opencode: '.opencode' }[agent];
+    const shortcut = shortcutPaths(agent).find((s) => s.action === 'ui');
+    const path = join(f.project, hostRoot, shortcut.path);
+    mkdirSync(join(path, '..'), { recursive: true });
+    writeFileSync(path, 'My existing shortcut');
+    const result = f.raw('setup', agent);
+    assert.equal(result.status, 1);
+    assert.match(result.stderr, /shortcut is not managed/);
+    assert.equal(read(path), 'My existing shortcut');
+    assert.equal(existsSync(join(f.project, hostRoot, 'skills/co-memo/SKILL.md')), false);
+  });
+}

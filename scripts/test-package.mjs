@@ -27,6 +27,12 @@ try {
   const paths = pack.files.map((file) => file.path);
   for (const path of [
     'dist/cli.js',
+    'dist/locations.js',
+    'dist/ui/index.html',
+    'dist/ui/app.js',
+    'dist/ui/style.css',
+    'dist/ui/theme.js',
+    'dist/ui/logo.png',
     'skills/co-memo/SKILL.md',
     'NOTICE.md',
     'LICENSE',

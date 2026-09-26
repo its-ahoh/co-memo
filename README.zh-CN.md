@@ -40,7 +40,7 @@ co-memo init --agents claude,codex --apply
 npm install -g https://registry.npmjs.org/@ahoh.tech/co-memo/-/co-memo-0.6.0.tgz
 ```
 
-本文的自动项目识别说明对应当前仓库代码。上述固定版本 0.6.0 压缩包早于这项改动；要在该发布版本基础上体验新行为，请按文末步骤从当前仓库构建安装。
+本文的自动项目识别、记忆控制台、文件位置和命名空间快捷指令反映当前源码。固定的 0.6.0 发布包早于这些功能；新版本发布前，请[从当前源码构建并安装](#从源码构建)。
 
 npm 包已包含编译后的 JavaScript。普通用户无需 pnpm、TypeScript、Co-memo API Key 或本仓库源码。配置后重启 Agent。为 `init` 添加 `--hooks` 可启用生命周期自动注入；不添加时，由 Agent 主动调用记忆工具。
 
@@ -78,6 +78,61 @@ Pi 需要信任项目并执行 `/reload`；Claude Code 需要重启并批准项�
 启用且被宿主加载后，Pi 的项目扩展、Claude Code/Codex 的生命周期 hooks，以及 OpenCode 的项目插件会在提示或模型请求前注入当前上下文，在回合结束或工具执行后同步修改。新连接默认使用 OpenCode V1；`--opencode-api v2` 选择其不兼容的 V2 API。不指定该选项重新连接时，会保留已安装的 API 版本。Agent 未运行时，也可使用 `co-memo watch` 每两秒同步一次。
 
 只安装工具、不使用 hooks：`co-memo setup codex --tools-only`，其他 Agent 同样支持。较底层的 `connect` 命令仅安装 hooks 集成。
+
+## 可视化记忆管理
+
+运行 `co-memo ui` 会启动服务并自动打开默认浏览器（默认 <http://127.0.0.1:4318>）。源码目录中可运行 `pnpm ui`，自动构建并打开。使用 `--no-open` 只启动服务；使用 `--port 0` 自动选择空闲端口。
+
+英文控制台支持 System、Dark 和 Light 三种主题。选择会保存在当前浏览器中，并在页面渲染前应用；System 跟随操作系统配色。
+
+页面支持浏览所有已登记项目及个人记忆、全文子串搜索、按项目和归档状态筛选，以及添加、编辑、归档、恢复和永久删除记忆。编辑和删除会校验版本，沿用 CLI 的同步与冲突保护；Archive 会从召回和 Agent 文件中隐藏记忆，长期保留内容及历史；Restore 可恢复。Delete 会永久清除记录、修订历史、相关冲突历史和派生缓存，只保留不含内容的 ID 标记，阻止旧副本复活。已有备份、导出副本和对话不受影响；文件清理失败会报告并在同步时重试。已有软删除记录显示为 Archived。浏览和刷新只读取中央存储，不触发 Agent 同步；保存后会尝试同步，并显示同步错误。
+
+可用 `co-memo --home /path/to/data ui --port 4319` 指定数据目录与端口。服务只监听 `127.0.0.1`，按 Ctrl+C 停止。需要处理冲突时使用 `co-memo conflicts` 和 `co-memo resolve`。
+
+也可以调用 Co-memo skill，说“打开 Co-memo 记忆管理页面”。展开记忆卡片的 **File locations** 可查看中央数据库路径、记录 ID，以及 Agent Markdown 副本的路径、行号和同步状态。命令行可用 `co-memo --project /path/to/project locations MEMORY_ID`。查看位置不会触发文件同步。
+
+## 在 Agent 中直接调用
+
+使用 `co-memo --project /path/to/project setup AGENT` 安装或更新接入，`AGENT` 可选 `claude`、`codex`、`opencode`、`pi`。不需要生命周期 hooks 时保留 `--tools-only`；使用 OpenCode V2 时保留 `--opencode-api v2`。安装后重新加载或重启宿主。
+
+| Agent           | 打开控制台    | 查看功能列表    |
+| --------------- | ------------- | --------------- |
+| Claude Code     | `/co-memo:ui` | `/co-memo:help` |
+| OpenCode        | `/co-memo:ui` | `/co-memo:help` |
+| Pi              | `/co-memo:ui` | `/co-memo:help` |
+| Codex CLI / app | `$co-memo ui` | `$co-memo help` |
+
+这些指令输入在 Agent 的对话框中，不是在普通终端中。Codex CLI 也可以输入 `/skills`，选择 `co-memo` 后填写要求。Codex 使用原生 skill 入口，不注册 `/co-memo:ACTION` 别名。原有的 Claude/OpenCode `/co-memo ui` 和 Pi `/skill:co-memo ui` 仍可使用。
+
+| `/co-memo:` 后的功能 | 用途                               |
+| -------------------- | ---------------------------------- |
+| `ui`                 | 打开记忆控制台                     |
+| `recall QUERY`       | 搜索个人及当前项目记忆             |
+| `remember TEXT`      | 按内容选择 scope 并保存记忆        |
+| `edit ID CHANGE`     | 校验当前版本后修改记忆             |
+| `archive ID`         | 归档并保留内容及历史               |
+| `delete ID`          | 永久删除记忆及历史                 |
+| `restore ID`         | 恢复归档记忆                       |
+| `forget ID`          | archive 的兼容别名                 |
+| `locations ID`       | 查看数据库和 Agent 文件路径        |
+| `history ID`         | 查看修改历史                       |
+| `settings [REQUEST]` | 查看设置，或执行明确要求的设置变更 |
+| `status`             | 检查存储及 Agent 连接状态          |
+| `sync`               | 同步已连接的 Agent 文件            |
+| `conflicts`          | 列出未解决的冲突                   |
+| `resolve ID CHOICE`  | 按用户明确选择解决冲突             |
+| `help`               | 查看功能和调用示例                 |
+
+Codex 使用 `$co-memo ACTION`，参数相同。例如：
+
+```text
+$co-memo recall 包管理工具
+$co-memo remember 本项目使用 pnpm。
+```
+
+所有快捷入口加载同一份 Co-memo skill，保留 scope、版本和冲突检查。Claude 使用命令文件，OpenCode 使用命令包装，Pi 使用提示词模板。Pi 的项目模板要求项目受信任且已启用模板发现。`setup` 会安装这些入口，单独运行 `connect` 不会安装。路径和细节见[工具与设置](docs/tools-and-settings.md)。
+
+测试覆盖生成配置、重复安装、同名文件保护及断开时清理。本机 Pi/OpenCode 已验证入口发现及参数展开／配置解析；这不代表每个宿主中的每条快捷指令都已完成真实模型执行。
 
 ## 验证记忆是否已加载
 
@@ -137,7 +192,7 @@ project/
     opencode.md
 ```
 
-每条记忆都有稳定 ID 和版本标记。修改块内文字即可更新；删除整个记忆块即可遗忘；在 `co-memo:new` 标记之间添加一条项目记忆即可新增。请保留文档标记及已有 ID、版本。
+每条记忆都有稳定 ID 和版本标记。修改块内文字即可更新；删除整个记忆块即可归档；在 `co-memo:new` 标记之间添加一条项目记忆即可新增。请保留文档标记及已有 ID、版本。
 
 ```sh
 co-memo sync
@@ -153,7 +208,7 @@ co-memo import /absolute/path/preferences.md --scope user
 co-memo import /absolute/path/memory-directory
 ```
 
-导入是**显式、一次性的操作**。每个 Markdown 文件成为一条记忆，保留文字和来源路径。目录导入只处理其直接包含的 `.md` 文件，不会改写或持续监视原文件。重复导入完全相同的内容会复用原记忆；已删除的相同内容仍保持删除状态。
+导入是**显式、一次性的操作**。每个 Markdown 文件成为一条记忆，保留文字和来源路径。目录导入只处理其直接包含的 `.md` 文件，不会改写或持续监视原文件。重复导入完全相同的内容会复用原记忆；已归档的相同内容仍保持归档状态。
 
 Co-memo 不会猜测原生自动记忆或第三方 Pi 记忆插件的数据位置。导入后，通过 Co-memo 管理的文件或 CLI 更新共享记忆；当前不支持任意原生记忆目录的自动同步。
 
@@ -162,7 +217,9 @@ Co-memo 不会猜测原生自动记忆或第三方 Pi 记忆插件的数据位�
 ```sh
 co-memo show MEMORY_ID
 co-memo edit MEMORY_ID --version 1 --content '使用 pnpm，并锁定依赖文件。'
-co-memo forget MEMORY_ID --version 2
+co-memo archive MEMORY_ID --version 2
+co-memo unarchive MEMORY_ID --version 3
+co-memo delete MEMORY_ID --version 4
 co-memo history MEMORY_ID
 
 co-memo conflicts
@@ -259,3 +316,5 @@ npm install -g ./ahoh.tech-co-memo-0.6.0.tgz
 ```
 
 pnpm 仅用于开发。Co-memo 使用 [MIT 许可证](LICENSE)。
+
+归档沿用内部 `deleted` 字段，CLI `list --deleted` 可包含归档记录。`forget` / `memory_forget` 保留为归档的兼容入口；永久删除使用 `delete` / `memory_delete`。Skill 的 `restore` 动作调用 CLI `unarchive`，CLI `restore` 仍用于恢复数据库备份。新安装包含这些快捷指令；已有安装重新执行 setup 即可更新。

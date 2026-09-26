@@ -1,3 +1,4 @@
+import { withoutPurged } from './document.js';
 import { repository } from './worktrees.js';
 import { searchTerms, recent } from './relevance.js';
 import { SettingsPatch, allowWrite } from './settings.js';
@@ -52,12 +53,12 @@ export class Store {
       checkDatabase(join(this.home, filename));
     }
     this.db = new DatabaseSync(path);
-    this.db.exec('PRAGMA busy_timeout=5000; PRAGMA journal_mode=WAL;');
+    this.db.exec('PRAGMA busy_timeout=5000; PRAGMA journal_mode=WAL; PRAGMA secure_delete=ON;');
     this.mutex = new DatabaseSync(join(this.home, 'sync-lock.sqlite'));
     this.mutex.exec('PRAGMA busy_timeout=5000;');
     this.lock(() => {
       const version = this.db.prepare('PRAGMA user_version').get();
-      ensure(Number(version?.user_version) <= 4, 'Database is from a newer Co-memo version');
+      ensure(Number(version?.user_version) <= 5, 'Database is from a newer Co-memo version');
       this.transaction(() => {
         this.db.exec(`
         CREATE TABLE IF NOT EXISTS projects(id TEXT PRIMARY KEY,root TEXT NOT NULL UNIQUE);
@@ -83,7 +84,7 @@ export class Store {
           `);
         }
         this.db.exec(
-          'CREATE TABLE IF NOT EXISTS project_links(root TEXT PRIMARY KEY,project_id TEXT NOT NULL,git_common TEXT NOT NULL); PRAGMA user_version=4;',
+          'CREATE TABLE IF NOT EXISTS project_links(root TEXT PRIMARY KEY,project_id TEXT NOT NULL,git_common TEXT NOT NULL); CREATE TABLE IF NOT EXISTS purged(id TEXT PRIMARY KEY); PRAGMA user_version=5;',
         );
       });
     });
@@ -442,6 +443,70 @@ export class Store {
         supersedes: { id: old.id, version: old.version },
       },
       deleted: content === null,
+      version: old.version + 1,
+      origin,
+      updatedAt: Date.now(),
+    });
+  }
+  purgedIds(): Set<string> {
+    return new Set(
+      this.db
+        .prepare('SELECT id FROM purged')
+        .all()
+        .map((r) => String(r.id)),
+    );
+  }
+  /** Caller holds lock and transaction. Retain only an ID to reject stale replicas. */
+  purge(id: string, version: number): void {
+    const old = this.get(id);
+    allowWrite(this, old.projectId, 'explicit');
+    ensure(old.version === version, 'Version changed; read the memory again');
+    this.db.prepare('INSERT INTO purged VALUES (?)').run(id);
+    this.db.prepare('DELETE FROM notes_fts WHERE id=?').run(id);
+    this.db.prepare('DELETE FROM revisions WHERE id=?').run(id);
+    this.db.prepare('DELETE FROM conflicts WHERE memory_id=?').run(id);
+    this.db
+      .prepare(
+        'DELETE FROM resolutions WHERE EXISTS (SELECT 1 FROM json_tree(resolutions.payload) WHERE value=?)',
+      )
+      .run(id);
+    // Keep idempotency keys so retrying an old submission cannot recreate a purged note.
+    this.db
+      .prepare(
+        'UPDATE submissions SET payload=? WHERE EXISTS (SELECT 1 FROM json_tree(submissions.payload) WHERE value=?)',
+      )
+      .run(
+        JSON.stringify([
+          {
+            action: 'skip',
+            status: 'skipped',
+            reason: 'A memory from this submission was permanently deleted.',
+          },
+        ]),
+        id,
+      );
+    this.db.prepare('DELETE FROM notes WHERE id=?').run(id);
+    const ids = new Set([id]);
+    for (const replica of this.replicas()) {
+      if (replica.baseline)
+        replica.baseline.entries = replica.baseline.entries.filter((e) => e.id !== id);
+      if (replica.pending) {
+        replica.pending.text = withoutPurged(replica.pending.text, replica.id, ids);
+        replica.pending.snapshot.entries = replica.pending.snapshot.entries.filter(
+          (e) => e.id !== id,
+        );
+      }
+      this.saveReplica(replica);
+    }
+  }
+  restore(id: string, version: number, origin: string): Memory {
+    const old = this.get(id);
+    allowWrite(this, old.projectId, 'explicit');
+    ensure(old.version === version, 'Version changed; read the memory again');
+    ensure(old.deleted, 'Memory is not archived');
+    return this.write({
+      ...old,
+      deleted: false,
       version: old.version + 1,
       origin,
       updatedAt: Date.now(),

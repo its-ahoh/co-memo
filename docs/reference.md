@@ -20,10 +20,12 @@ co-memo --home /path/to/data --project /path/to/project COMMAND
 | `list [--deleted] [--query TEXT] [--explain]`        | List this project's and user notes; optional hybrid search (up to 100 matches), with mode/fallback diagnostics |
 | `show ID`                                            | Full note including current revision and deletion state                                                        |
 | `edit ID --version N --content TEXT`                 | Compare-and-update; stale versions fail                                                                        |
-| `forget ID --version N`                              | Tombstone a note and propagate deletion                                                                        |
+| `forget ID --version N`                              | Compatibility alias for archive                                                                                |
 | `history ID`                                         | Every stored version                                                                                           |
 | `import PATH [--scope project\|user]`                | One-time file or nonrecursive directory import; originals untouched                                            |
 | `sync`                                               | Reconcile every registered replica across local projects                                                       |
+| `ui [--port NUMBER] [--no-open]`                     | Start the loopback memory console; open a browser by default; port 0 selects an available port                 |
+| `locations ID`                                       | Inspect the central database and registered Markdown replica paths/line numbers without syncing                |
 | `watch`                                              | Reconcile every two seconds; SIGINT/SIGTERM stops cleanly                                                      |
 | `context [--query TEXT]`                             | Bounded user/project context; excludes conflicting notes                                                       |
 | `conflicts`                                          | All unresolved conflicts with preserved proposals                                                              |
@@ -45,7 +47,7 @@ Exit codes: `0` success, `1` invalid input/operation failure, `2` a completed sy
 Projection files have a document ID, generation, stable memory IDs/revisions, and a new-memory section. They are dedicated managed files. Only memory-block content and the new-memory section are editable; unrelated prose outside those regions is not a memory and may be replaced.
 
 - Edit content inside `co-memo:memory` / `co-memo:/memory`.
-- Delete the entire block to forget that note within its scope (a user note is removed across projects).
+- Delete the entire block to archive that note within its scope (a user note is removed across projects).
 - Add one note inside `co-memo:new` / `co-memo:/new`. It defaults to project scope. Use the CLI for user scope.
 - Preserve IDs, revision numbers, the document header and footer.
 - An empty memory block is invalid; remove the complete block to delete.
@@ -97,3 +99,5 @@ co-memo projects --probe
 ```
 
 Works outside a project and does not create or migrate a missing store. Lists registered roots and linked worktrees, per-root agents, existence and project-memory counts without printing memory text. `--check` performs read-only diagnostics per root; `--probe` additionally initializes the pinned MCP server after binding validation. Neither launches a host model nor proves its active session loaded memory. Any diagnostic failure returns exit code 2. Use the original project's `disconnect` command to remove an agent; project identities remain listed for access to retained history.
+
+`archive ID --version N` retains content/history; `unarchive ID --version N` restores it. `delete ID --version N` permanently removes the note and history, retaining only a content-free anti-resurrection ID. Deletion does not ingest unrelated edits before removing the selected record; it checks the stored version and then attempts replica cleanup. `restore ARCHIVE --to DIRECTORY` continues to restore a database backup.

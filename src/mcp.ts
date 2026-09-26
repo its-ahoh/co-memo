@@ -11,6 +11,8 @@ import {
   checkpoint,
   CheckpointInput,
   change,
+  remove,
+  restore,
   configuration,
   configure,
   IntentSchema,
@@ -162,9 +164,30 @@ export function createMemoryServer(home: string | undefined, workspace: string) 
   );
   tool(
     'memory_forget',
-    'Forget a note across connected agents in its scope, using its last-read version.',
+    'Compatibility alias for archive: hide a note while retaining content and history.',
     { id: z.uuid(), version: Version, intent: IntentSchema },
     (store, args, root) => change(store, root, { ...args, content: null }, 'mcp'),
+    true,
+  );
+  tool(
+    'memory_archive',
+    'Archive a note while retaining content and history.',
+    { id: z.uuid(), version: Version, intent: IntentSchema },
+    (store, args, root) => change(store, root, { ...args, content: null }, 'mcp'),
+    true,
+  );
+  tool(
+    'memory_delete',
+    'Permanently delete a note and its history only when explicitly requested.',
+    { id: z.uuid(), version: Version, userRequested: z.literal(true) },
+    (store, args, root) => remove(store, root, args),
+    true,
+  );
+  tool(
+    'memory_restore',
+    'Restore an archived note when explicitly requested.',
+    { id: z.uuid(), version: Version, userRequested: z.literal(true) },
+    (store, args, root) => restore(store, root, args, 'mcp'),
     true,
   );
   tool(

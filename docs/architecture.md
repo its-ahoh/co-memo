@@ -27,7 +27,7 @@ A pending conflict freezes projections that include that memory. Later edits rem
 
 ## Deletion
 
-Removing a complete memory block creates a tombstone and a revision. Its stable ID remains in central storage. Stale unchanged copies cannot restore it. A stale edited copy creates a deletion/edit conflict; only explicit resolution can restore that ID. Exact duplicate additions also match deleted notes and do not resurrect them.
+Removing a complete memory block archives it and creates a revision. Its stable ID remains in central storage. Stale unchanged copies cannot restore it. A stale edited copy creates a deletion/edit conflict; only explicit resolution can restore that ID. Exact duplicate additions also match archived notes and do not resurrect them.
 
 Missing files, truncated documents, duplicate IDs, unknown generations, and edited version markers produce errors rather than mass deletion. `repair` recreates only an absent replica. The user can restore a malformed file manually using its central notes and version history.
 
@@ -65,3 +65,5 @@ The database filename is deliberately new. The old Rust database is not migrated
 `src/relevance.ts` normalizes Chinese words and technical identifiers for both indexing and queries. `Store.search` applies scope/deletion/conflict filters and BM25 ranking through SQLite FTS5. Every central write updates the full-text index inside its caller's transaction. Migration rebuilds the index from current notes without rewriting revision payloads. CLI list, MCP recall and context share this path. Context separately reserves a bounded slice for pinned preferences.
 
 `src/candidates.ts` accepts structured candidates from the current agent, not raw transcripts. It reconciles first, then applies the complete candidate batch and its idempotency record in one transaction. Updates require the expected version; unclear contradictions use the existing conflict lifecycle with a separately identified candidate and evidence. Post-commit synchronization publishes projections; verification reports central state separately from publication. Replaying a request rechecks current receipts without reapplying old writes. Evidence, intent and correction basis are caller declarations, not authenticated transcripts or model-quality scores. No embeddings, external inference or background extraction are invoked.
+
+Schema 5 adds a content-free `purged` ID table. Permanent deletion removes the note, revisions, FTS entry, associated conflicts/resolutions and cached submission results, and scrubs replica baselines/pending publications. Sync removes marked blocks for purged IDs before ingestion, including paused or conflict-frozen replicas, without overwriting unrelated edits. Unsafe/missing files are reported; future sync retries cleanup. Existing backups and conversations are outside this deletion operation.

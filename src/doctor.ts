@@ -77,7 +77,10 @@ export async function doctor(input: {
     ensure(st.isFile() && !st.isSymbolicLink(), 'Unsafe database path');
     db = new DatabaseSync(database, { readOnly: true });
     db.exec('PRAGMA busy_timeout=1000');
-    ensure(db.prepare('PRAGMA user_version').get()?.user_version === 4, 'Unsupported schema');
+    ensure(
+      [4, 5].includes(Number(db.prepare('PRAGMA user_version').get()?.user_version)),
+      'Unsupported schema',
+    );
     ensure(db.prepare('PRAGMA quick_check').get()?.quick_check === 'ok', 'Integrity check failed');
     let project: Record<string, unknown> | undefined;
     for (let path = root; ; path = dirname(path)) {

@@ -1,3 +1,4 @@
+import { shortcutPaths } from '../dist/shortcuts.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
@@ -55,6 +56,13 @@ for (const agent of ['claude', 'codex', 'opencode', 'pi'])
     assert.equal(store.replicas().length, 0);
     assert.equal(store.get(memory.id).content, memory.content);
     assert.equal(existsSync(path), false);
+    const hostRoot = { codex: '.agents', claude: '.claude', pi: '.pi', opencode: '.opencode' }[
+      agent
+    ];
+    for (const shortcut of shortcutPaths(agent))
+      assert.equal(existsSync(join(project, hostRoot, shortcut.path)), false);
+    if (agent === 'opencode')
+      assert.equal(existsSync(join(project, '.opencode/commands/co-memo.md')), false);
     const manifest = JSON.parse(readFileSync(join(result.archive, 'manifest.json'), 'utf8'));
     const backup = manifest.find((e) => e.original === path);
     assert.equal(readFileSync(join(result.archive, backup.backup), 'utf8'), before);

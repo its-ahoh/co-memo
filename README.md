@@ -40,7 +40,7 @@ You can also install the exact release directly from the official npm tarball, i
 npm install -g https://registry.npmjs.org/@ahoh.tech/co-memo/-/co-memo-0.6.0.tgz
 ```
 
-The automatic workspace detection described here reflects the current checkout. The pinned 0.6.0 tarball predates this change; build from this checkout to test it with that release.
+Automatic workspace detection, the memory console, file-location inspection, and namespaced shortcuts described here reflect the current checkout. The pinned 0.6.0 release tarball predates these features; [build and install from this checkout](#build-from-this-checkout) to use them before a new release.
 
 The npm package contains compiled JavaScript. Users do not need pnpm, TypeScript, an API key for Co-memo, or a checkout of this repository. Restart your agents after setup. Add `--hooks` to `init` for automatic lifecycle delivery; without it, agents must call the memory tools.
 
@@ -78,6 +78,61 @@ Reload Pi with `/reload` and trust the project. Restart Claude Code and approve 
 When hooks are enabled and loaded by the host, Pi uses a project extension, Claude Code and Codex use lifecycle hooks, and OpenCode uses a project plugin. These deliver current shared context before prompts/model requests and synchronize edits after turns or tool execution. OpenCode V1 is the default for new connections; `--opencode-api v2` selects its incompatible V2 API. Reconnecting without the option preserves the installed API version. `co-memo watch` optionally reconciles every two seconds while no agent is running.
 
 For tools without lifecycle hooks, use `co-memo setup codex --tools-only` (also available for other agents). The agent must then load context through tools/CLI. The lower-level `connect` command still installs hooks alone.
+
+## Visual memory manager
+
+Run `co-memo ui` to start the local server and open your default browser (default <http://127.0.0.1:4318>). From source, run `pnpm ui`. Use `--no-open` to start without opening a browser, or `--port 0` to choose an available port.
+
+The English console offers System, Dark, and Light themes. Your choice is saved in this browser and applied before the page renders. System follows your operating system’s color preference.
+
+The browser UI lists personal memories and all registered projects, with substring search, project/status filters, and add/edit/archive/restore/delete actions. Edits use version checks and the existing CLI synchronization and conflict protections. Archive hides a memory from recall and Agent files while retaining its content and history indefinitely; Restore makes it active again. Delete permanently removes its record, revisions, conflict history and derived caches. Only a content-free ID marker remains to reject stale replicas. Existing backups, exported copies and conversations are unaffected. Cleanup failures are reported and retried on sync. Existing soft-deleted records appear as Archived. Browsing reads the central store without syncing replicas; saving attempts synchronization and reports failures. Resolve conflicts with `co-memo conflicts` and `co-memo resolve`.
+
+Use `co-memo --home /path/to/data ui --port 4319` to select a data directory and port. The server binds only to `127.0.0.1`; press Ctrl+C to stop.
+
+Open the console through the Co-memo skill by asking “Open the Co-memo memory console.” Expand **File locations** on a memory to inspect its database path, row ID, and registered Agent Markdown replicas, including line numbers and sync state. CLI equivalent: `co-memo --project /path/to/project locations MEMORY_ID`. Viewing locations never synchronizes files.
+
+## Invoke Co-memo from your agent
+
+Install or refresh the integration with `co-memo --project /path/to/project setup AGENT`, where `AGENT` is `claude`, `codex`, `opencode`, or `pi`. Preserve `--tools-only` if you do not want lifecycle hooks; preserve `--opencode-api v2` when using OpenCode V2. Reload or restart the host after setup.
+
+| Agent           | Open the console | Show available actions |
+| --------------- | ---------------- | ---------------------- |
+| Claude Code     | `/co-memo:ui`    | `/co-memo:help`        |
+| OpenCode        | `/co-memo:ui`    | `/co-memo:help`        |
+| Pi              | `/co-memo:ui`    | `/co-memo:help`        |
+| Codex CLI / app | `$co-memo ui`    | `$co-memo help`        |
+
+Enter these in the agent's conversation, not your shell. In Codex CLI you can also use `/skills`, select `co-memo`, and enter your request. Codex uses its native skill interface rather than the `/co-memo:ACTION` aliases. The original `/co-memo ui` entry in Claude/OpenCode and `/skill:co-memo ui` in Pi remain available.
+
+| Action after `/co-memo:` | Purpose                                                  |
+| ------------------------ | -------------------------------------------------------- |
+| `ui`                     | Open the memory console                                  |
+| `recall QUERY`           | Search personal and current-project memories             |
+| `remember TEXT`          | Save a fact with the appropriate scope                   |
+| `edit ID CHANGE`         | Update a memory using its current version                |
+| `archive ID`             | Archive a memory and retain history                      |
+| `delete ID`              | Permanently delete a memory and history                  |
+| `restore ID`             | Restore an archived memory                               |
+| `forget ID`              | Compatibility alias for archive                          |
+| `locations ID`           | Inspect database and Agent file paths                    |
+| `history ID`             | Inspect revision history                                 |
+| `settings [REQUEST]`     | Inspect settings or apply an explicitly requested change |
+| `status`                 | Inspect storage and Agent connections                    |
+| `sync`                   | Synchronize connected Agent files                        |
+| `conflicts`              | List unresolved conflicts                                |
+| `resolve ID CHOICE`      | Resolve a conflict using your explicit choice            |
+| `help`                   | Show actions and examples                                |
+
+For Codex, use `$co-memo ACTION` with the same arguments. For example:
+
+```text
+$co-memo recall package manager
+$co-memo remember This project uses pnpm.
+```
+
+Shortcuts load the same Co-memo skill and preserve its scope, version, and conflict checks. Claude uses command files, OpenCode uses command wrappers, and Pi uses prompt templates. Pi project templates require project trust and enabled template discovery. Setup installs these entry points; `connect` alone does not. See [tools and settings](docs/tools-and-settings.md) for paths and details.
+
+Tests cover generated setup, idempotency, collision protection, and disconnect cleanup. Local Pi/OpenCode loaders have verified discovery and argument expansion/configuration; this does not establish successful model execution of every shortcut in every host.
 
 ## Verify memory is loaded
 
@@ -137,7 +192,7 @@ project/
     opencode.md
 ```
 
-Each memory has a stable ID and version marker. Edit the text inside its block to update it. Remove the whole block to forget it. Add one project note between the `co-memo:new` markers. Preserve the document markers and existing IDs/versions.
+Each memory has a stable ID and version marker. Edit the text inside its block to update it. Remove the whole block to archive it. Add one project note between the `co-memo:new` markers. Preserve the document markers and existing IDs/versions.
 
 ```sh
 co-memo sync
@@ -153,7 +208,7 @@ co-memo import /absolute/path/preferences.md --scope user
 co-memo import /absolute/path/memory-directory
 ```
 
-Import is **explicit and one-time**. Each Markdown file becomes one note, preserving its text and source path. A directory imports its immediate `.md` files. Original files are never rewritten or watched. Repeated exact imports reuse the same note; previously deleted exact content remains deleted.
+Import is **explicit and one-time**. Each Markdown file becomes one note, preserving its text and source path. A directory imports its immediate `.md` files. Original files are never rewritten or watched. Repeated exact imports reuse the same note; archived exact content remains archived.
 
 We do not guess where native auto-memory or third-party Pi memory plugins store their data. After import, shared updates go through Co-memo's managed files or CLI. Arbitrary native-memory directory synchronization is outside this first release.
 
@@ -162,7 +217,9 @@ We do not guess where native auto-memory or third-party Pi memory plugins store 
 ```sh
 co-memo show MEMORY_ID
 co-memo edit MEMORY_ID --version 1 --content 'Use pnpm with a frozen lockfile.'
-co-memo forget MEMORY_ID --version 2
+co-memo archive MEMORY_ID --version 2
+co-memo unarchive MEMORY_ID --version 3
+co-memo delete MEMORY_ID --version 4
 co-memo history MEMORY_ID
 
 co-memo conflicts
@@ -259,3 +316,5 @@ npm install -g ./ahoh.tech-co-memo-0.6.0.tgz
 ```
 
 pnpm is only required for development. Co-memo is distributed under the [MIT license](LICENSE).
+
+Archive uses the legacy `deleted` field internally; CLI `list --deleted` includes archived records. `forget` / `memory_forget` remain compatibility aliases for archive. Use `delete` / `memory_delete` for permanent deletion. The `restore` skill action calls CLI `unarchive` (CLI `restore` is reserved for database backups). New installations include these shortcuts; rerun setup to update an existing installation.

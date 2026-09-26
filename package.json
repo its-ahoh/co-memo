@@ -23,6 +23,7 @@
   ],
   "scripts": {
     "build": "node scripts/clean.mjs && tsc -p tsconfig.json && node scripts/prepare-bin.mjs",
+    "ui": "pnpm build && node dist/cli.js ui",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "pnpm build && node --test test/*.test.mjs",
     "check": "pnpm format:check && pnpm typecheck && pnpm test",

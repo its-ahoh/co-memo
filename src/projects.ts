@@ -27,7 +27,7 @@ export async function projects(home = dataHome(), check = false, probe = false) 
   try {
     db.exec('PRAGMA busy_timeout=1000; BEGIN;');
     ensure(
-      db.prepare('PRAGMA user_version').get()?.user_version === 4,
+      [4, 5].includes(Number(db.prepare('PRAGMA user_version').get()?.user_version)),
       'Unsupported schema; upgrade before listing projects',
     );
     const replicas = db.prepare('SELECT agent,path,project_id FROM replicas').all();

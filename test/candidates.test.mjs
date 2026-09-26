@@ -234,7 +234,7 @@ test('schema 2 migration indexes legacy payloads without rewriting history', (t)
       store.db.prepare('SELECT payload FROM revisions WHERE id=?').get(note.id).payload,
       JSON.stringify(legacy),
     );
-    assert.equal(store.db.prepare('PRAGMA user_version').get().user_version, 4);
+    assert.equal(store.db.prepare('PRAGMA user_version').get().user_version, 5);
   } finally {
     store.close();
   }

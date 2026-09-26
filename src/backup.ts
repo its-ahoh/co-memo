@@ -19,10 +19,11 @@ const tables = [
   'submissions',
   'project_links',
   'notes_fts',
+  'purged',
 ] as const;
 const Manifest = z.strictObject({
   format: z.literal(1),
-  schema: z.literal(4),
+  schema: z.union([z.literal(4), z.literal(5)]),
   createdAt: z.string().datetime(),
   database: z.literal(filename),
   sha256: z.string().regex(/^[a-f0-9]{64}$/),
@@ -38,8 +39,8 @@ function open(path: string) {
 }
 function inspect(db: DatabaseSync) {
   ensure(
-    db.prepare('PRAGMA user_version').get()?.user_version === 4,
-    'Backup requires schema 4; unsupported database',
+    [4, 5].includes(Number(db.prepare('PRAGMA user_version').get()?.user_version)),
+    'Backup requires schema 4 or 5; unsupported database',
   );
   ensure(
     db.prepare('PRAGMA integrity_check').get()?.integrity_check === 'ok',
@@ -50,7 +51,9 @@ function inspect(db: DatabaseSync) {
     'Unexpected triggers or views in backup',
   );
   const counts: Record<string, number> = {};
-  for (const table of tables)
+  for (const table of tables.filter(
+    (t) => t !== 'purged' || Number(db.prepare('PRAGMA user_version').get()?.user_version) >= 5,
+  ))
     counts[table] = Number(db.prepare(`SELECT count(*) AS n FROM ${table}`).get()?.n);
   for (const row of db.prepare('SELECT payload FROM notes').iterate())
     Memory.parse(JSON.parse(String(row.payload)));
@@ -98,7 +101,7 @@ export async function createBackup(destination: string, home = dataHome()) {
     const counts = finalize(path);
     const manifest = {
       format: 1,
-      schema: 4,
+      schema: Number(source.prepare('PRAGMA user_version').get()?.user_version),
       createdAt: new Date().toISOString(),
       database: filename,
       sha256: await digest(path),
