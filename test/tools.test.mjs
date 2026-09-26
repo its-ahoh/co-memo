@@ -1,3 +1,4 @@
+import { shortcutPaths } from '../dist/shortcuts.js';
 import { randomUUID } from 'node:crypto';
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -245,7 +246,24 @@ for (const agent of ['codex', 'claude', 'opencode', 'pi']) {
     f.run('setup', agent);
     assert.deepEqual(first.files.map(read), before);
     assert.match(read(join(f.project, 'AGENTS.md')), /^# Existing rules/);
-    assert.ok(first.files.some((path) => path.endsWith('/skills/co-memo/SKILL.md')));
+    const skillPath = first.files.find((path) => path.endsWith('/skills/co-memo/SKILL.md'));
+    assert.ok(skillPath);
+    assert.equal(read(skillPath), read('skills/co-memo/SKILL.md'));
+    const hostRoot = { codex: '.agents', claude: '.claude', pi: '.pi', opencode: '.opencode' }[
+      agent
+    ];
+    for (const shortcut of shortcutPaths(agent)) {
+      const content = read(join(f.project, hostRoot, shortcut.path));
+      assert.ok(content.includes(JSON.stringify(skillPath)));
+      assert.ok(content.includes(`Action: ${shortcut.action}\n`));
+      assert.ok(content.includes('User arguments: $ARGUMENTS'));
+    }
+    if (agent === 'opencode') {
+      assert.equal(
+        read(join(f.project, '.opencode/commands/co-memo.md')),
+        read('skills/co-memo/opencode-command.md'),
+      );
+    }
     if (agent === 'codex') {
       const text = read(join(f.project, '.codex/config.toml'));
       assert.match(text, /Keep comment/);
@@ -735,3 +753,32 @@ test('Shared MCP accepts the current agent workspace and scopes personal versus 
     [personal.id],
   );
 });
+
+test('Setup preserves an unmanaged OpenCode slash command without partial configuration', (t) => {
+  const f = fixture(t);
+  const path = join(f.project, '.opencode/commands/co-memo.md');
+  mkdirSync(join(f.project, '.opencode/commands'), { recursive: true });
+  writeFileSync(path, 'My custom command');
+  const result = f.raw('setup', 'opencode');
+  assert.equal(result.status, 1);
+  assert.match(result.stderr, /command is not managed/);
+  assert.equal(read(path), 'My custom command');
+  assert.equal(existsSync(join(f.project, 'opencode.json')), false);
+  assert.equal(existsSync(join(f.project, '.opencode/skills/co-memo/SKILL.md')), false);
+});
+
+for (const agent of ['claude', 'pi', 'opencode']) {
+  test(`Setup ${agent} refuses unmanaged namespaced shortcuts without partial installation`, (t) => {
+    const f = fixture(t);
+    const hostRoot = { claude: '.claude', pi: '.pi', opencode: '.opencode' }[agent];
+    const shortcut = shortcutPaths(agent).find((s) => s.action === 'ui');
+    const path = join(f.project, hostRoot, shortcut.path);
+    mkdirSync(join(path, '..'), { recursive: true });
+    writeFileSync(path, 'My existing shortcut');
+    const result = f.raw('setup', agent);
+    assert.equal(result.status, 1);
+    assert.match(result.stderr, /shortcut is not managed/);
+    assert.equal(read(path), 'My existing shortcut');
+    assert.equal(existsSync(join(f.project, hostRoot, 'skills/co-memo/SKILL.md')), false);
+  });
+}

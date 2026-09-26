@@ -1,0 +1,117 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <meta name="co-memo-token" content="__TOKEN__" />
+    <title>Co-memo / Memory console</title>
+    <script src="/theme.js"></script>
+    <link rel="stylesheet" href="/style.css" />
+    <script src="/app.js" defer></script>
+  </head>
+  <body>
+    <aside>
+      <a class="brand" href="/"><span>&gt;_</span> co-memo</a>
+      <div class="aside-label">WORKSPACE</div>
+      <button class="nav active" id="all">[ ] &nbsp; Memories</button>
+      <div class="aside-command"><span>OPEN FROM TERMINAL</span><code>$ co-memo ui</code></div>
+      <div class="aside-note">
+        <span class="dot"></span> Local store<br /><small>Context that persists.</small>
+      </div>
+    </aside>
+    <main>
+      <header>
+        <span>workspace / memories</span>
+        <div class="header-actions">
+          <label class="theme-control"
+            >Theme
+            <select id="theme" aria-label="Color theme">
+              <option value="system">System</option>
+              <option value="dark">Dark</option>
+              <option value="light">Light</option>
+            </select></label
+          ><button id="refresh">↻ Refresh</button>
+        </div>
+      </header>
+      <section class="intro">
+        <div class="eyebrow">// SHARED CONTEXT FOR YOUR AGENTS</div>
+        <div class="heading">
+          <div>
+            <h1>Memory console<span>_</span></h1>
+            <p>Inspect, edit, and keep your agents on the same page.</p>
+          </div>
+          <button class="primary" id="add">+ New memory</button>
+        </div>
+      </section>
+      <section class="stats" aria-label="Memory statistics">
+        <div><span>Active memories</span><strong id="total">—</strong></div>
+        <div><span>Personal memories</span><strong id="personal">—</strong></div>
+        <div><span>Project memories</span><strong id="project-count">—</strong></div>
+        <div><span>Registered projects</span><strong id="projects-count">—</strong></div>
+      </section>
+      <section class="library">
+        <div class="tools">
+          <label class="search"
+            >⌕
+            <input
+              id="search"
+              type="search"
+              placeholder="Search content, origin, or module…"
+              aria-label="Search memories" /></label
+          ><select id="project" aria-label="Filter project">
+            <option value="all">All projects</option>
+            <option value="user">Personal only</option></select
+          ><select id="status" aria-label="Filter status">
+            <option value="active">Active memories</option>
+            <option value="deleted">Deleted</option>
+            <option value="all">All states</option>
+          </select>
+        </div>
+        <div class="list-heading">
+          <h2><span class="code-mark">#</span> Stored memories</h2>
+          <span id="count"></span>
+        </div>
+        <div id="message" role="status" aria-live="polite"></div>
+        <div id="list" class="grid"></div>
+      </section>
+      <footer>LOCAL ONLY / SQLITE <span id="home"></span></footer>
+    </main>
+    <dialog id="editor">
+      <form id="form">
+        <div class="dialog-heading">
+          <h2 id="dialog-title">New memory</h2>
+          <button type="button" id="close" aria-label="Close">×</button>
+        </div>
+        <p>Save context worth carrying into the next session.</p>
+        <label>Scope<select id="destination" required></select></label
+        ><label
+          >Content<textarea
+            id="content"
+            rows="9"
+            maxlength="32000"
+            required
+            placeholder="For example: Use pnpm for package management in this project."
+          ></textarea>
+        </label>
+        <div class="editor-meta">
+          <span id="edit-meta"></span><span id="length">0 / 32000</span>
+        </div>
+        <p id="form-error" role="alert"></p>
+        <div class="dialog-actions">
+          <button type="button" id="cancel">Cancel</button
+          ><button class="primary" id="save" type="submit">Save memory</button>
+        </div>
+      </form>
+    </dialog>
+    <dialog id="deletion">
+      <h2>Delete this memory?</h2>
+      <p>Deletion syncs to connected agents. Revision history is retained.</p>
+      <pre id="delete-preview"></pre>
+      <p id="delete-error" role="alert"></p>
+      <div class="dialog-actions">
+        <button id="keep">Cancel</button
+        ><button class="danger" id="confirm-delete">Delete memory</button>
+      </div>
+    </dialog>
+  </body>
+</html>

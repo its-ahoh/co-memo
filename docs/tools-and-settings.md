@@ -139,3 +139,24 @@ Before final replies and after durable corrections or decisions, the injected gu
 Checkpoints reconcile first, reject inaccessible, conflicted or stale receipts, and verify central storage only. Sync failures remain visible in the response. They cannot prove delivery into another agent's active context. Non-save outcomes are declarations; paused checkpoints return `verified: false`. Checkpoints do not mine transcripts, create memories, audit the agent's judgment or force another turn. A host or model can ignore a reminder.
 
 See [retrieval and extraction](retrieval-and-extraction.md) for `memory_submit`, provenance, conflict candidates and idempotent retries. Prefer this interface for agent-selected memories; it verifies writes without a second checkpoint call.
+
+## Invoke the skill directly
+
+| Agent       | Example             |
+| ----------- | ------------------- |
+| Codex       | `$co-memo ui`       |
+| Claude Code | `/co-memo ui`       |
+| Pi          | `/skill:co-memo ui` |
+| OpenCode    | `/co-memo ui`       |
+
+`ui` opens the local memory console. Other requests include `recall QUERY`, `remember TEXT`, `edit`, `forget`, `locations ID`, and `settings`; natural language is also supported. The same skill handles scope, version checks, and configured data paths for each host.
+
+Run `co-memo --project PROJECT setup AGENT` to install or update a project's skill. Preserve your existing `--tools-only`/OpenCode API selection when updating. OpenCode setup also installs `.opencode/commands/co-memo.md`, a slash-command wrapper that loads the skill and forwards arguments. Disconnect archives this managed wrapper too. Unmanaged files are never overwritten. Reload skills or restart the host after updating.
+
+Host syntax follows the official [Claude skills](https://code.claude.com/docs/en/skills), [Pi skills](https://github.com/badlogic/pi-mono/blob/main/packages/coding-agent/docs/skills.md), and [OpenCode commands](https://opencode.ai/docs/commands/) documentation. Discovery and CLI availability can be checked without a model call; completing a request still requires the host's normal execution permissions and an available model.
+
+### Namespaced shortcuts
+
+Claude Code, OpenCode and Pi support `/co-memo:ui`, `/co-memo:recall QUERY`, `/co-memo:remember TEXT`, `/co-memo:edit ID CHANGE`, `/co-memo:forget ID`, `/co-memo:locations ID`, `/co-memo:history ID`, `/co-memo:settings`, `/co-memo:status`, `/co-memo:sync`, `/co-memo:conflicts`, `/co-memo:resolve ID CHOICE`, and `/co-memo:help` after setup. Codex uses the equivalent `$co-memo ACTION` through its native skill interface.
+
+Setup installs Claude command files under `.claude/commands/co-memo/`, OpenCode commands as `.opencode/commands/co-memo:ACTION.md`, and Pi prompt templates as `.pi/prompts/co-memo:ACTION.md`. Each wrapper points to the installed canonical skill. Setup preserves unmanaged files and disconnect archives managed shortcuts. Pi templates require project trust and prompt-template discovery to be enabled. Reload or restart the host after installation.

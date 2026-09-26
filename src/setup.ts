@@ -1,3 +1,4 @@
+import { shortcutPaths, shortcutContent } from './shortcuts.js';
 import { realpathSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -153,8 +154,29 @@ export function prepareSetup(
     ensure(!text || text.includes(marker), 'Existing co-memo skill is not managed by Co-memo');
     return skill;
   });
+  const commandPath = agent === 'opencode' ? '.opencode/commands/co-memo.md' : null;
+  if (commandPath) {
+    const command = readFileSync(
+      new URL('../skills/co-memo/opencode-command.md', import.meta.url),
+      'utf8',
+    );
+    prepare(commandPath, (text) => {
+      ensure(!text || text.includes(marker), 'Existing co-memo command is not managed by Co-memo');
+      return command;
+    });
+  }
+  const shortcuts = shortcutPaths(agent).map(({ action, path }) => ({
+    action,
+    path: `${skillRoot}/${path}`,
+  }));
+  for (const shortcut of shortcuts) {
+    prepare(shortcut.path, (text) => {
+      ensure(!text || text.includes(marker), 'Existing Co-memo shortcut is not managed by Co-memo');
+      return shortcutContent(shortcut.action, join(root, skillPath));
+    });
+  }
   const ignore = edits.find((e) => e.path === join(root, '.gitignore'))!;
-  for (const path of [configPath, skillPath]) {
+  for (const path of [configPath, skillPath, commandPath, ...shortcuts.map((s) => s.path)]) {
     if (path && !ignore.after.split(/\r?\n/).includes('/' + path))
       ignore.after += '/' + path + '\n';
   }

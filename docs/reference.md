@@ -24,6 +24,8 @@ co-memo --home /path/to/data --project /path/to/project COMMAND
 | `history ID`                                         | Every stored version                                                                                           |
 | `import PATH [--scope project\|user]`                | One-time file or nonrecursive directory import; originals untouched                                            |
 | `sync`                                               | Reconcile every registered replica across local projects                                                       |
+| `ui [--port NUMBER] [--no-open]`                     | Start the loopback memory console; open a browser by default; port 0 selects an available port                 |
+| `locations ID`                                       | Inspect the central database and registered Markdown replica paths/line numbers without syncing                |
 | `watch`                                              | Reconcile every two seconds; SIGINT/SIGTERM stops cleanly                                                      |
 | `context [--query TEXT]`                             | Bounded user/project context; excludes conflicting notes                                                       |
 | `conflicts`                                          | All unresolved conflicts with preserved proposals                                                              |

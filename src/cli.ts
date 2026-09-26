@@ -15,6 +15,9 @@ import { allowWrite } from './settings.js';
 import type { Intent } from './settings.js';
 import { prepareSetup } from './setup.js';
 import { serve } from './mcp.js';
+import { locationReader } from './locations.js';
+import { startUI } from './ui.js';
+import { openBrowser } from './open-browser.js';
 import { Command, Option } from 'commander';
 import { realpathSync, readdirSync, statSync, lstatSync } from 'node:fs';
 import { join, extname } from 'node:path';
@@ -376,6 +379,12 @@ app
   .description('Read a full memory')
   .action((id: string) => print(using((store, root) => checkScope(store, id, root))));
 app
+  .command('locations <id>')
+  .description('Inspect the database and registered Markdown file locations without syncing')
+  .action((id: string) =>
+    print(using((store, root) => locationReader(store)(checkScope(store, id, root)))),
+  );
+app
   .command('history <id>')
   .description('Read every version, including deletion')
   .action((id: string) =>
@@ -704,6 +713,26 @@ app
   .action(async () => {
     const opts = options();
     await serve(opts.home, opts.project, app.getOptionValueSource('project') === 'cli');
+  });
+app
+  .command('ui')
+  .description('Open a local memory manager for browsing, adding, editing and deleting notes')
+  .option('--port <number>', 'Loopback HTTP port (0 chooses an available port)', '4318')
+  .option('--no-open', 'Start the server without opening a browser')
+  .action(async (opts: { port: string; open: boolean }) => {
+    const port = z.number().int().min(0).max(65535).parse(Number(opts.port));
+    const { server, url } = await startUI(options().home, options().project, port);
+    process.stdout.write(`Co-memo memory manager: ${url}\nPress Ctrl+C to stop.\n`);
+    const stop = () => server.close();
+    process.once('SIGINT', stop);
+    process.once('SIGTERM', stop);
+    if (opts.open) {
+      try {
+        await openBrowser(url);
+      } catch {
+        process.stderr.write(`Could not open a browser automatically. Open ${url} manually.\n`);
+      }
+    }
   });
 const settingsCommand = app.command('settings').description('Inspect or configure memory behavior');
 settingsCommand
