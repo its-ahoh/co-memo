@@ -156,10 +156,7 @@ function render() {
     locations.append(node('summary', 'File locations'));
     const database = node('div', '', 'location-entry');
     const databaseHeading = node('div', '', 'location-heading');
-    databaseHeading.append(
-      node('span', 'Database', 'meta'),
-      node('span', 'notes', 'location-pill success'),
-    );
+    databaseHeading.append(node('span', 'Database', 'meta'));
     database.append(
       databaseHeading,
       node('code', m.locations.database),
