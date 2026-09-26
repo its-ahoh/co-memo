@@ -155,8 +155,13 @@ function render() {
     const locations = node('details', '', 'locations');
     locations.append(node('summary', 'File locations'));
     const database = node('div', '', 'location-entry');
+    const databaseHeading = node('div', '', 'location-heading');
+    databaseHeading.append(
+      node('span', 'Database', 'meta'),
+      node('span', 'notes', 'location-pill success'),
+    );
     database.append(
-      node('span', 'DATABASE / notes', 'meta'),
+      databaseHeading,
       node('code', m.locations.database),
       node('span', 'id: ' + m.id, 'meta'),
     );
@@ -170,17 +175,17 @@ function render() {
     };
     for (const replica of m.locations.replicas) {
       const entry = node('div', '', 'location-entry');
-      entry.append(
+      const heading = node('div', '', 'location-heading');
+      heading.append(
+        node('span', replica.agent, 'meta'),
         node(
           'span',
-          replica.agent +
-            ' / ' +
-            labels[replica.status] +
-            (replica.pending ? ' / pending sync' : ''),
-          'meta',
+          labels[replica.status],
+          'location-pill' + (replica.status === 'current' ? ' success' : ''),
         ),
-        node('code', replica.path + (replica.line ? ':' + replica.line : '')),
       );
+      if (replica.pending) heading.append(node('span', 'Pending sync', 'location-pill'));
+      entry.append(heading, node('code', replica.path + (replica.line ? ':' + replica.line : '')));
       locations.append(entry);
     }
     if (!m.locations.replicas.length)

@@ -456,6 +456,25 @@ textarea::placeholder {
   overflow-wrap: anywhere;
   user-select: all;
 }
+.location-heading {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.location-pill {
+  display: inline-flex;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 10px;
+  line-height: 1.6;
+  color: var(--warning-text);
+  background: var(--warning-bg);
+}
+.location-pill.success {
+  color: var(--accent);
+  background: var(--accent-bg);
+}
 .locations > .meta {
   display: block;
   margin-top: 10px;
