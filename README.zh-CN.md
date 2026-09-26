@@ -37,10 +37,10 @@ co-memo init --agents claude,codex --apply
 也可以直接安装指定版本的官方 npm 压缩包，例如包索引尚未提供某个新版本时：
 
 ```sh
-npm install -g https://registry.npmjs.org/@ahoh.tech/co-memo/-/co-memo-0.6.0.tgz
+npm install -g https://registry.npmjs.org/@ahoh.tech/co-memo/-/co-memo-0.7.0.tgz
 ```
 
-本文的自动项目识别、记忆控制台、文件位置和命名空间快捷指令反映当前源码。固定的 0.6.0 发布包早于这些功能；新版本发布前，请[从当前源码构建并安装](#从源码构建)。
+0.7.0 包含自动项目识别、记忆控制台、文件位置、命名空间快捷指令，以及独立的归档和永久删除操作。此版本会将记忆数据库升级至 schema 5，请同时更新所有已连接的 Co-memo 安装。
 
 npm 包已包含编译后的 JavaScript。普通用户无需 pnpm、TypeScript、Co-memo API Key 或本仓库源码。配置后重启 Agent。为 `init` 添加 `--hooks` 可启用生命周期自动注入；不添加时，由 Agent 主动调用记忆工具。
 
@@ -312,7 +312,7 @@ Agent 发现和引导配置可用 `co-memo init`。预览、worktree 关联规�
 pnpm install --frozen-lockfile
 pnpm check
 pnpm pack
-npm install -g ./ahoh.tech-co-memo-0.6.0.tgz
+npm install -g ./ahoh.tech-co-memo-0.7.0.tgz
 ```
 
 pnpm 仅用于开发。Co-memo 使用 [MIT 许可证](LICENSE)。

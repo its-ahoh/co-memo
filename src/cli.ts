@@ -40,7 +40,7 @@ import type { SyncReport, Memory } from './model.js';
 
 const app = new Command()
   .name('co-memo')
-  .version('0.6.0')
+  .version('0.7.0')
   .enablePositionalOptions()
   .description('One local memory store for your coding agents')
   .option('--home <directory>', 'Local data directory (or CO_MEMO_HOME)')

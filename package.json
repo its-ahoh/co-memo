@@ -1,6 +1,6 @@
 {
   "name": "@ahoh.tech/co-memo",
-  "version": "0.6.0",
+  "version": "0.7.0",
   "description": "Local shared memory for coding agents",
   "license": "MIT",
   "type": "module",
