@@ -93,7 +93,16 @@ function render() {
         (p === 'all' || (p === 'user' ? m.scope === 'user' : m.projectId === p)) &&
         [m.content, m.origin, m.metadata.module || ''].join(' ').toLowerCase().includes(q),
     )
-    .sort((a, b) => b.updatedAt - a.updatedAt);
+    .sort((a, b) => {
+      const sort = $('sort').value;
+      return sort === 'oldest'
+        ? a.createdAt - b.createdAt
+        : sort === 'created'
+          ? b.createdAt - a.createdAt
+          : b.updatedAt - a.updatedAt;
+    });
+  $('clear-search').hidden = !$('search').value;
+  $('search').parentElement.querySelector('kbd').hidden = !!$('search').value;
   $('count').textContent = `${memories.length} ${memories.length === 1 ? 'record' : 'records'}`;
   $('list').replaceChildren();
   if (!memories.length)
@@ -107,7 +116,7 @@ function render() {
       ),
     );
   for (const m of memories) {
-    const card = node('article', '', 'card'),
+    const card = node('article', '', 'card' + (m.deleted ? ' is-archived' : '')),
       top = node('div', '', 'card-top');
     top.append(
       node(
@@ -146,8 +155,10 @@ function render() {
     const locations = node('details', '', 'locations');
     locations.append(node('summary', 'File locations'));
     const database = node('div', '', 'location-entry');
+    const databaseHeading = node('div', '', 'location-heading');
+    databaseHeading.append(node('span', 'Database', 'meta'));
     database.append(
-      node('span', 'DATABASE / notes', 'meta'),
+      databaseHeading,
       node('code', m.locations.database),
       node('span', 'id: ' + m.id, 'meta'),
     );
@@ -161,22 +172,37 @@ function render() {
     };
     for (const replica of m.locations.replicas) {
       const entry = node('div', '', 'location-entry');
-      entry.append(
+      const heading = node('div', '', 'location-heading');
+      heading.append(
+        node('span', replica.agent, 'meta'),
         node(
           'span',
-          replica.agent +
-            ' / ' +
-            labels[replica.status] +
-            (replica.pending ? ' / pending sync' : ''),
-          'meta',
+          labels[replica.status],
+          'location-pill' + (replica.status === 'current' ? ' success' : ''),
         ),
-        node('code', replica.path + (replica.line ? ':' + replica.line : '')),
       );
+      if (replica.pending) heading.append(node('span', 'Pending sync', 'location-pill'));
+      entry.append(heading, node('code', replica.path + (replica.line ? ':' + replica.line : '')));
       locations.append(entry);
     }
     if (!m.locations.replicas.length)
       locations.append(node('span', 'Central database only; no registered Agent files.', 'meta'));
-    card.append(top, node('div', m.content, 'card-content'), locations, bottom);
+    const content = node('div', m.content, 'card-content');
+    content.id = 'content-' + m.id;
+    card.append(top, content);
+    if (m.content.length > 420 || m.content.split('\n').length > 5) {
+      content.classList.add('collapsed');
+      const expand = node('button', 'Show more', 'expand');
+      expand.setAttribute('aria-expanded', 'false');
+      expand.setAttribute('aria-controls', content.id);
+      expand.onclick = () => {
+        const collapsed = content.classList.toggle('collapsed');
+        expand.textContent = collapsed ? 'Show more' : 'Show less';
+        expand.setAttribute('aria-expanded', String(!collapsed));
+      };
+      card.append(expand);
+    }
+    card.append(locations, bottom);
     $('list').append(card);
   }
 }
@@ -331,6 +357,38 @@ $('refresh').onclick = () => {
 };
 $('search').oninput = render;
 $('status').onchange = render;
+$('sort').onchange = render;
+$('clear-search').onclick = () => {
+  $('search').value = '';
+  render();
+  $('search').focus();
+};
+document.addEventListener('keydown', (event) => {
+  if (event.isComposing || event.repeat) return;
+  if ($('editor').open && (event.ctrlKey || event.metaKey) && event.key === 'Enter') {
+    event.preventDefault();
+    if (!busy) $('form').requestSubmit();
+    return;
+  }
+  if (
+    document.querySelector('dialog[open]') ||
+    busy ||
+    event.ctrlKey ||
+    event.metaKey ||
+    event.altKey ||
+    event.target.closest('input, textarea, select, button, a, summary, [contenteditable]')
+  )
+    return;
+  if (event.key === '/') {
+    event.preventDefault();
+    $('search').focus();
+  } else if (event.key === 'n') {
+    event.preventDefault();
+    openEditor();
+  }
+});
+$('add').title = 'New memory (N)';
+$('save').title = 'Save memory (⌘/Ctrl + Enter)';
 load().catch((e) => notify('Unable to load memories: ' + e.message, true));
 
 $('theme').value = document.documentElement.dataset.theme || 'system';
