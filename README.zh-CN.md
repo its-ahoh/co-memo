@@ -85,7 +85,7 @@ Pi 需要信任项目并执行 `/reload`；Claude Code 需要重启并批准项�
 
 英文控制台支持 System、Dark 和 Light 三种主题。选择会保存在当前浏览器中，并在页面渲染前应用；System 跟随操作系统配色。
 
-页面支持浏览所有已登记项目及个人记忆、全文子串搜索、按项目和删除状态筛选，以及添加、编辑、删除记忆。编辑和删除会校验版本，沿用 CLI 的同步与冲突保护；删除保留历史和墓碑，不会永久清除数据库记录。浏览和刷新只读取中央存储，不触发 Agent 同步；保存后会尝试同步，并显示同步错误。
+页面支持浏览所有已登记项目及个人记忆、全文子串搜索、按项目和归档状态筛选，以及添加、编辑、归档、恢复和永久删除记忆。编辑和删除会校验版本，沿用 CLI 的同步与冲突保护；Archive 会从召回和 Agent 文件中隐藏记忆，长期保留内容及历史；Restore 可恢复。Delete 会永久清除记录、修订历史、相关冲突历史和派生缓存，只保留不含内容的 ID 标记，阻止旧副本复活。已有备份、导出副本和对话不受影响；文件清理失败会报告并在同步时重试。已有软删除记录显示为 Archived。浏览和刷新只读取中央存储，不触发 Agent 同步；保存后会尝试同步，并显示同步错误。
 
 可用 `co-memo --home /path/to/data ui --port 4319` 指定数据目录与端口。服务只监听 `127.0.0.1`，按 Ctrl+C 停止。需要处理冲突时使用 `co-memo conflicts` 和 `co-memo resolve`。
 
@@ -110,7 +110,10 @@ Pi 需要信任项目并执行 `/reload`；Claude Code 需要重启并批准项�
 | `recall QUERY`       | 搜索个人及当前项目记忆             |
 | `remember TEXT`      | 按内容选择 scope 并保存记忆        |
 | `edit ID CHANGE`     | 校验当前版本后修改记忆             |
-| `forget ID`          | 删除记忆并保留历史                 |
+| `archive ID`         | 归档并保留内容及历史               |
+| `delete ID`          | 永久删除记忆及历史                 |
+| `restore ID`         | 恢复归档记忆                       |
+| `forget ID`          | archive 的兼容别名                 |
 | `locations ID`       | 查看数据库和 Agent 文件路径        |
 | `history ID`         | 查看修改历史                       |
 | `settings [REQUEST]` | 查看设置，或执行明确要求的设置变更 |
@@ -189,7 +192,7 @@ project/
     opencode.md
 ```
 
-每条记忆都有稳定 ID 和版本标记。修改块内文字即可更新；删除整个记忆块即可遗忘；在 `co-memo:new` 标记之间添加一条项目记忆即可新增。请保留文档标记及已有 ID、版本。
+每条记忆都有稳定 ID 和版本标记。修改块内文字即可更新；删除整个记忆块即可归档；在 `co-memo:new` 标记之间添加一条项目记忆即可新增。请保留文档标记及已有 ID、版本。
 
 ```sh
 co-memo sync
@@ -205,7 +208,7 @@ co-memo import /absolute/path/preferences.md --scope user
 co-memo import /absolute/path/memory-directory
 ```
 
-导入是**显式、一次性的操作**。每个 Markdown 文件成为一条记忆，保留文字和来源路径。目录导入只处理其直接包含的 `.md` 文件，不会改写或持续监视原文件。重复导入完全相同的内容会复用原记忆；已删除的相同内容仍保持删除状态。
+导入是**显式、一次性的操作**。每个 Markdown 文件成为一条记忆，保留文字和来源路径。目录导入只处理其直接包含的 `.md` 文件，不会改写或持续监视原文件。重复导入完全相同的内容会复用原记忆；已归档的相同内容仍保持归档状态。
 
 Co-memo 不会猜测原生自动记忆或第三方 Pi 记忆插件的数据位置。导入后，通过 Co-memo 管理的文件或 CLI 更新共享记忆；当前不支持任意原生记忆目录的自动同步。
 
@@ -214,7 +217,9 @@ Co-memo 不会猜测原生自动记忆或第三方 Pi 记忆插件的数据位�
 ```sh
 co-memo show MEMORY_ID
 co-memo edit MEMORY_ID --version 1 --content '使用 pnpm，并锁定依赖文件。'
-co-memo forget MEMORY_ID --version 2
+co-memo archive MEMORY_ID --version 2
+co-memo unarchive MEMORY_ID --version 3
+co-memo delete MEMORY_ID --version 4
 co-memo history MEMORY_ID
 
 co-memo conflicts
@@ -311,3 +316,5 @@ npm install -g ./ahoh.tech-co-memo-0.6.0.tgz
 ```
 
 pnpm 仅用于开发。Co-memo 使用 [MIT 许可证](LICENSE)。
+
+归档沿用内部 `deleted` 字段，CLI `list --deleted` 可包含归档记录。`forget` / `memory_forget` 保留为归档的兼容入口；永久删除使用 `delete` / `memory_delete`。Skill 的 `restore` 动作调用 CLI `unarchive`，CLI `restore` 仍用于恢复数据库备份。新安装包含这些快捷指令；已有安装重新执行 setup 即可更新。

@@ -183,7 +183,7 @@ test('schema 3 replica migration preserves pending state and identities', (t) =>
   store.close();
   store = new Store(f.home);
   try {
-    assert.equal(store.db.prepare('PRAGMA user_version').get().user_version, 4);
+    assert.equal(store.db.prepare('PRAGMA user_version').get().user_version, 5);
     assert.equal(store.replicas()[0].id, replica.id);
     assert.deepEqual(store.replicas()[0].baseline, baseline);
     assert.deepEqual(store.replicas()[0].pending, pending);

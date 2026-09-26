@@ -89,7 +89,7 @@ function render() {
   const memories = data.memories
     .filter(
       (m) =>
-        (s === 'all' || m.deleted === (s === 'deleted')) &&
+        (s === 'all' || m.deleted === (s === 'archived')) &&
         (p === 'all' || (p === 'user' ? m.scope === 'user' : m.projectId === p)) &&
         [m.content, m.origin, m.metadata.module || ''].join(' ').toLowerCase().includes(q),
     )
@@ -118,24 +118,28 @@ function render() {
       node('span', names[m.metadata.kind] || m.metadata.kind, 'meta'),
     );
     if (m.deleted || m.conflicted)
-      top.append(node('span', m.deleted ? 'deleted' : 'conflict', 'badge warning'));
+      top.append(node('span', m.deleted ? 'archived' : 'conflict', 'badge warning'));
     if (m.metadata.pinned) top.append(node('span', 'pinned', 'meta'));
     const bottom = node('div', '', 'card-bottom'),
       meta = node('span', `${date(m.updatedAt)} · v${m.version} · ${m.origin}`, 'meta');
     meta.title = m.id;
     bottom.append(meta);
-    if (!m.deleted && !m.conflicted) {
+    if (!m.conflicted) {
       const actions = node('div', '', 'actions'),
-        edit = node('button', 'Edit'),
+        edit = node('button', m.deleted ? 'Restore' : 'Edit'),
+        archive = node('button', 'Archive'),
         remove = node('button', 'Delete', 'remove');
-      edit.onclick = () => openEditor(m);
+      edit.onclick = () => (m.deleted ? changeState(m, 'restore') : openEditor(m));
+      archive.onclick = () => changeState(m, 'archive');
       remove.onclick = () => {
         deleting = m;
         $('delete-preview').textContent = m.content;
         $('delete-error').textContent = '';
         $('deletion').showModal();
       };
-      actions.append(edit, remove);
+      actions.append(edit);
+      if (!m.deleted) actions.append(archive);
+      actions.append(remove);
       bottom.append(actions);
     }
     if (m.conflicted) bottom.append(node('span', 'Resolve with co-memo resolve', 'meta'));
@@ -215,9 +219,7 @@ function resultMessage(result, fallback) {
   const errors = [...(result.priorErrors || []), ...(result.sync?.errors || [])];
   return (
     (result.notice || fallback) +
-    (errors.length
-      ? '\nSaved, but some agents could not sync: ' + errors.map((e) => e.error).join('; ')
-      : '') +
+    (errors.length ? '\nSome files could not sync: ' + errors.map((e) => e.error).join('; ') : '') +
     (result.sync?.conflicts?.length
       ? '\nUnresolved sync conflicts. Inspect with co-memo conflicts.'
       : '')
@@ -262,6 +264,28 @@ $('form').onsubmit = async (event) => {
     $('save').disabled = false;
   }
 };
+async function changeState(memory, action) {
+  if (busy) return;
+  busy = true;
+  try {
+    const result = await api(`/api/memories/${memory.id}/${action}`, 'POST', {
+      version: memory.version,
+    });
+    notify(
+      resultMessage(
+        result,
+        action === 'archive'
+          ? 'Memory archived. Content and history retained.'
+          : 'Memory restored.',
+      ),
+    );
+    await load();
+  } catch (e) {
+    notify(e.message, true);
+  } finally {
+    busy = false;
+  }
+}
 $('confirm-delete').onclick = async () => {
   if (busy || !deleting) return;
   busy = true;
@@ -271,7 +295,9 @@ $('confirm-delete').onclick = async () => {
       version: deleting.version,
     });
     $('deletion').close();
-    notify(resultMessage(result, 'Memory deleted. Revision history retained.'));
+    deleting = null;
+    $('delete-preview').textContent = '';
+    notify(resultMessage(result, 'Memory permanently deleted, including revision history.'));
     try {
       await load();
     } catch (e) {

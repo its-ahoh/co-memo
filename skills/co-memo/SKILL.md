@@ -32,7 +32,7 @@ Claude Code, OpenCode and Pi installations include `/co-memo:ACTION` shortcuts. 
 | `recall QUERY`       | Recall personal and current-project memories with the query.                                                                              |
 | `remember TEXT`      | Save the explicitly requested fact, choosing user/project scope by meaning.                                                               |
 | `edit ID CHANGE`     | Read the memory and version, then apply the requested change.                                                                             |
-| `forget ID`          | Read the memory and version, then forget the specified memory.                                                                            |
+| `forget ID`          | Compatibility alias for archive; retain content and history.                                                                              |
 | `locations ID`       | Run CLI `locations ID` to inspect storage paths without synchronization.                                                                  |
 | `history ID`         | Run CLI `history ID` to inspect all revisions.                                                                                            |
 | `settings [REQUEST]` | Inspect settings by default; change only explicitly requested fields.                                                                     |
@@ -105,3 +105,13 @@ co-memo settings set --scope project --reset
 ```
 
 User-level pause and explicit-only restrictions cannot be weakened by project overrides. Report the effective settings returned, not just the requested patch. Explicit-only mode rejects Markdown ingestion; leave rejected edits intact and explain how to save them explicitly. Pausing stops automatic delivery, synchronization and tool writes, but cannot erase text already loaded in a conversation or existing local files. Resume can import pending edits. Never promise retroactive forgetting from an active model context.
+
+## Archive, restore and permanent deletion
+
+`archive ID` calls CLI `archive ID --version N` or `memory_archive`; it hides the note from recall and projections indefinitely while retaining content and all revisions. `forget` / `memory_forget` are compatibility aliases for archive. Previously soft-deleted records are archived; internal receipts still use `deleted: true` for compatibility.
+
+`restore ID` calls CLI `unarchive ID --version N` or `memory_restore` with `userRequested: true`. CLI `restore` is reserved for database backup restoration.
+
+`delete ID` calls CLI `delete ID --version N` or `memory_delete` with `userRequested: true` only when permanent deletion is explicitly requested. Read the ID and version first. It removes the stored note, revisions, associated conflict/resolution data and derived caches; only a content-free ID marker remains against stale replicas. Existing backups, exports and conversation context cannot be erased by this action. Report cleanup errors: sync retries connected-file cleanup, including paused projections. Do not submit a legacy saved receipt/checkpoint for a permanently deleted record.
+
+Use host-appropriate actions: `$co-memo archive ID` / `$co-memo delete ID` in Codex, or `/co-memo:archive ID` / `/co-memo:delete ID` on hosts with installed namespaced shortcuts.

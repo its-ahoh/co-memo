@@ -5,7 +5,7 @@ import { z } from 'zod';
 import { locationReader } from './locations.js';
 import { Store } from './store.js';
 import { Content, Scope, errorMessage } from './model.js';
-import { remember, change, Version } from './service.js';
+import { remember, change, remove, restore, Version } from './service.js';
 
 async function body(req: IncomingMessage): Promise<unknown> {
   const chunks: Buffer[] = [];
@@ -133,6 +133,20 @@ export async function startUI(home?: string, root = process.cwd(), port = 4318) 
         send(200, result);
         return;
       }
+      const action = path.match(/^\/api\/memories\/([a-f0-9-]+)\/(archive|restore)$/);
+      if (action && req.method === 'POST') {
+        const input = z.strictObject({ version: Version }).parse(await body(req));
+        const result = store.lock(() => {
+          const id = z.uuid().parse(action[1]);
+          const old = store.get(id);
+          const target = old.projectId ? store.projectById(old.projectId).root : root;
+          return action[2] === 'restore'
+            ? restore(store, target, { id, ...input }, 'user:ui')
+            : change(store, target, { id, ...input, content: null, intent: 'explicit' }, 'user:ui');
+        });
+        send(200, result);
+        return;
+      }
       const id = path.match(/^\/api\/memories\/([a-f0-9-]+)$/)?.[1];
       if (id && (req.method === 'PATCH' || req.method === 'DELETE')) {
         const input = z
@@ -141,13 +155,14 @@ export async function startUI(home?: string, root = process.cwd(), port = 4318) 
         const result = store.lock(() => {
           const old = store.get(z.uuid().parse(id));
           const target = old.projectId ? store.projectById(old.projectId).root : root;
+          if (req.method === 'DELETE') return remove(store, target, { id, version: input.version });
           return change(
             store,
             target,
             {
               id,
               version: input.version,
-              content: req.method === 'DELETE' ? null : Content.parse(input.content),
+              content: Content.parse(input.content),
               intent: 'explicit',
             },
             'user:ui',

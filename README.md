@@ -85,7 +85,7 @@ Run `co-memo ui` to start the local server and open your default browser (defaul
 
 The English console offers System, Dark, and Light themes. Your choice is saved in this browser and applied before the page renders. System follows your operating system’s color preference.
 
-The browser UI lists personal memories and all registered projects, with substring search, project/status filters, and add/edit/delete actions. Edits use version checks and the existing CLI synchronization and conflict protections. Deletion preserves history and tombstones. Browsing reads the central store without syncing replicas; saving attempts synchronization and reports failures. Resolve conflicts with `co-memo conflicts` and `co-memo resolve`.
+The browser UI lists personal memories and all registered projects, with substring search, project/status filters, and add/edit/archive/restore/delete actions. Edits use version checks and the existing CLI synchronization and conflict protections. Archive hides a memory from recall and Agent files while retaining its content and history indefinitely; Restore makes it active again. Delete permanently removes its record, revisions, conflict history and derived caches. Only a content-free ID marker remains to reject stale replicas. Existing backups, exported copies and conversations are unaffected. Cleanup failures are reported and retried on sync. Existing soft-deleted records appear as Archived. Browsing reads the central store without syncing replicas; saving attempts synchronization and reports failures. Resolve conflicts with `co-memo conflicts` and `co-memo resolve`.
 
 Use `co-memo --home /path/to/data ui --port 4319` to select a data directory and port. The server binds only to `127.0.0.1`; press Ctrl+C to stop.
 
@@ -110,7 +110,10 @@ Enter these in the agent's conversation, not your shell. In Codex CLI you can al
 | `recall QUERY`           | Search personal and current-project memories             |
 | `remember TEXT`          | Save a fact with the appropriate scope                   |
 | `edit ID CHANGE`         | Update a memory using its current version                |
-| `forget ID`              | Delete a memory while preserving history                 |
+| `archive ID`             | Archive a memory and retain history                      |
+| `delete ID`              | Permanently delete a memory and history                  |
+| `restore ID`             | Restore an archived memory                               |
+| `forget ID`              | Compatibility alias for archive                          |
 | `locations ID`           | Inspect database and Agent file paths                    |
 | `history ID`             | Inspect revision history                                 |
 | `settings [REQUEST]`     | Inspect settings or apply an explicitly requested change |
@@ -189,7 +192,7 @@ project/
     opencode.md
 ```
 
-Each memory has a stable ID and version marker. Edit the text inside its block to update it. Remove the whole block to forget it. Add one project note between the `co-memo:new` markers. Preserve the document markers and existing IDs/versions.
+Each memory has a stable ID and version marker. Edit the text inside its block to update it. Remove the whole block to archive it. Add one project note between the `co-memo:new` markers. Preserve the document markers and existing IDs/versions.
 
 ```sh
 co-memo sync
@@ -205,7 +208,7 @@ co-memo import /absolute/path/preferences.md --scope user
 co-memo import /absolute/path/memory-directory
 ```
 
-Import is **explicit and one-time**. Each Markdown file becomes one note, preserving its text and source path. A directory imports its immediate `.md` files. Original files are never rewritten or watched. Repeated exact imports reuse the same note; previously deleted exact content remains deleted.
+Import is **explicit and one-time**. Each Markdown file becomes one note, preserving its text and source path. A directory imports its immediate `.md` files. Original files are never rewritten or watched. Repeated exact imports reuse the same note; archived exact content remains archived.
 
 We do not guess where native auto-memory or third-party Pi memory plugins store their data. After import, shared updates go through Co-memo's managed files or CLI. Arbitrary native-memory directory synchronization is outside this first release.
 
@@ -214,7 +217,9 @@ We do not guess where native auto-memory or third-party Pi memory plugins store 
 ```sh
 co-memo show MEMORY_ID
 co-memo edit MEMORY_ID --version 1 --content 'Use pnpm with a frozen lockfile.'
-co-memo forget MEMORY_ID --version 2
+co-memo archive MEMORY_ID --version 2
+co-memo unarchive MEMORY_ID --version 3
+co-memo delete MEMORY_ID --version 4
 co-memo history MEMORY_ID
 
 co-memo conflicts
@@ -311,3 +316,5 @@ npm install -g ./ahoh.tech-co-memo-0.6.0.tgz
 ```
 
 pnpm is only required for development. Co-memo is distributed under the [MIT license](LICENSE).
+
+Archive uses the legacy `deleted` field internally; CLI `list --deleted` includes archived records. `forget` / `memory_forget` remain compatibility aliases for archive. Use `delete` / `memory_delete` for permanent deletion. The `restore` skill action calls CLI `unarchive` (CLI `restore` is reserved for database backups). New installations include these shortcuts; rerun setup to update an existing installation.

@@ -1,3 +1,5 @@
+import { readdirSync, unlinkSync } from 'node:fs';
+import { safeParents } from './fs.js';
 import { join } from 'node:path';
 import { z } from 'zod';
 import { atomicWrite, readText } from './fs.js';
@@ -257,4 +259,29 @@ export function hybridSearch(
     .sort((a, b) => b.score - a.score || a.memory.id.localeCompare(b.memory.id))
     .slice(0, 100)
     .map((m) => m.memory);
+}
+
+/** Purge derived vectors in every provider namespace without following symlinks. */
+export function purgeEmbeddings(store: Store, ids: Set<string>): void {
+  const directory = join(store.home, 'embeddings-v1');
+  safeParents(join(directory, 'probe'));
+  let namespaces;
+  try {
+    namespaces = readdirSync(directory, { withFileTypes: true });
+  } catch (e) {
+    if ((e as NodeJS.ErrnoException).code === 'ENOENT') return;
+    throw e;
+  }
+  for (const namespace of namespaces) {
+    if (!namespace.isDirectory()) continue;
+    for (const id of ids) {
+      const file = join(directory, namespace.name, `${id}.json`);
+      safeParents(file);
+      try {
+        unlinkSync(file);
+      } catch (e) {
+        if ((e as NodeJS.ErrnoException).code !== 'ENOENT') throw e;
+      }
+    }
+  }
 }

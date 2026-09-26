@@ -1,8 +1,9 @@
+import { purgeEmbeddings } from './semantic.js';
 import { join } from 'node:path';
 import { checkpointReminder } from './relevance.js';
 import { settings, allowWrite } from './settings.js';
 import { Store } from './store.js';
-import { parse, render } from './document.js';
+import { parse, render, withoutPurged } from './document.js';
 import { atomicWrite, readText } from './fs.js';
 import { ensure, hash, errorMessage } from './model.js';
 import type { Replica, Snapshot, Proposal, SyncReport, Memory } from './model.js';
@@ -51,10 +52,32 @@ export function sync(store: Store): SyncReport {
     conflicts: [],
     errors: [],
   };
+  const purged = store.purgedIds();
+  if (purged.size) {
+    try {
+      purgeEmbeddings(store, purged);
+    } catch (e) {
+      report.errors.push({ path: join(store.home, 'embeddings-v1'), error: errorMessage(e) });
+    }
+  }
   const observed: Observation[] = [];
   const proposals = new Map<string, Proposal[]>();
   for (const replica of store.replicas()) {
     try {
+      // Explicit deletion cleanup runs even for paused or conflict-frozen projections.
+      if (purged.size) {
+        const original = readText(replica.path);
+        if (original !== null) {
+          const cleaned = withoutPurged(original, replica.id, purged);
+          if (cleaned !== original) {
+            atomicWrite(replica.path, cleaned, hash(original));
+            if (replica.pending?.expected === hash(original)) {
+              replica.pending.expected = hash(cleaned);
+              store.transaction(() => store.saveReplica(replica));
+            }
+          }
+        }
+      }
       if (settings(store, replica.projectId).paused) continue;
       recover(store, replica);
       if (relevantConflict(store, replica)) continue; // Freeze projections until explicit resolution.

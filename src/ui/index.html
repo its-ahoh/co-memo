@@ -47,7 +47,7 @@
               aria-label="Search memories" /></label
           ><select id="status" aria-label="Filter status">
             <option value="active">Active memories</option>
-            <option value="deleted">Deleted</option>
+            <option value="archived">Archived</option>
             <option value="all">All states</option>
           </select>
         </div>
@@ -85,13 +85,16 @@
       </form>
     </dialog>
     <dialog id="deletion">
-      <h2>Delete this memory?</h2>
-      <p>Deletion syncs to connected agents. Revision history is retained.</p>
+      <h2>Permanently delete this memory?</h2>
+      <p>
+        This removes the memory and all revision history. It cannot be undone. Use Archive to keep
+        them. Existing backups and conversations are unaffected.
+      </p>
       <pre id="delete-preview"></pre>
       <p id="delete-error" role="alert"></p>
       <div class="dialog-actions">
         <button id="keep">Cancel</button
-        ><button class="danger" id="confirm-delete">Delete memory</button>
+        ><button class="danger" id="confirm-delete">Delete permanently</button>
       </div>
     </dialog>
   </body>

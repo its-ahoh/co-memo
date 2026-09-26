@@ -112,7 +112,7 @@ It registers the project if necessary and also works without Markdown replicas o
 | `memory_get`          | Full note, current version and optional revision history            |
 | `memory_remember`     | Save with scope and declared intent                                 |
 | `memory_update`       | Compare-and-update using the last-read version                      |
-| `memory_forget`       | Version-checked deletion with tombstone                             |
+| `memory_forget`       | Compatibility alias for archive                                     |
 | `memory_conflicts`    | User/current-project conflicts                                      |
 | `memory_resolve`      | User-directed choice or merged content                              |
 | `memory_settings_get` | Overrides and effective settings                                    |
@@ -149,7 +149,7 @@ See [retrieval and extraction](retrieval-and-extraction.md) for `memory_submit`,
 | Pi          | `/skill:co-memo ui` |
 | OpenCode    | `/co-memo ui`       |
 
-`ui` opens the local memory console. Other requests include `recall QUERY`, `remember TEXT`, `edit`, `forget`, `locations ID`, and `settings`; natural language is also supported. The same skill handles scope, version checks, and configured data paths for each host.
+`ui` opens the local memory console. Other requests include `recall QUERY`, `remember TEXT`, `edit`, `archive`, `delete`, `restore`, `forget`, `locations ID`, and `settings`; natural language is also supported. The same skill handles scope, version checks, and configured data paths for each host.
 
 Run `co-memo --project PROJECT setup AGENT` to install or update a project's skill. Preserve your existing `--tools-only`/OpenCode API selection when updating. OpenCode setup also installs `.opencode/commands/co-memo.md`, a slash-command wrapper that loads the skill and forwards arguments. Disconnect archives this managed wrapper too. Unmanaged files are never overwritten. Reload skills or restart the host after updating.
 
@@ -160,3 +160,5 @@ Host syntax follows the official [Claude skills](https://code.claude.com/docs/en
 Claude Code, OpenCode and Pi support `/co-memo:ui`, `/co-memo:recall QUERY`, `/co-memo:remember TEXT`, `/co-memo:edit ID CHANGE`, `/co-memo:forget ID`, `/co-memo:locations ID`, `/co-memo:history ID`, `/co-memo:settings`, `/co-memo:status`, `/co-memo:sync`, `/co-memo:conflicts`, `/co-memo:resolve ID CHOICE`, and `/co-memo:help` after setup. Codex uses the equivalent `$co-memo ACTION` through its native skill interface.
 
 Setup installs Claude command files under `.claude/commands/co-memo/`, OpenCode commands as `.opencode/commands/co-memo:ACTION.md`, and Pi prompt templates as `.pi/prompts/co-memo:ACTION.md`. Each wrapper points to the installed canonical skill. Setup preserves unmanaged files and disconnect archives managed shortcuts. Pi templates require project trust and prompt-template discovery to be enabled. Reload or restart the host after installation.
+
+`memory_archive` has the same ID/version/intent inputs as `memory_forget` and retains content/history. `memory_delete` permanently removes the note and history; `memory_restore` restores an archived note. Both require ID, version and `userRequested: true`. Their skill shortcuts are `/co-memo:archive`, `/co-memo:delete`, and `/co-memo:restore` (Codex: `$co-memo ACTION`). Schema 5 introduces content-free purged IDs; upgrade all connected CLI paths before continuing to use the store.

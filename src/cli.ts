@@ -10,7 +10,15 @@ import { projects } from './projects.js';
 import { createBackup, verifyBackup, restoreBackup } from './backup.js';
 import { planDisconnect, describeDisconnect, applyDisconnect } from './disconnect.js';
 import { Submission, submit } from './candidates.js';
-import { configuration, configure, remember, change, checkpoint } from './service.js';
+import {
+  configuration,
+  configure,
+  remember,
+  change,
+  remove,
+  restore,
+  checkpoint,
+} from './service.js';
 import { allowWrite } from './settings.js';
 import type { Intent } from './settings.js';
 import { prepareSetup } from './setup.js';
@@ -59,6 +67,9 @@ function prepareMemoryProject(store: Store, root: string): void {
       'history',
       'edit',
       'forget',
+      'archive',
+      'delete',
+      'unarchive',
       'import',
       'index',
       'context',
@@ -353,7 +364,7 @@ scoped(
 app
   .command('list')
   .description('List personal notes and the automatically detected project’s notes')
-  .option('--deleted', 'Include tombstones')
+  .option('--deleted', 'Include archived memories (legacy option name)')
   .option('--query <text>', 'Full-text search with optional cached semantic ranking')
   .option('--explain', 'Include retrieval mode and fallback reason')
   .action(async (opts: { deleted?: boolean; query?: string; explain?: boolean }) => {
@@ -415,8 +426,9 @@ app
     ),
   );
 app
-  .command('forget <id>')
-  .description('Delete a memory everywhere, retaining a tombstone')
+  .command('archive <id>')
+  .alias('forget')
+  .description('Archive a memory, retaining content and history (forget is a compatibility alias)')
   .requiredOption('--version <number>', 'Expected version', positive)
   .addOption(
     new Option('--intent <intent>', 'Write intent')
@@ -432,6 +444,27 @@ app
       }),
     ),
   );
+for (const action of ['delete', 'unarchive'] as const)
+  app
+    .command(`${action} <id>`)
+    .description(
+      action === 'delete'
+        ? 'Permanently delete a memory and its revision history'
+        : 'Restore an archived memory',
+    )
+    .requiredOption('--version <number>', 'Expected version', positive)
+    .action((id: string, opts: { version: number }) =>
+      print(
+        using((store, root) => {
+          const result =
+            action === 'delete'
+              ? remove(store, root, { id, ...opts })
+              : restore(store, root, { id, ...opts }, 'user');
+          reportExit(result.sync);
+          return result;
+        }),
+      ),
+    );
 scoped(
   app
     .command('import <path>')

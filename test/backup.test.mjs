@@ -91,10 +91,10 @@ test('backup refuses missing and newer stores without creating or migrating them
   const missing = join(f.root, 'missing');
   await assert.rejects(createBackup(f.archive, missing));
   assert.equal(existsSync(missing), false);
-  f.store.db.exec('PRAGMA user_version=5');
+  f.store.db.exec('PRAGMA user_version=6');
   await assert.rejects(createBackup(f.archive, f.home), /schema 4/);
   assert.equal(existsSync(f.archive), false);
-  assert.equal(f.store.db.prepare('PRAGMA user_version').get().user_version, 5);
+  assert.equal(f.store.db.prepare('PRAGMA user_version').get().user_version, 6);
 });
 test('CLI backup/check/restore previews then restores a usable database without model calls', (t) => {
   const f = fixture(t);
@@ -118,5 +118,25 @@ test('CLI backup/check/restore previews then restores a usable database without 
     assert.equal(db.prepare('SELECT count(*) AS n FROM notes').get().n, 1);
   } finally {
     db.close();
+  }
+});
+
+test('schema 4 backups remain readable and restored stores migrate without losing archives', async (t) => {
+  const f = fixture(t);
+  const note = f.store.add('legacy archived note', 'project', f.id, 'test').memory;
+  f.store.change(note.id, 1, null, 'test');
+  f.store.db.exec('DROP TABLE purged; PRAGMA user_version=4');
+  const backup = await createBackup(f.archive, f.home);
+  assert.equal(backup.counts.purged, undefined);
+  assert.equal((await verifyBackup(f.archive)).schema, 4);
+  const target = join(f.root, 'legacy-restored');
+  await restoreBackup(f.archive, target, true);
+  const restored = new Store(target);
+  try {
+    assert.equal(restored.get(note.id).deleted, true);
+    assert.equal(restored.history(note.id).length, 2);
+    assert.equal(restored.db.prepare('PRAGMA user_version').get().user_version, 5);
+  } finally {
+    restored.close();
   }
 });

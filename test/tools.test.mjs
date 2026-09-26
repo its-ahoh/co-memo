@@ -107,8 +107,13 @@ test('MCP stdio initializes, discovers tools, saves/updates/forgets, rejects sta
   assert.equal((await call('memory_recall')).memories.length, 0);
   const duplicate = await call('memory_remember', { content: 'Changed', intent: 'explicit' });
   assert.equal(duplicate.memory.deleted, true);
-  assert.match(duplicate.notice, /deleted/);
+  assert.match(duplicate.notice, /archived/);
   assert.equal((await call('memory_get', { id: note.id, history: true })).history.length, 3);
+  await call('memory_restore', { id: note.id, version: 3, userRequested: true });
+  await call('memory_archive', { id: note.id, version: 4, intent: 'explicit' });
+  const removed = await call('memory_delete', { id: note.id, version: 5, userRequested: true });
+  assert.equal(removed.permanent, true);
+  assert.equal((await raw('memory_get', { id: note.id })).isError, true);
 });
 
 test('Settings enforce intent, defaults and user restrictions through tools and CLI', async (t) => {
@@ -415,7 +420,7 @@ test('Schema upgrade preserves existing notes and revisions and rejects future d
     assert.equal(store.get(note.id).content, 'updated user note');
     assert.equal(store.history(note.id).length, 2);
     assert.deepEqual(store.settings(null), {});
-    assert.equal(store.db.prepare('PRAGMA user_version').get().user_version, 4);
+    assert.equal(store.db.prepare('PRAGMA user_version').get().user_version, 5);
     store.db.exec('PRAGMA user_version=99;');
   } finally {
     store.close();

@@ -71,11 +71,19 @@ test('UI persists CRUD, publishes replicas, protects versions and serves package
   );
   assert.equal((await request(`/api/memories/${id}`, 'DELETE', { version: 1 })).status, 409);
   assert.equal(store.get(id).deleted, false);
-  assert.equal((await request(`/api/memories/${id}`, 'DELETE', { version: 2 })).status, 200);
+  assert.equal((await request(`/api/memories/${id}/archive`, 'POST', { version: 2 })).status, 200);
   assert.equal(store.get(id).deleted, true);
   assert.equal(store.history(id).length, 3);
   assert.doesNotMatch(readFileSync(join(root, '.co-memo/codex.md'), 'utf8'), /Use pnpm/);
   assert.equal((await request('/api/memories')).value.memories[0].deleted, true);
+  assert.equal((await request(`/api/memories/${id}/restore`, 'POST', { version: 3 })).status, 200);
+  assert.equal(store.get(id).deleted, false);
+  assert.equal((await request(`/api/memories/${id}`, 'DELETE', { version: 4 })).status, 200);
+  assert.throws(() => store.get(id), /not found/);
+  assert.deepEqual(store.history(id), []);
+  assert.equal((await request('/api/memories')).value.memories.length, 0);
+  assert.doesNotMatch(readFileSync(join(root, '.co-memo/codex.md'), 'utf8'), /Use pnpm/);
+
   assert.equal(
     (await request('/api/memories', 'POST', { content: ' ', scope: 'user', projectId: null }))
       .status,
