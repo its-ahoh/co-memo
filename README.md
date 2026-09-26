@@ -37,10 +37,10 @@ co-memo init --agents claude,codex --apply
 You can also install the exact release directly from the official npm tarball, including while a new version is unavailable through the package index:
 
 ```sh
-npm install -g https://registry.npmjs.org/@ahoh.tech/co-memo/-/co-memo-0.6.0.tgz
+npm install -g https://registry.npmjs.org/@ahoh.tech/co-memo/-/co-memo-0.7.0.tgz
 ```
 
-Automatic workspace detection, the memory console, file-location inspection, and namespaced shortcuts described here reflect the current checkout. The pinned 0.6.0 release tarball predates these features; [build and install from this checkout](#build-from-this-checkout) to use them before a new release.
+Version 0.7.0 includes automatic workspace detection, the memory console, file-location inspection, namespaced shortcuts, and separate archive/permanent-delete actions. It upgrades the memory database to schema 5; update all connected Co-memo installations together.
 
 The npm package contains compiled JavaScript. Users do not need pnpm, TypeScript, an API key for Co-memo, or a checkout of this repository. Restart your agents after setup. Add `--hooks` to `init` for automatic lifecycle delivery; without it, agents must call the memory tools.
 
@@ -312,7 +312,7 @@ Requires **Node.js 24.12+** and pnpm.
 pnpm install --frozen-lockfile
 pnpm check
 pnpm pack
-npm install -g ./ahoh.tech-co-memo-0.6.0.tgz
+npm install -g ./ahoh.tech-co-memo-0.7.0.tgz
 ```
 
 pnpm is only required for development. Co-memo is distributed under the [MIT license](LICENSE).
