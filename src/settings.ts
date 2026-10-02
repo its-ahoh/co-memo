@@ -29,6 +29,6 @@ export function allowWrite(store: Store, projectId: string | null, intent: Inten
   ensure(!current.paused, 'Co-memo is paused; resume it in settings before writing memories');
   ensure(
     current.saveMode !== 'explicit' || intent === 'explicit',
-    'Explicit-only mode: use a memory tool or CLI command with explicit user intent; Markdown edits are retained but not imported',
+    'Explicit-only mode: use a memory tool or CLI command with explicit user intent',
   );
 }

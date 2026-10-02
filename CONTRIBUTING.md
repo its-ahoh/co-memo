@@ -52,10 +52,10 @@ The npm package ships `dist/`; users do not need TypeScript, pnpm, Python or Rus
 ## Design rules
 
 - Central memory belongs to the user/project. Agent names are provenance, never a default access barrier.
-- A sync must account for additions, edits, deletions, conflicts and restart recovery.
-- Never derive deletion from a missing/truncated file or silently resurrect a tombstone.
-- Gather all replica proposals before applying edits; do not let replica scan order choose the winner.
-- Keep model calls and transcript extraction out of the synchronization path.
+- Read and write memory through the database; do not create or ingest per-agent Markdown copies.
+- Preserve existing legacy files during upgrades; never infer deletion from them.
+- Use transactions, expected versions and idempotent submissions; preserve conflicting proposals for explicit resolution.
+- Keep model calls and transcript extraction out of the memory storage path.
 - Keep unrelated host settings and instructions intact. Test generated adapters, not just configuration shapes.
 - Do not use real agent stores as test fixtures.
 

@@ -13,6 +13,7 @@ const tables = [
   'notes',
   'revisions',
   'replicas',
+  'connections',
   'conflicts',
   'resolutions',
   'settings',
@@ -23,7 +24,7 @@ const tables = [
 ] as const;
 const Manifest = z.strictObject({
   format: z.literal(1),
-  schema: z.union([z.literal(4), z.literal(5)]),
+  schema: z.union([z.literal(4), z.literal(5), z.literal(6)]),
   createdAt: z.string().datetime(),
   database: z.literal(filename),
   sha256: z.string().regex(/^[a-f0-9]{64}$/),
@@ -39,8 +40,8 @@ function open(path: string) {
 }
 function inspect(db: DatabaseSync) {
   ensure(
-    [4, 5].includes(Number(db.prepare('PRAGMA user_version').get()?.user_version)),
-    'Backup requires schema 4 or 5; unsupported database',
+    [4, 5, 6].includes(Number(db.prepare('PRAGMA user_version').get()?.user_version)),
+    'Backup requires schema 4, 5 or 6; unsupported database',
   );
   ensure(
     db.prepare('PRAGMA integrity_check').get()?.integrity_check === 'ok',
@@ -52,7 +53,9 @@ function inspect(db: DatabaseSync) {
   );
   const counts: Record<string, number> = {};
   for (const table of tables.filter(
-    (t) => t !== 'purged' || Number(db.prepare('PRAGMA user_version').get()?.user_version) >= 5,
+    (t) =>
+      Number(db.prepare('PRAGMA user_version').get()?.user_version) >=
+      (t === 'connections' ? 6 : t === 'purged' ? 5 : 4),
   ))
     counts[table] = Number(db.prepare(`SELECT count(*) AS n FROM ${table}`).get()?.n);
   for (const row of db.prepare('SELECT payload FROM notes').iterate())
@@ -82,8 +85,16 @@ function finalize(path: string, detach = false) {
   const db = new DatabaseSync(path);
   try {
     db.exec('PRAGMA journal_mode=DELETE;');
-    if (detach) db.exec('BEGIN IMMEDIATE; DELETE FROM replicas; COMMIT;');
-    return inspect(db);
+    if (detach) {
+      db.exec('BEGIN IMMEDIATE; DELETE FROM replicas;');
+      if (Number(db.prepare('PRAGMA user_version').get()?.user_version) >= 6)
+        db.exec('DELETE FROM connections;');
+      db.exec('COMMIT;');
+    }
+    return {
+      counts: inspect(db),
+      schema: Number(db.prepare('PRAGMA user_version').get()?.user_version),
+    };
   } finally {
     db.close();
   }
@@ -98,10 +109,10 @@ export async function createBackup(destination: string, home = dataHome()) {
     reserve(directory);
     reserved = true;
     await sqliteBackup(source, path);
-    const counts = finalize(path);
+    const { counts, schema } = finalize(path);
     const manifest = {
       format: 1,
-      schema: Number(source.prepare('PRAGMA user_version').get()?.user_version),
+      schema,
       createdAt: new Date().toISOString(),
       database: filename,
       sha256: await digest(path),
@@ -138,6 +149,10 @@ export async function verifyBackup(directory: string) {
   const db = open(path);
   try {
     ensure((await digest(path)) === manifest.sha256, 'Backup checksum mismatch');
+    ensure(
+      Number(db.prepare('PRAGMA user_version').get()?.user_version) === manifest.schema,
+      'Backup schema differs from manifest',
+    );
     const counts = inspect(db);
     ensure(
       tables.every((table) => counts[table] === manifest.counts[table]),
@@ -159,7 +174,7 @@ export async function restoreBackup(directory: string, destination: string, appl
       applied: false,
       destination: target,
       counts: verified.counts,
-      next: 'Add --apply to restore. Existing agent bindings are not changed; restored replicas are detached.',
+      next: 'Add --apply to restore. Existing agent bindings are not changed; restored agent connections are detached.',
     };
   const source = open(join(verified.directory, filename));
   let reserved = false;
@@ -171,21 +186,22 @@ export async function restoreBackup(directory: string, destination: string, appl
     // Verify the copied logical snapshot before modifying it. SQLite backup may change header bytes.
     const copied = finalize(path);
     ensure(
-      tables.every((table) => copied[table] === verified.counts[table]),
+      copied.schema === verified.schema &&
+        tables.every((table) => copied.counts[table] === verified.counts[table]),
       'Backup changed during restore',
     );
     ensure(
       (await digest(join(verified.directory, filename))) === verified.sha256,
       'Backup changed during restore',
     );
-    const counts = finalize(path, true);
+    const { counts } = finalize(path, true);
     return {
       status: 'restored',
       applied: true,
       destination: target,
       counts,
-      detachedReplicas: verified.counts.replicas,
-      next: 'Inspect using --home DESTINATION. Stop old hosts and archive existing project projections before reconnecting to this home. Existing host configuration still points to the old store.',
+      detachedConnections: verified.counts.connections ?? verified.counts.replicas,
+      next: 'Inspect using --home DESTINATION. Reconnect agents to this home. Existing host configuration still points to the old store.',
     };
   } catch (error) {
     if (reserved) rmSync(target, { recursive: true, force: true });

@@ -149,21 +149,15 @@ export function describeDisconnect(plan: ReturnType<typeof planDisconnect>) {
       action: e.after === null ? 'archive-and-remove' : 'update',
     })),
     memory:
-      'Central memories are retained. The local projection is archived without importing pending edits; synchronization for this replica stops.',
+      'Central memories and legacy Markdown files are retained; this agent connection is removed.',
     next: 'Close this agent before applying. Restart it afterward; existing sessions cannot be unloaded remotely.',
   };
 }
 export function applyDisconnect(store: Store, plan: ReturnType<typeof planDisconnect>) {
-  const replica = store
-    .replicas()
-    .find(
-      (r) => r.agent === plan.agent && r.path === join(plan.root, '.co-memo', `${plan.agent}.md`),
-    );
+  const connection = store
+    .connections()
+    .find((r) => r.agent === plan.agent && r.root === plan.root);
   const edits = [...plan.edits];
-  if (replica) {
-    const text = readText(replica.path);
-    if (text !== null) edits.push({ path: replica.path, before: text, after: null });
-  }
   for (const edit of edits)
     ensure(
       readText(edit.path) === edit.before,
@@ -189,8 +183,10 @@ export function applyDisconnect(store: Store, plan: ReturnType<typeof planDiscon
       unlinkSync(edit.path);
     } else atomicWrite(edit.path, edit.after, hash(edit.before));
   }
-  if (replica)
-    store.transaction(() => store.db.prepare('DELETE FROM replicas WHERE id=?').run(replica.id));
+  if (connection)
+    store.transaction(() =>
+      store.db.prepare('DELETE FROM connections WHERE id=?').run(connection.id),
+    );
   return {
     applied: true,
     status: 'disconnected',
@@ -198,6 +194,6 @@ export function applyDisconnect(store: Store, plan: ReturnType<typeof planDiscon
     archive: edits.length ? archive : null,
     centralMemories: 'retained',
     hostUnloaded: false,
-    next: 'Restart the agent to unload its tools/hooks. The archived projection is no longer synchronized. Gitignore entries are retained to protect local configuration and memories.',
+    next: 'Restart the agent to unload its tools/hooks. Gitignore entries are retained to protect local configuration and memories.',
   };
 }

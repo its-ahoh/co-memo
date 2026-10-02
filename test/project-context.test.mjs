@@ -54,7 +54,7 @@ test('Automatic Git context groups subdirectories, shares personal preferences a
     (await retrieve(f.store, b)).memories.map((m) => m.id),
     [personal.id],
   );
-  assert.equal(f.store.replicas().length, 0);
+  assert.equal(f.store.connections().length, 0);
   assert.equal(existsSync(join(a, '.co-memo')), false);
 });
 

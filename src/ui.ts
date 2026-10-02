@@ -1,3 +1,4 @@
+import { Review } from './review.js';
 import { createServer, type IncomingMessage } from 'node:http';
 import { readFileSync } from 'node:fs';
 import { randomBytes } from 'node:crypto';
@@ -18,7 +19,7 @@ async function body(req: IncomingMessage): Promise<unknown> {
   return JSON.parse(Buffer.concat(chunks).toString('utf8'));
 }
 
-/** Loopback-only UI; reads inspect the central store without synchronizing replicas. */
+/** Loopback-only UI; reads inspect the central database directly. */
 export async function startUI(home?: string, root = process.cwd(), port = 4318) {
   const store = new Store(home);
   const token = randomBytes(32).toString('hex');
@@ -86,7 +87,7 @@ export async function startUI(home?: string, root = process.cwd(), port = 4318) 
     }
     try {
       if (path === '/api/memories' && req.method === 'GET') {
-        const result = store.lock(() => {
+        const result = store.read(() => {
           const projects = store.db
             .prepare('SELECT id,root FROM projects ORDER BY root')
             .all()
@@ -116,7 +117,12 @@ export async function startUI(home?: string, root = process.cwd(), port = 4318) 
       }
       if (path === '/api/memories' && req.method === 'POST') {
         const input = z
-          .strictObject({ content: Content, scope: Scope, projectId: z.uuid().nullable() })
+          .strictObject({
+            content: Content,
+            scope: Scope,
+            projectId: z.uuid().nullable(),
+            review: Review.optional(),
+          })
           .parse(await body(req));
         const result = store.lock(() => {
           const target =
@@ -126,7 +132,12 @@ export async function startUI(home?: string, root = process.cwd(), port = 4318) 
           return remember(
             store,
             target,
-            { content: input.content, scope: input.scope, intent: 'explicit' },
+            {
+              content: input.content,
+              scope: input.scope,
+              intent: 'explicit',
+              ...(input.review ? { review: input.review } : {}),
+            },
             'user:ui',
           );
         });

@@ -1,3 +1,4 @@
+let pendingReview = null;
 const $ = (id) => document.getElementById(id);
 const token = document.querySelector('meta[name="co-memo-token"]').content;
 let data = { memories: [], projects: [] },
@@ -153,7 +154,7 @@ function render() {
     }
     if (m.conflicted) bottom.append(node('span', 'Resolve with co-memo resolve', 'meta'));
     const locations = node('details', '', 'locations');
-    locations.append(node('summary', 'File locations'));
+    locations.append(node('summary', 'Storage and connected agents'));
     const database = node('div', '', 'location-entry');
     const databaseHeading = node('div', '', 'location-heading');
     databaseHeading.append(node('span', 'Database', 'meta'));
@@ -163,30 +164,12 @@ function render() {
       node('span', 'id: ' + m.id, 'meta'),
     );
     locations.append(database);
-    const labels = {
-      current: 'In sync',
-      different: 'Different from stored version',
-      not_present: 'Memory not in file',
-      missing: 'File missing',
-      unreadable: 'File unreadable or invalid',
-    };
-    for (const replica of m.locations.replicas) {
+    for (const connection of m.locations.connections) {
       const entry = node('div', '', 'location-entry');
-      const heading = node('div', '', 'location-heading');
-      heading.append(
-        node('span', replica.agent, 'meta'),
-        node(
-          'span',
-          labels[replica.status],
-          'location-pill' + (replica.status === 'current' ? ' success' : ''),
-        ),
-      );
-      if (replica.pending) heading.append(node('span', 'Pending sync', 'location-pill'));
-      entry.append(heading, node('code', replica.path + (replica.line ? ':' + replica.line : '')));
+      entry.append(node('span', connection.agent, 'meta'), node('code', connection.root));
       locations.append(entry);
     }
-    if (!m.locations.replicas.length)
-      locations.append(node('span', 'Central database only; no registered Agent files.', 'meta'));
+
     const content = node('div', m.content, 'card-content');
     content.id = 'content-' + m.id;
     card.append(top, content);
@@ -225,6 +208,10 @@ async function load() {
 }
 function openEditor(memory = null) {
   editing = memory;
+  pendingReview = null;
+  $('duplicate-review').hidden = true;
+  $('review-reason').value = '';
+  $('save').textContent = 'Save memory';
   $('dialog-title').textContent = memory ? 'Edit memory' : 'New memory';
   $('content').value = memory?.content || '';
   $('destination').value = memory
@@ -245,9 +232,9 @@ function resultMessage(result, fallback) {
   const errors = [...(result.priorErrors || []), ...(result.sync?.errors || [])];
   return (
     (result.notice || fallback) +
-    (errors.length ? '\nSome files could not sync: ' + errors.map((e) => e.error).join('; ') : '') +
+    (errors.length ? '\nMaintenance errors: ' + errors.map((e) => e.error).join('; ') : '') +
     (result.sync?.conflicts?.length
-      ? '\nUnresolved sync conflicts. Inspect with co-memo conflicts.'
+      ? '\nUnresolved memory conflicts. Inspect with co-memo conflicts.'
       : '')
   );
 }
@@ -261,13 +248,39 @@ $('form').onsubmit = async (event) => {
     const content = $('content').value.trim();
     if (!content) throw new Error('Enter some memory content.');
     const destination = $('destination').value;
+    const reviewKey = JSON.stringify([content, destination]);
+    const review =
+      pendingReview?.key === reviewKey
+        ? { token: pendingReview.token, reason: $('review-reason').value.trim() }
+        : null;
+    if (review && !review.reason)
+      throw new Error(
+        'Explain why this is a separate fact, or cancel to edit the existing memory.',
+      );
     const result = editing
       ? await api(`/api/memories/${editing.id}`, 'PATCH', { version: editing.version, content })
       : await api('/api/memories', 'POST', {
           content,
+          ...(review ? { review } : {}),
           scope: destination === 'user' ? 'user' : 'project',
           projectId: destination === 'user' ? null : destination,
         });
+    if (result.status === 'needs_review') {
+      pendingReview = { key: reviewKey, token: result.review.token };
+      $('duplicate-review').hidden = false;
+      $('review-reason').value = '';
+      $('related-memories').replaceChildren();
+      for (const memory of result.review.items[0].related) {
+        const item = document.createElement('li');
+        item.textContent =
+          memory.content +
+          (memory.deleted ? ' (archived)' : '') +
+          (memory.conflict ? ' (conflicted)' : '');
+        $('related-memories').append(item);
+      }
+      $('save').textContent = 'Save as separate memory';
+      return;
+    }
     $('editor').close();
     notify(
       resultMessage(
@@ -280,7 +293,7 @@ $('form').onsubmit = async (event) => {
     try {
       await load();
     } catch (e) {
-      notify('Memory saved, but refresh failed: ' + e.message, true);
+      notify('Operation completed, but refresh failed: ' + e.message, true);
     }
   } catch (e) {
     $('form-error').textContent =

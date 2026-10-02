@@ -1,3 +1,4 @@
+import { beginImmediate } from './sqlite.js';
 import { withoutPurged } from './document.js';
 import { repository } from './worktrees.js';
 import { searchTerms, recent } from './relevance.js';
@@ -25,13 +26,14 @@ import {
   Memory,
   Metadata,
   Snapshot,
+  Version,
   Pending,
   Conflict,
   ensure,
   hash,
 } from './model.js';
 import type { Scope, Replica, Project, Proposal } from './model.js';
-import { safeParents, readText, absent } from './fs.js';
+import { safeParents, absent } from './fs.js';
 
 export function dataHome(): string {
   return resolve(
@@ -43,6 +45,7 @@ export class Store {
   readonly db: DatabaseSync;
   readonly home: string;
   private readonly mutex: DatabaseSync;
+  private reading = false;
   constructor(home = dataHome()) {
     mkdirSync(home, { recursive: true, mode: 0o700 });
     this.home = realpathSync(home);
@@ -53,14 +56,21 @@ export class Store {
       checkDatabase(join(this.home, filename));
     }
     this.db = new DatabaseSync(path);
-    this.db.exec('PRAGMA busy_timeout=5000; PRAGMA journal_mode=WAL; PRAGMA secure_delete=ON;');
+    this.db.exec('PRAGMA busy_timeout=5000; PRAGMA secure_delete=ON;');
+    if (this.db.prepare('PRAGMA journal_mode').get()?.journal_mode !== 'wal')
+      this.db.exec('PRAGMA journal_mode=WAL;');
     this.mutex = new DatabaseSync(join(this.home, 'sync-lock.sqlite'));
     this.mutex.exec('PRAGMA busy_timeout=5000;');
-    this.lock(() => {
-      const version = this.db.prepare('PRAGMA user_version').get();
-      ensure(Number(version?.user_version) <= 5, 'Database is from a newer Co-memo version');
-      this.transaction(() => {
-        this.db.exec(`
+    try {
+      const currentVersion = Number(this.db.prepare('PRAGMA user_version').get()?.user_version);
+      ensure(currentVersion <= 6, 'Database is from a newer Co-memo version');
+      if (currentVersion < 6)
+        this.lock(() => {
+          const version = this.db.prepare('PRAGMA user_version').get();
+          ensure(Number(version?.user_version) <= 6, 'Database is from a newer Co-memo version');
+          if (Number(version?.user_version) === 6) return;
+          this.transaction(() => {
+            this.db.exec(`
         CREATE TABLE IF NOT EXISTS projects(id TEXT PRIMARY KEY,root TEXT NOT NULL UNIQUE);
         CREATE TABLE IF NOT EXISTS notes(id TEXT PRIMARY KEY,project_id TEXT,scope TEXT NOT NULL,content TEXT NOT NULL,fingerprint TEXT NOT NULL UNIQUE,version INTEGER NOT NULL,deleted INTEGER NOT NULL,payload TEXT NOT NULL);
         CREATE TABLE IF NOT EXISTS revisions(id TEXT NOT NULL,version INTEGER NOT NULL,payload TEXT NOT NULL,PRIMARY KEY(id,version));
@@ -71,23 +81,45 @@ export class Store {
         CREATE VIRTUAL TABLE IF NOT EXISTS notes_fts USING fts5(id UNINDEXED, terms, tokenize='unicode61 remove_diacritics 2');
         CREATE TABLE IF NOT EXISTS submissions(project_id TEXT NOT NULL,request_id TEXT NOT NULL,fingerprint TEXT NOT NULL,payload TEXT NOT NULL,PRIMARY KEY(project_id,request_id));
       `);
-        if (Number(version?.user_version) < 3) {
-          this.db.exec('DELETE FROM notes_fts');
-          for (const memory of this.rows(Memory, 'SELECT payload FROM notes')) this.index(memory);
-        }
-        if (Number(version?.user_version) < 4) {
-          this.db.exec(`
+            if (Number(version?.user_version) < 3) {
+              this.db.exec('DELETE FROM notes_fts');
+              for (const memory of this.rows(Memory, 'SELECT payload FROM notes'))
+                this.index(memory);
+            }
+            if (Number(version?.user_version) < 4) {
+              this.db.exec(`
             ALTER TABLE replicas RENAME TO replicas_v3;
             CREATE TABLE replicas(id TEXT PRIMARY KEY,project_id TEXT NOT NULL,agent TEXT NOT NULL,path TEXT NOT NULL UNIQUE,baseline TEXT,pending TEXT);
             INSERT INTO replicas SELECT * FROM replicas_v3;
             DROP TABLE replicas_v3;
           `);
-        }
-        this.db.exec(
-          'CREATE TABLE IF NOT EXISTS project_links(root TEXT PRIMARY KEY,project_id TEXT NOT NULL,git_common TEXT NOT NULL); CREATE TABLE IF NOT EXISTS purged(id TEXT PRIMARY KEY); PRAGMA user_version=5;',
-        );
-      });
-    });
+            }
+            this.db.exec(
+              'CREATE TABLE IF NOT EXISTS project_links(root TEXT PRIMARY KEY,project_id TEXT NOT NULL,git_common TEXT NOT NULL); CREATE TABLE IF NOT EXISTS purged(id TEXT PRIMARY KEY); PRAGMA user_version=6;',
+            );
+            this.db.exec(
+              'CREATE TABLE IF NOT EXISTS connections(id TEXT PRIMARY KEY,project_id TEXT NOT NULL,agent TEXT NOT NULL,root TEXT NOT NULL,UNIQUE(root,agent));',
+            );
+            if (Number(version?.user_version) < 6) {
+              for (const row of this.db
+                .prepare('SELECT id,project_id,agent,path FROM replicas')
+                .all())
+                this.db
+                  .prepare('INSERT OR IGNORE INTO connections VALUES (?,?,?,?)')
+                  .run(
+                    String(row.id),
+                    String(row.project_id),
+                    String(row.agent),
+                    dirname(dirname(String(row.path))),
+                  );
+            }
+          });
+        });
+    } catch (error) {
+      this.db.close();
+      this.mutex.close();
+      throw error;
+    }
     chmodSync(path, 0o600);
     chmodSync(join(this.home, 'sync-lock.sqlite'), 0o600);
   }
@@ -97,7 +129,7 @@ export class Store {
   }
   /** Separate SQLite lock serializes the full filesystem + DB workflow; OS releases it on crash. */
   lock<T>(fn: () => T): T {
-    this.mutex.exec('BEGIN IMMEDIATE');
+    beginImmediate(this.mutex);
     try {
       return fn();
     } finally {
@@ -105,7 +137,7 @@ export class Store {
     }
   }
   transaction<T>(fn: () => T): T {
-    this.db.exec('BEGIN IMMEDIATE');
+    beginImmediate(this.db);
     try {
       const value = fn();
       this.db.exec('COMMIT');
@@ -114,6 +146,31 @@ export class Store {
       this.db.exec('ROLLBACK');
       throw e;
     }
+  }
+  /** A synchronous, consistent WAL snapshot; no application-wide writer lock. */
+  read<T>(fn: () => T): T {
+    if (this.reading) return fn();
+    this.db.exec('PRAGMA query_only=ON; BEGIN;');
+    this.reading = true;
+    try {
+      return fn();
+    } finally {
+      this.reading = false;
+      try {
+        this.db.exec('ROLLBACK');
+      } finally {
+        this.db.exec('PRAGMA query_only=OFF');
+      }
+    }
+  }
+  /** Existing projects need no write lock. Only first-time registration is serialized. */
+  ensureProject(path: string, explicit = false): Project | null {
+    const existing = this.autoProject(path, explicit, false);
+    if (existing) return existing;
+    // Projectless reads should not queue merely to discover that no registration is needed.
+    const detected = this.autoProject(path, explicit, false, true);
+    if (!detected) return null;
+    return this.lock(() => this.autoProject(path, explicit));
   }
   private rows<T>(schema: z.ZodType<T>, query: string, ...values: SQLInputValue[]): T[] {
     return this.db
@@ -147,7 +204,17 @@ export class Store {
     return project;
   }
   /** Discover a workspace without installing adapters or asking the user to connect it. */
-  autoProject(path: string, explicit = false): Project | null {
+  autoProject(
+    path: string,
+    explicit = false,
+    create = !this.reading,
+    detectOnly = false,
+  ): Project | null {
+    const resolveRoot = (root: string): Project | null => {
+      if (create) return this.project(root, true);
+      const row = this.db.prepare('SELECT id FROM projects WHERE root=?').get(root);
+      return row ? { id: String(row.id), root } : detectOnly ? { id: '', root } : null;
+    };
     const start = realpathSync(path);
     ensure(statSync(start).isDirectory(), 'Expected project directory');
     // Git boundaries take precedence over package manifests inside a monorepo.
@@ -156,7 +223,7 @@ export class Store {
     while (true) {
       const linked = this.linkedProject(root);
       if (linked) return linked;
-      if (existsSync(join(root, '.git'))) return this.project(root, true);
+      if (existsSync(join(root, '.git'))) return resolveRoot(root);
       const row = this.db.prepare('SELECT id FROM projects WHERE root=?').get(root);
       if (row) return { id: z.string().parse(row.id), root };
       const parent = dirname(root);
@@ -177,7 +244,7 @@ export class Store {
       root = parent;
     }
     const detected = manifestRoot ?? (explicit ? start : null);
-    return detected ? this.project(detected, true) : null;
+    return detected ? resolveRoot(detected) : null;
   }
   private linkedProject(root: string): Project | null {
     const link = this.db
@@ -230,6 +297,7 @@ export class Store {
     ensure(row, 'Unknown project');
     return { id, root: z.string().parse(row.root) };
   }
+  /** Historical schema <=5 payloads only; never active agent connections. */
   replicas(): Replica[] {
     return this.db
       .prepare('SELECT * FROM replicas ORDER BY rowid')
@@ -245,26 +313,25 @@ export class Store {
           row.pending === null ? null : Pending.parse(JSON.parse(z.string().parse(row.pending))),
       }));
   }
-  connect(project: Project, agent: Agent): Replica {
-    const path = join(project.root, '.co-memo', `${agent}.md`);
-    const existing = this.replicas().find((r) => r.projectId === project.id && r.path === path);
+  connections() {
+    return this.db
+      .prepare('SELECT * FROM connections ORDER BY rowid')
+      .all()
+      .map((row) => ({
+        id: z.string().parse(row.id),
+        projectId: z.string().parse(row.project_id),
+        agent: Agent.parse(row.agent),
+        root: z.string().parse(row.root),
+      }));
+  }
+  connect(project: Project, agent: Agent) {
+    const existing = this.connections().find((c) => c.root === project.root && c.agent === agent);
     if (existing) return existing;
-    ensure(
-      readText(path) === null,
-      `Unregistered memory file already exists: ${path}; import or move it first`,
-    );
-    const replica: Replica = {
-      id: randomUUID(),
-      projectId: project.id,
-      agent,
-      path,
-      baseline: null,
-      pending: null,
-    };
+    const connection = { id: randomUUID(), projectId: project.id, agent, root: project.root };
     this.db
-      .prepare('INSERT INTO replicas VALUES (?,?,?,?,NULL,NULL)')
-      .run(replica.id, project.id, agent, path);
-    return replica;
+      .prepare('INSERT INTO connections VALUES (?,?,?,?)')
+      .run(connection.id, project.id, agent, project.root);
+    return connection;
   }
   saveReplica(r: Replica): void {
     this.db
@@ -306,11 +373,12 @@ export class Store {
     query?: string,
     includeDeleted = false,
     includeConflicts = false,
+    onlyScope?: Scope,
   ): Memory[] {
     if (!query?.trim()) {
       const blocked = new Set(this.conflicts().map((c) => c.memoryId));
       return recent(this.list(projectId, includeDeleted)).filter(
-        (m) => includeConflicts || !blocked.has(m.id),
+        (m) => (!onlyScope || m.scope === onlyScope) && (includeConflicts || !blocked.has(m.id)),
       );
     }
     const terms = [...new Set(searchTerms(query.slice(0, 16000)))].slice(0, 64);
@@ -320,11 +388,13 @@ export class Store {
       Memory,
       `SELECT n.payload FROM notes_fts JOIN notes n ON notes_fts.rowid=n.rowid
       WHERE notes_fts MATCH ? AND (n.scope='user' OR n.project_id=?)
+      ${onlyScope ? 'AND n.scope=?' : ''}
       ${includeDeleted ? '' : 'AND n.deleted=0'}
       ${includeConflicts ? '' : 'AND NOT EXISTS (SELECT 1 FROM conflicts c WHERE c.memory_id=n.id)'}
       ORDER BY bm25(notes_fts), n.rowid DESC LIMIT 100`,
       match,
       projectId,
+      ...(onlyScope ? [onlyScope] : []),
     );
   }
   private index(memory: Memory): void {
@@ -362,8 +432,22 @@ export class Store {
     return memory;
   }
   private write(memory: Memory): Memory {
-    Memory.parse(memory);
-    const fingerprint = hash(JSON.stringify([memory.scope, memory.projectId, memory.content]));
+    memory = Memory.parse(memory);
+    let fingerprint = hash(JSON.stringify([memory.scope, memory.projectId, memory.content]));
+    if (
+      memory.deleted &&
+      this.db
+        .prepare('SELECT id FROM notes WHERE fingerprint=? AND id<>?')
+        .get(fingerprint, memory.id)
+    ) {
+      const existing = this.db
+        .prepare('SELECT content,fingerprint FROM notes WHERE id=?')
+        .get(memory.id);
+      // Archiving a duplicate from the old whitespace bug must still retain its history.
+      // Keep its legacy key when canonicalizing it would collide with the retained note.
+      if (existing && Content.parse(existing.content) === memory.content)
+        fingerprint = String(existing.fingerprint);
+    }
     this.db
       .prepare(
         `INSERT INTO notes VALUES (?,?,?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET
@@ -398,11 +482,23 @@ export class Store {
     ensure(scope === 'user' || projectId, 'Project scope requires a project');
     if (scope === 'user') projectId = null;
     const fingerprint = hash(JSON.stringify([scope, projectId, content]));
-    const existing = this.rows(
+    let existing = this.rows(
       Memory,
       'SELECT payload FROM notes WHERE fingerprint=?',
       fingerprint,
     )[0];
+    if (!existing || existing.deleted) {
+      // Prefer a live legacy duplicate over an archived canonical record, without reviving either.
+      existing =
+        this.rows(
+          Memory,
+          'SELECT payload FROM notes WHERE scope=? AND project_id IS ? ORDER BY deleted ASC,rowid',
+          scope,
+          projectId,
+        ).find((m) => m.content === content) ?? existing;
+    }
+    // Older edits stored untrimmed fingerprints. Reuse their normalized records;
+    // do not rewrite historical revisions or silently merge existing duplicates.
     if (existing) return { memory: existing, created: false }; // Includes tombstones: never resurrect by rediscovery.
     const memory: Memory = {
       id: randomUUID(),
@@ -429,7 +525,7 @@ export class Store {
     const old = this.get(id);
     allowWrite(this, old.projectId, intent);
     ensure(old.version === version, 'Version changed; read the memory again');
-    if (content !== null) Content.parse(content);
+    if (content !== null) content = Content.parse(content);
     ensure(!old.deleted || content === null, 'Deleted memory cannot be revived by a stale edit');
     if ((content === null && old.deleted) || (!metadata && !old.deleted && content === old.content))
       return old;
@@ -523,8 +619,45 @@ export class Store {
     proposals: Proposal[],
     candidates: Conflict['candidates'] = [],
   ): Conflict {
+    const existing = this.conflicts().find((c) => c.memoryId === memory.id);
+    if (existing) {
+      ensure(
+        existing.currentVersion === memory.version,
+        'Memory changed since conflict; inspect it again',
+      );
+      const merged = [...existing.candidates];
+      for (const candidate of candidates)
+        if (
+          !merged.some(
+            (c) =>
+              c.content === candidate.content &&
+              JSON.stringify(c.metadata) === JSON.stringify(candidate.metadata),
+          )
+        )
+          merged.push(candidate);
+      ensure(
+        merged.length <= 100,
+        'Conflict has too many candidates; resolve it before adding more',
+      );
+      const conflict = {
+        ...existing,
+        candidates: merged,
+        proposals: [
+          ...new Map(
+            [...existing.proposals, ...proposals].map((p) => [JSON.stringify(p), p]),
+          ).values(),
+        ],
+      };
+      if (JSON.stringify(conflict) === JSON.stringify(existing)) return existing;
+      conflict.revision++;
+      this.db
+        .prepare('UPDATE conflicts SET payload=? WHERE id=?')
+        .run(JSON.stringify(conflict), existing.id);
+      return conflict;
+    }
     const conflict: Conflict = {
       id: randomUUID(),
+      revision: 1,
       memoryId: memory.id,
       currentVersion: memory.version,
       currentContent: memory.deleted ? null : memory.content,
@@ -537,9 +670,13 @@ export class Store {
       .run(conflict.id, memory.id, JSON.stringify(conflict));
     return conflict;
   }
-  resolve(id: string, take: string, content?: string): Memory {
+  resolve(id: string, revision: number, take: string, content?: string): Memory {
     const conflict = this.conflicts().find((c) => c.id === id);
     ensure(conflict, 'Conflict not found');
+    ensure(
+      conflict.revision === Version.parse(revision),
+      'Conflict changed; read the conflict again',
+    );
     const current = this.get(conflict.memoryId);
     allowWrite(this, current.projectId, 'explicit');
     ensure(

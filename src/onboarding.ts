@@ -4,6 +4,7 @@ import { Agent, ensure, errorMessage } from './model.js';
 import { prepareSetup } from './setup.js';
 import { applyAdapter } from './adapters.js';
 import { Store, dataHome } from './store.js';
+import { scopedReport } from './service.js';
 import { sync } from './sync.js';
 import { doctor } from './doctor.js';
 import { readText } from './fs.js';
@@ -119,7 +120,7 @@ export async function applySetup(input: InitOptions, plan = planSetup(input)) {
         }
       }
     });
-    const report = store.lock(() => sync(store));
+    const report = store.lock(() => scopedReport(store, plan.root, sync(store)));
     const checks = [];
     for (const result of results)
       if (result.status === 'configured')

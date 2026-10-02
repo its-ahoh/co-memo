@@ -1,14 +1,14 @@
 import test from 'node:test';
 import { get } from 'node:http';
 import assert from 'node:assert/strict';
-import { mkdtempSync, mkdirSync, rmSync, readFileSync } from 'node:fs';
+import { existsSync, mkdtempSync, mkdirSync, rmSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { startUI } from '../dist/ui.js';
 import { Store } from '../dist/store.js';
 import { sync } from '../dist/sync.js';
 
-test('UI persists CRUD, publishes replicas, protects versions and serves packaged assets', async (t) => {
+test('UI persists CRUD, uses database storage, protects versions and serves packaged assets', async (t) => {
   const dir = mkdtempSync(join(tmpdir(), 'co-memo-ui-'));
   const root = join(dir, 'project'),
     home = join(dir, 'data');
@@ -56,7 +56,7 @@ test('UI persists CRUD, publishes replicas, protects versions and serves package
   });
   assert.equal(created.status, 200);
   const id = created.value.memory.id;
-  assert.match(readFileSync(join(root, '.co-memo/codex.md'), 'utf8'), /Use pnpm/);
+  assert.equal(store.get(id).content, 'Use pnpm');
   const list = await request('/api/memories');
   assert.equal(list.value.memories.length, 1);
   assert.equal(list.value.projects[0].id, project.id);
@@ -74,7 +74,7 @@ test('UI persists CRUD, publishes replicas, protects versions and serves package
   assert.equal((await request(`/api/memories/${id}/archive`, 'POST', { version: 2 })).status, 200);
   assert.equal(store.get(id).deleted, true);
   assert.equal(store.history(id).length, 3);
-  assert.doesNotMatch(readFileSync(join(root, '.co-memo/codex.md'), 'utf8'), /Use pnpm/);
+  assert.equal(existsSync(join(root, '.co-memo')), false);
   assert.equal((await request('/api/memories')).value.memories[0].deleted, true);
   assert.equal((await request(`/api/memories/${id}/restore`, 'POST', { version: 3 })).status, 200);
   assert.equal(store.get(id).deleted, false);
@@ -82,7 +82,7 @@ test('UI persists CRUD, publishes replicas, protects versions and serves package
   assert.throws(() => store.get(id), /not found/);
   assert.deepEqual(store.history(id), []);
   assert.equal((await request('/api/memories')).value.memories.length, 0);
-  assert.doesNotMatch(readFileSync(join(root, '.co-memo/codex.md'), 'utf8'), /Use pnpm/);
+  assert.equal(existsSync(join(root, '.co-memo')), false);
 
   assert.equal(
     (await request('/api/memories', 'POST', { content: ' ', scope: 'user', projectId: null }))
@@ -105,6 +105,15 @@ test('UI persists CRUD, publishes replicas, protects versions and serves package
     ).value.created,
     false,
   );
+  const relatedInput = { content: '<script>alert(2)</script>', scope: 'user', projectId: null };
+  const pending = await request('/api/memories', 'POST', relatedInput);
+  assert.equal(pending.value.status, 'needs_review');
+  assert.equal((await request('/api/memories')).value.memories.length, 1);
+  const reviewed = await request('/api/memories', 'POST', {
+    ...relatedInput,
+    review: { token: pending.value.review.token, reason: 'Different alert example' },
+  });
+  assert.equal(reviewed.value.verified, true);
   store.transaction(() => store.conflict(personal.value.memory, []));
   assert.equal(
     (

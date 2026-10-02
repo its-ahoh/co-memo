@@ -6,8 +6,6 @@ import { join } from 'node:path';
 import { Store } from '../dist/store.js';
 import { sync } from '../dist/sync.js';
 import { remove, change, restore } from '../dist/service.js';
-import { hash } from '../dist/model.js';
-import { render } from '../dist/document.js';
 
 function fixture(t) {
   const dir = mkdtempSync(join(tmpdir(), 'co-memo-purge-'));
@@ -31,10 +29,9 @@ function fixture(t) {
   return { store, root, project, note, other };
 }
 
-test('archive retains revisions; restore works; purge erases records and stale replicas stay deleted', (t) => {
+test('archive retains revisions; restore works; purge erases records and deleted notes stay absent', (t) => {
   const { store, root, note, other } = fixture(t);
-  const replicas = store.replicas();
-  const stale = readFileSync(replicas[0].path, 'utf8');
+
   store.lock(() =>
     change(store, root, { id: note.id, version: 1, content: null, intent: 'explicit' }, 'test'),
   );
@@ -47,26 +44,13 @@ test('archive retains revisions; restore works; purge erases records and stale r
   assert.throws(() => store.get(note.id), /not found/);
   assert.deepEqual(store.history(note.id), []);
   assert.equal(store.db.prepare('SELECT count(*) n FROM notes_fts WHERE id=?').get(note.id).n, 0);
-  for (const replica of store.replicas()) {
-    assert.doesNotMatch(JSON.stringify(replica), /secret durable note/);
-    assert.doesNotMatch(readFileSync(replica.path, 'utf8'), /secret durable note/);
-  }
-  // Old document generations may still report an error, but their purged blocks are removed.
-  writeFileSync(replicas[0].path, stale.replace('secret durable note', 'stale changed secret'));
-  store.lock(() => sync(store));
-  assert.doesNotMatch(readFileSync(replicas[0].path, 'utf8'), /stale changed secret/);
   assert.throws(() => store.get(note.id), /not found/);
   assert.equal(store.get(other.id).content, 'keep this note');
 });
 
-test('purge cleans paused/conflicted replicas, pending payloads, resolutions, receipts and vector caches', (t) => {
+test('purge cleans resolutions, receipts and vector caches even during later pause', (t) => {
   const { store, root, project, note, other } = fixture(t);
-  const replica = store.replicas()[0];
-  const text = readFileSync(replica.path, 'utf8');
-  const generated = render(replica, store.list(project.id));
-  replica.pending = { ...generated, expected: hash(text) };
   store.transaction(() => {
-    store.saveReplica(replica);
     store.conflict(other, []);
     store.configure(project.id, { paused: true });
     store.db
@@ -88,23 +72,37 @@ test('purge cleans paused/conflicted replicas, pending payloads, resolutions, re
   assert.equal(existsSync(cache), false);
   assert.equal(store.db.prepare('SELECT count(*) n FROM resolutions').get().n, 0);
   assert.match(JSON.stringify(store.submission(project.id, 'retry').result), /permanently deleted/);
-  for (const r of store.replicas()) {
-    assert.doesNotMatch(JSON.stringify(r), /secret durable note/);
-    assert.doesNotMatch(readFileSync(r.path, 'utf8'), /secret durable note/);
-    assert.match(readFileSync(r.path, 'utf8'), /keep this note/);
-  }
+  assert.equal(existsSync(join(root, '.co-memo')), false);
+  assert.equal(store.get(other.id).content, 'keep this note');
 });
 
-test('permanent deletion checks scope and version, reports unsafe replicas without overwriting them', (t) => {
+test('permanent deletion checks scope and version, ignores legacy files without overwriting them', (t) => {
   const { store, root, note } = fixture(t);
   assert.throws(
     () => store.lock(() => remove(store, root, { id: note.id, version: 9 })),
     /Version changed/,
   );
-  const replica = store.replicas()[0];
-  writeFileSync(replica.path, 'unrelated invalid document');
+  mkdirSync(join(root, '.co-memo'));
+  const legacy = join(root, '.co-memo/codex.md');
+  writeFileSync(legacy, 'unrelated invalid document');
   const result = store.lock(() => remove(store, root, { id: note.id, version: 1 }));
-  assert.equal(result.sync.errors.length, 1);
-  assert.equal(readFileSync(replica.path, 'utf8'), 'unrelated invalid document');
+  assert.equal(result.sync.errors.length, 0);
+  assert.equal(readFileSync(legacy, 'utf8'), 'unrelated invalid document');
   assert.throws(() => store.get(note.id), /not found/);
+});
+
+test('restore reports exclude other projects conflicts', (t) => {
+  const f = fixture(t);
+  const otherRoot = join(f.root, 'foreign');
+  mkdirSync(otherRoot);
+  const foreignProject = f.store.project(otherRoot, true);
+  const foreign = f.store.add('Foreign secret', 'project', foreignProject.id, 'fixture').memory;
+  f.store.conflict(foreign, []);
+  f.store.change(f.note.id, 1, null, 'fixture');
+  const result = f.store.lock(() =>
+    restore(f.store, f.root, { id: f.note.id, version: 2 }, 'fixture'),
+  );
+  assert.equal(result.memory.deleted, false);
+  assert.deepEqual(result.sync.conflicts, []);
+  assert.equal(f.store.conflicts().length, 1);
 });

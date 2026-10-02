@@ -30,7 +30,7 @@ function fixture(t) {
   const id = store.project(project, true).id;
   return { root, home, project, store, id, archive: join(root, 'backup') };
 }
-test('WAL backup preserves history, deletion, settings and search; restore detaches replicas without touching source', async (t) => {
+test('WAL backup preserves history, deletion, settings and search; restore detaches connections without touching source', async (t) => {
   const f = fixture(t);
   f.store.connect(f.store.project(f.project), 'claude');
   const note = f.store.add('Use pnpm dependency manager', 'project', f.id, 'test').memory;
@@ -45,12 +45,12 @@ test('WAL backup preserves history, deletion, settings and search; restore detac
   assert.equal((await restoreBackup(f.archive, target)).status, 'preview');
   assert.equal(existsSync(target), false);
   const result = await restoreBackup(f.archive, target, true);
-  assert.equal(result.detachedReplicas, 1);
+  assert.equal(result.detachedConnections, 1);
   const restored = new Store(target);
   try {
     assert.equal(restored.get(note.id).content, note.content);
     assert.equal(restored.get(gone.id).deleted, true);
-    assert.equal(restored.replicas().length, 0);
+    assert.equal(restored.connections().length, 0);
     assert.equal(restored.settings(null).saveMode, 'explicit');
     assert.equal(restored.db.prepare('SELECT count(*) AS n FROM notes').get().n, 2);
     assert.equal(
@@ -61,7 +61,7 @@ test('WAL backup preserves history, deletion, settings and search; restore detac
   } finally {
     restored.close();
   }
-  assert.equal(f.store.replicas().length, 1);
+  assert.equal(f.store.connections().length, 1);
   assert.equal(f.store.db.prepare('SELECT count(*) AS n FROM notes').get().n, 3);
 });
 test('existing destinations, tampered backup, sidecars and symlinks are rejected without overwriting', async (t) => {
@@ -91,10 +91,10 @@ test('backup refuses missing and newer stores without creating or migrating them
   const missing = join(f.root, 'missing');
   await assert.rejects(createBackup(f.archive, missing));
   assert.equal(existsSync(missing), false);
-  f.store.db.exec('PRAGMA user_version=6');
+  f.store.db.exec('PRAGMA user_version=7');
   await assert.rejects(createBackup(f.archive, f.home), /schema 4/);
   assert.equal(existsSync(f.archive), false);
-  assert.equal(f.store.db.prepare('PRAGMA user_version').get().user_version, 6);
+  assert.equal(f.store.db.prepare('PRAGMA user_version').get().user_version, 7);
 });
 test('CLI backup/check/restore previews then restores a usable database without model calls', (t) => {
   const f = fixture(t);
@@ -135,8 +135,26 @@ test('schema 4 backups remain readable and restored stores migrate without losin
   try {
     assert.equal(restored.get(note.id).deleted, true);
     assert.equal(restored.history(note.id).length, 2);
-    assert.equal(restored.db.prepare('PRAGMA user_version').get().user_version, 5);
+    assert.equal(restored.db.prepare('PRAGMA user_version').get().user_version, 6);
   } finally {
     restored.close();
   }
+});
+
+test('backup metadata must match the snapshot schema before verification or restore', async (t) => {
+  const f = fixture(t);
+  const report = await createBackup(f.archive, f.home);
+  const db = new DatabaseSync(join(f.archive, 'shared-memory-v1.sqlite'), { readOnly: true });
+  try {
+    assert.equal(report.schema, db.prepare('PRAGMA user_version').get().user_version);
+  } finally {
+    db.close();
+  }
+  const path = join(f.archive, 'manifest.json');
+  const manifest = JSON.parse(readFileSync(path, 'utf8'));
+  writeFileSync(path, JSON.stringify({ ...manifest, schema: 5 }));
+  await assert.rejects(verifyBackup(f.archive), /schema differs/);
+  const target = join(f.root, 'wrong-schema');
+  await assert.rejects(restoreBackup(f.archive, target, true), /schema differs/);
+  assert.equal(existsSync(target), false);
 });

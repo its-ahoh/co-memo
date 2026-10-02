@@ -175,23 +175,23 @@ test('Settings enforce intent, defaults and user restrictions through tools and 
   assert.equal((await call('memory_settings_get')).effective.saveMode, 'auto');
 });
 
-test('Explicit-only mode preserves rejected Markdown edits without importing or overwriting them', (t) => {
+test('Legacy Markdown is ignored in explicit and automatic save modes', (t) => {
   const f = fixture(t);
   f.run('connect', 'pi');
   f.run('connect', 'codex');
   f.run('add', '--content', 'original');
   f.run('settings', 'set', '--save-mode', 'explicit');
   const path = join(f.project, '.co-memo/pi.md');
-  const edited = read(path).replace('original', 'unapproved');
+  mkdirSync(join(f.project, '.co-memo'));
+  const edited = 'unapproved legacy edit';
   writeFileSync(path, edited);
   const result = f.raw('sync');
-  assert.equal(result.status, 2);
-  assert.match(result.stdout, /Explicit-only/);
+  assert.equal(result.status, 0);
   assert.equal(read(path), edited);
-  assert.match(read(join(f.project, '.co-memo/codex.md')), /original/);
+  assert.equal(f.run('list')[0].content, 'original');
   f.run('settings', 'set', '--save-mode', 'auto');
   f.run('sync');
-  assert.equal(f.run('list')[0].content, 'unapproved');
+  assert.equal(f.run('list')[0].content, 'original');
 });
 
 test('Pause suppresses context, tools and syncing while keeping settings available and files intact', async (t) => {
@@ -214,7 +214,8 @@ test('Pause suppresses context, tools and syncing while keeping settings availab
   );
   assert.equal(f.raw('add', '--scope', 'user', '--content', 'new').status, 1);
   const path = join(f.project, '.co-memo/pi.md');
-  const edited = read(path).replace('secret preference', 'pending edit');
+  mkdirSync(join(f.project, '.co-memo'));
+  const edited = 'pending legacy edit';
   writeFileSync(path, edited);
   f.run('sync');
   assert.equal(read(path), edited);
@@ -223,7 +224,8 @@ test('Pause suppresses context, tools and syncing while keeping settings availab
     patch: { paused: false },
     userRequested: true,
   });
-  assert.match((await call('memory_context')).context, /pending edit/);
+  assert.match((await call('memory_context')).context, /secret preference/);
+  assert.doesNotMatch((await call('memory_context')).context, /pending legacy edit/);
   f.run('settings', 'set', '--scope', 'user', '--paused', 'true');
   assert.equal((await call('memory_settings_get')).effective.paused, true);
 });
@@ -322,7 +324,7 @@ test('Setup refuses unmanaged MCP entries and malformed configs before any regis
     assert.equal(existsSync(join(f.project, 'AGENTS.md')), false);
     const store = new Store(f.home);
     try {
-      assert.deepEqual(store.replicas(), []);
+      assert.deepEqual(store.connections(), []);
     } finally {
       store.close();
     }
@@ -420,7 +422,7 @@ test('Schema upgrade preserves existing notes and revisions and rejects future d
     assert.equal(store.get(note.id).content, 'updated user note');
     assert.equal(store.history(note.id).length, 2);
     assert.deepEqual(store.settings(null), {});
-    assert.equal(store.db.prepare('PRAGMA user_version').get().user_version, 5);
+    assert.equal(store.db.prepare('PRAGMA user_version').get().user_version, 6);
     store.db.exec('PRAGMA user_version=99;');
   } finally {
     store.close();
@@ -624,6 +626,7 @@ test('MCP and CLI submit evidence-backed candidates and resolve them through the
   const pending = (await call('memory_conflicts'))[0];
   await call('memory_resolve', {
     id: pending.id,
+    revision: pending.revision,
     take: pending.candidates[0].id,
     userRequested: true,
   });
@@ -706,6 +709,14 @@ test('Projectless MCP keeps personal memory independent without registering a pr
       },
     ],
   };
+  const review = await call('memory_prepare', {
+    intent: submission.intent,
+    candidates: submission.candidates,
+  });
+  submission.review = {
+    token: review.token,
+    reason: 'These test preferences describe distinct topics.',
+  };
   const saved = await call('memory_submit', submission);
   assert.equal(saved.results[0].verified, true);
   assert.equal((await call('memory_submit', submission)).replayed, true);
@@ -787,3 +798,118 @@ for (const agent of ['claude', 'pi', 'opencode']) {
     assert.equal(existsSync(join(f.project, hostRoot, 'skills/co-memo/SKILL.md')), false);
   });
 }
+
+test('public prepare/submit interfaces block related additions and accept fresh reviewed decisions', async (t) => {
+  const f = fixture(t);
+  f.run('setup', 'codex', '--tools-only');
+  f.run('add', '--content', 'Use pnpm for builds');
+  const { call } = await client(t, f);
+  const preparation = {
+    intent: 'automatic',
+    candidates: [
+      {
+        action: 'add',
+        content: 'Use pnpm for tests',
+        kind: 'decision',
+        source: {
+          agent: 'test',
+          sessionId: 'fixture',
+          messageId: 'fixture-1',
+          excerpt: 'Synthetic distinct test configuration.',
+        },
+      },
+    ],
+  };
+  const review = await call('memory_prepare', preparation);
+  assert.equal(review.required, true);
+  const file = join(f.root, 'prepare.json');
+  writeFileSync(file, JSON.stringify(preparation));
+  assert.equal(f.run('prepare', '--file', file).token, review.token);
+  const input = { ...preparation, requestId: randomUUID() };
+  assert.equal((await call('memory_submit', input)).status, 'needs_review');
+  writeFileSync(file, JSON.stringify(input));
+  const blocked = f.raw('submit', '--file', file);
+  assert.equal(blocked.status, 2);
+  assert.equal(JSON.parse(blocked.stdout).status, 'needs_review');
+  assert.equal(f.run('list').length, 1);
+  input.review = { token: review.token, reason: 'Build and test settings are distinct.' };
+  const saved = await call('memory_submit', input);
+  assert.equal(saved.results[0].verified, true);
+  assert.equal(f.run('list').length, 2);
+});
+
+test('MCP can save without source IDs and legacy remember cannot bypass review', async (t) => {
+  const f = fixture(t);
+  const { call } = await client(t, f);
+  const saved = await call('memory_submit', {
+    requestId: randomUUID(),
+    intent: 'automatic',
+    candidates: [{ action: 'add', content: 'Use pnpm for builds', kind: 'decision' }],
+  });
+  assert.equal(saved.results[0].verified, true);
+  const note = await call('memory_get', { id: saved.results[0].receipt.id });
+  assert.equal(note.memory.metadata.source, null);
+  const input = { content: 'Use pnpm for tests', intent: 'explicit' };
+  const pending = await call('memory_remember', input);
+  assert.equal(pending.status, 'needs_review');
+  assert.equal((await call('memory_recall')).memories.length, 1);
+  const confirmed = await call('memory_remember', {
+    ...input,
+    review: { token: pending.review.token, reason: 'Separate test configuration' },
+  });
+  assert.equal(confirmed.verified, true);
+});
+
+test('CLI and MCP conflict resolution require the latest conflict revision', async (t) => {
+  const f = fixture(t);
+  const { call, raw } = await client(t, f);
+  const note = (await call('memory_remember', { content: 'Use npm', intent: 'explicit' })).memory;
+  const propose = (content) =>
+    call('memory_submit', {
+      requestId: randomUUID(),
+      intent: 'explicit',
+      candidates: [
+        {
+          action: 'conflict',
+          id: note.id,
+          version: note.version,
+          content,
+          kind: 'decision',
+        },
+      ],
+    });
+  await propose('Use pnpm');
+  const seen = (await call('memory_conflicts'))[0];
+  await propose('Use yarn');
+  const selection = { id: seen.id, take: seen.candidates[0].id, userRequested: true };
+  assert.equal((await raw('memory_resolve', selection)).isError, true);
+  const stale = await raw('memory_resolve', { ...selection, revision: seen.revision });
+  assert.equal(stale.isError, true);
+  assert.match(JSON.stringify(stale), /Conflict changed/);
+  const missingCLI = f.raw('resolve', seen.id, '--take', 'current');
+  assert.notEqual(missingCLI.status, 0);
+  assert.match(missingCLI.stderr, /revision/);
+  const staleCLI = f.raw(
+    'resolve',
+    seen.id,
+    '--revision',
+    String(seen.revision),
+    '--take',
+    'current',
+  );
+  assert.notEqual(staleCLI.status, 0);
+  assert.match(staleCLI.stderr, /Conflict changed/);
+  const latest = f.run('conflicts')[0];
+  assert.equal(latest.revision, seen.revision + 1);
+  assert.equal(latest.candidates.length, 2);
+  const resolved = f.run(
+    'resolve',
+    latest.id,
+    '--revision',
+    String(latest.revision),
+    '--take',
+    latest.candidates[1].id,
+  );
+  assert.equal(resolved.memory.content, 'Use yarn');
+  assert.equal((await call('memory_conflicts')).length, 0);
+});

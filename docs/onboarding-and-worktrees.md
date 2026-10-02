@@ -42,7 +42,7 @@ Linked worktrees share:
 - Project settings, including pause and explicit-only mode.
 - Conflicts and their explicit resolutions.
 
-Each checkout retains its own generated configuration and `.co-memo/<agent>.md` projection. The same agent can have several replicas in one shared project. `repair AGENT` targets the current checkout's replica. `status` reports the central repository path and linked worktrees. Missing/deleted checkout files are reported as sync errors, never interpreted as a request to delete central notes.
+Each checkout retains its own host configuration and database connection. Linked worktrees read the same project notes directly from SQLite. `status` reports the repository and linked roots; no per-agent Markdown is created or required.
 
 **Linking does not introduce a branch/task memory scope.** Once linked, every `project` note is shared. Repository conventions belong here; branch-specific experiments and temporary task progress should remain in the agent's session, or use an independently connected worktree. If durable branch isolation is needed, do not link that worktree. Existing independently registered worktrees are not automatically merged, and there is no automatic unlink/split operation in this version.
 
@@ -71,4 +71,4 @@ Temporary data is removed after normal completion or handled failure. `--keep` r
 
 ## Storage compatibility
 
-Co-memo 0.6 upgrades the store to schema 4 to support linked checkout roots and multiple same-agent replicas. The upgrade retains note history, replica IDs, baselines and pending publication records. Upgrade all connected Co-memo installations before using the new schema: older versions refuse to open it. The store filename remains `shared-memory-v1.sqlite`.
+Schema 6 migrates legacy registrations into connections while retaining stored memory and history. Legacy files are left untouched and ignored. Upgrade connected installations together and rerun setup; older clients refuse schema 6. The store filename remains `shared-memory-v1.sqlite`.

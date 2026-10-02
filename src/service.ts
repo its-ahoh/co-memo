@@ -1,14 +1,16 @@
+import { randomUUID } from 'node:crypto';
+import { submitBatch } from './candidates.js';
+import { Review } from './review.js';
 import { semanticRanking, hybridSearch } from './semantic.js';
 import { z } from 'zod';
 import { Store } from './store.js';
 import type { SyncReport } from './model.js';
-import { Content, ensure } from './model.js';
+import { Content, ensure, IntentSchema, Version } from './model.js';
 import { SettingsPatch, allowWrite, settings } from './settings.js';
 import type { Intent } from './settings.js';
-import { context, sync } from './sync.js';
+import { context, sync, inspectSync } from './sync.js';
 
-export const IntentSchema = z.enum(['explicit', 'automatic']);
-export const Version = z.number().int().positive().safe();
+export { IntentSchema, Version };
 export function projectId(store: Store, root: string): string | null {
   return store.autoProject(root)?.id ?? null;
 }
@@ -24,12 +26,6 @@ export function requireProjectId(store: Store, root: string): string {
 export function scopedReport(store: Store, root: string, report: SyncReport): SyncReport {
   const id = projectId(store, root);
   const paused = settings(store, id).paused;
-  const paths = new Set(
-    store
-      .replicas()
-      .filter((r) => r.projectId === id)
-      .map((r) => r.path),
-  );
   return {
     ...report,
     conflicts: paused
@@ -38,7 +34,7 @@ export function scopedReport(store: Store, root: string, report: SyncReport): Sy
           const m = store.get(c.memoryId);
           return m.scope === 'user' || m.projectId === id;
         }),
-    errors: report.errors.filter((e) => paths.has(e.path)),
+    errors: report.errors,
   };
 }
 export function configuration(store: Store, root: string) {
@@ -74,24 +70,44 @@ function writable(store: Store, root: string, intent: Intent) {
 export function remember(
   store: Store,
   root: string,
-  input: { content: string; scope?: 'user' | 'project'; intent: Intent },
+  input: {
+    content: string;
+    scope?: 'user' | 'project';
+    intent: Intent;
+    review?: z.input<typeof Review>;
+  },
   origin: string,
 ) {
-  Content.parse(input.content);
-  writable(store, root, input.intent);
-  const scope = input.scope ?? configuration(store, root).effective.defaultScope;
-  const id = scope === 'project' ? requireProjectId(store, root) : null;
-  const before = sync(store);
-  const result = store.transaction(() => store.add(input.content, scope, id, origin, input.intent));
+  const result = submitBatch(
+    store,
+    root,
+    {
+      requestId: randomUUID(),
+      intent: input.intent,
+      candidates: [
+        {
+          action: 'add',
+          content: input.content,
+          kind: 'note',
+          ...(input.scope ? { scope: input.scope } : {}),
+        },
+      ],
+      ...(input.review ? { review: input.review } : {}),
+    },
+    [origin],
+  );
+  if ('status' in result) return result;
+  const saved = result.results[0]!;
+  const memory = accessible(store, root, saved.receipt!.id);
   return {
     ...result,
-    ...(result.memory.deleted
-      ? { notice: 'This exact memory is archived; it has not been restored.' }
-      : {}),
-    sync: scopedReport(store, root, sync(store)),
-    priorErrors: scopedReport(store, root, before).errors,
+    memory,
+    created: saved.status === 'created',
+    verified: saved.verified,
+    notice: memory.deleted ? 'This exact memory is archived; it has not been restored.' : undefined,
   };
 }
+
 export function change(
   store: Store,
   root: string,
@@ -109,14 +125,19 @@ export function change(
   const memory = store.transaction(() =>
     store.change(input.id, input.version, input.content, origin, input.intent),
   );
-  return { memory, sync: scopedReport(store, root, sync(store)) };
+  return {
+    memory,
+    verified: true,
+    receipt: { id: memory.id, version: memory.version, deleted: memory.deleted },
+    sync: scopedReport(store, root, sync(store)),
+  };
 }
 /** Permanent deletion does not ingest unrelated pending edits first. */
 export function remove(store: Store, root: string, input: { id: string; version: number }) {
   writable(store, root, 'explicit');
   accessible(store, root, input.id);
   store.transaction(() => store.purge(input.id, input.version));
-  // Return all cleanup errors, including personal replicas in other projects.
+  // Return derived-cache cleanup errors.
   const report = sync(store);
   return {
     id: input.id,
@@ -137,15 +158,35 @@ export function restore(
     'Memory has a conflict; resolve it explicitly',
   );
   const memory = store.transaction(() => store.restore(input.id, input.version, origin));
-  return { memory, sync: sync(store) };
+  return { memory, sync: scopedReport(store, root, sync(store)) };
 }
+/** Shared CLI/MCP resolution checks both workspace policy and conflict revision. */
+export function resolveConflict(
+  store: Store,
+  root: string,
+  input: { id: string; revision: number; take?: string; content?: string },
+) {
+  writable(store, root, 'explicit');
+  const conflict = store.conflicts().find((c) => c.id === input.id);
+  ensure(conflict, 'Conflict not found');
+  accessible(store, root, conflict.memoryId);
+  ensure(
+    (input.take !== undefined) !== (input.content !== undefined),
+    'Specify exactly one of take or content',
+  );
+  const memory = store.transaction(() =>
+    store.resolve(input.id, input.revision, input.take ?? 'custom', input.content),
+  );
+  return { memory, sync: scopedReport(store, root, sync(store)) };
+}
+
 export function recall(store: Store, root: string, query?: string, deleted = false) {
   const id = projectId(store, root);
   ensure(
     !settings(store, id).paused,
     'Co-memo is paused; resume it in settings before recalling memories',
   );
-  const report = sync(store);
+  const report = inspectSync(store);
   const blocked = new Set(store.conflicts().map((c) => c.memoryId));
   return {
     memories: store
@@ -155,7 +196,7 @@ export function recall(store: Store, root: string, query?: string, deleted = fal
   };
 }
 export function sharedContext(store: Store, root: string, query?: string) {
-  const report = sync(store);
+  const report = inspectSync(store);
   return {
     context: context(store, projectId(store, root), 16_000, query),
     settings: configuration(store, root).effective,
@@ -178,7 +219,7 @@ export function checkpoint(store: Store, root: string, input: z.input<typeof Che
     'Saved requires receipts; other outcomes must not include receipts',
   );
   if (configuration(store, root).effective.paused) return { status: 'paused', verified: false };
-  const report = sync(store);
+  const report = inspectSync(store);
   const conflicts = new Set(store.conflicts().map((c) => c.memoryId));
   for (const receipt of args.receipts) {
     const memory = accessible(store, root, receipt.id);
@@ -199,16 +240,12 @@ export function checkpoint(store: Store, root: string, input: z.input<typeof Che
   };
 }
 
-/** Owns its short lock sections; callers must not wrap this in Store.lock. */
+/** Read snapshots surround provider I/O; never hold a transaction across an await. */
 export async function retrieve(store: Store, root: string, query?: string, deleted = false) {
-  const id = store.lock(() => {
-    const id = projectId(store, root);
-    sync(store);
-    return id;
-  });
+  const id = store.ensureProject(root)?.id ?? null;
   const ranking = await semanticRanking(store, id, query, deleted);
-  return store.lock(() => {
-    const report = sync(store);
+  return store.read(() => {
+    const report = inspectSync(store);
     const effective = configuration(store, root).effective;
     const memories = hybridSearch(store, id, query, deleted, ranking);
     return {

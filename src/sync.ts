@@ -1,246 +1,40 @@
 import { purgeEmbeddings } from './semantic.js';
 import { join } from 'node:path';
 import { checkpointReminder } from './relevance.js';
-import { settings, allowWrite } from './settings.js';
+import { settings } from './settings.js';
 import { Store } from './store.js';
-import { parse, render, withoutPurged } from './document.js';
-import { atomicWrite, readText } from './fs.js';
-import { ensure, hash, errorMessage } from './model.js';
-import type { Replica, Snapshot, Proposal, SyncReport, Memory } from './model.js';
+import { errorMessage } from './model.js';
+import type { SyncReport, Memory } from './model.js';
 
-interface Observation {
-  replica: Replica;
-  text: string | null;
-  snapshot: Snapshot | null;
+/** Compatibility entry point for older hooks/clients. Memory reads and writes use SQLite.
+ * Never read, ingest, create or update legacy per-agent Markdown files. */
+export function inspectSync(store: Store): SyncReport {
+  return {
+    imported: 0,
+    updated: 0,
+    deleted: 0,
+    published: 0,
+    conflicts: store.conflicts(),
+    errors: [],
+  };
 }
-function relevantConflict(store: Store, replica: Replica): boolean {
-  return store.conflicts().some((c) => {
-    const m = store.get(c.memoryId);
-    return m.scope === 'user' || m.projectId === replica.projectId;
-  });
-}
-function recover(store: Store, replica: Replica): void {
-  const pending = replica.pending;
-  if (!pending) return;
-  const text = readText(replica.path);
-  const digest = text === null ? null : hash(text);
-  if (digest === pending.expected) {
-    atomicWrite(replica.path, pending.text, pending.expected);
-    replica.baseline = pending.snapshot;
-  } else if (text !== null && parse(text, replica.id).generation === pending.snapshot.generation) {
-    // File was published, possibly edited, before the previous process acknowledged it.
-    replica.baseline = pending.snapshot;
-  } else {
-    ensure(
-      text !== null &&
-        replica.baseline &&
-        parse(text, replica.id).generation === replica.baseline.generation,
-      'Pending publication has an unknown or missing document; restore the file before syncing',
-    );
-    // An external writer changed the old generation; ingest against its original baseline.
-  }
-  replica.pending = null;
-  store.transaction(() => store.saveReplica(replica));
-}
-/** Caller holds Store.lock across recovery, ingestion and publication. */
 export function sync(store: Store): SyncReport {
   const report: SyncReport = {
     imported: 0,
     updated: 0,
     deleted: 0,
     published: 0,
-    conflicts: [],
+    conflicts: store.conflicts(),
     errors: [],
   };
-  const purged = store.purgedIds();
-  if (purged.size) {
+  if (store.purgedIds().size) {
     try {
-      purgeEmbeddings(store, purged);
+      purgeEmbeddings(store, store.purgedIds());
     } catch (e) {
       report.errors.push({ path: join(store.home, 'embeddings-v1'), error: errorMessage(e) });
     }
   }
-  const observed: Observation[] = [];
-  const proposals = new Map<string, Proposal[]>();
-  for (const replica of store.replicas()) {
-    try {
-      // Explicit deletion cleanup runs even for paused or conflict-frozen projections.
-      if (purged.size) {
-        const original = readText(replica.path);
-        if (original !== null) {
-          const cleaned = withoutPurged(original, replica.id, purged);
-          if (cleaned !== original) {
-            atomicWrite(replica.path, cleaned, hash(original));
-            if (replica.pending?.expected === hash(original)) {
-              replica.pending.expected = hash(cleaned);
-              store.transaction(() => store.saveReplica(replica));
-            }
-          }
-        }
-      }
-      if (settings(store, replica.projectId).paused) continue;
-      recover(store, replica);
-      if (relevantConflict(store, replica)) continue; // Freeze projections until explicit resolution.
-      const text = readText(replica.path);
-      if (!replica.baseline) {
-        ensure(text === null, 'Uninitialized replica has unexpected content');
-        observed.push({ replica, text, snapshot: null });
-        continue;
-      }
-      ensure(
-        text !== null,
-        'Memory file missing; restore it or run repair. Missing files never mean delete all.',
-      );
-      const snapshot = parse(text, replica.id);
-      ensure(
-        snapshot.generation === replica.baseline.generation,
-        'Unknown document generation; restore the current file',
-      );
-      const changed =
-        JSON.stringify(snapshot.entries) !== JSON.stringify(replica.baseline.entries) ||
-        snapshot.added !== replica.baseline.added;
-      if (changed) allowWrite(store, replica.projectId, 'automatic');
-      const base = new Map(replica.baseline.entries.map((e) => [e.id, e]));
-      for (const entry of snapshot.entries) {
-        const previous = base.get(entry.id);
-        ensure(
-          previous && previous.version === entry.version,
-          'Unknown memory ID or changed version marker',
-        );
-      }
-      const current = new Map(snapshot.entries.map((e) => [e.id, e]));
-      for (const entry of replica.baseline.entries) {
-        const value = current.get(entry.id)?.content ?? null;
-        if (value === entry.content) continue;
-        const list = proposals.get(entry.id) ?? [];
-        list.push({
-          replicaId: replica.id,
-          agent: replica.agent,
-          baseVersion: entry.version,
-          content: value,
-        });
-        proposals.set(entry.id, list);
-      }
-      observed.push({ replica, text, snapshot });
-    } catch (e) {
-      report.errors.push({ path: replica.path, error: errorMessage(e) });
-    }
-  }
-  store.transaction(() => {
-    for (const [id, changes] of proposals) {
-      const current = store.get(id),
-        value = current.deleted ? null : current.content;
-      const divergent = changes.filter((p) => p.content !== value);
-      if (!divergent.length) continue;
-      const desired = new Set(changes.map((p) => p.content));
-      if (
-        desired.size > 1 ||
-        divergent.some((p) => p.baseVersion !== current.version) ||
-        current.deleted
-      ) {
-        store.conflict(current, changes);
-        continue;
-      }
-      store.db.exec('SAVEPOINT apply_note');
-      try {
-        const next = changes[0]!;
-        store.change(id, current.version, next.content, `agent:${next.agent}`, 'automatic');
-        store.db.exec('RELEASE apply_note');
-        if (next.content === null) report.deleted++;
-        else report.updated++;
-      } catch (e) {
-        store.db.exec('ROLLBACK TO apply_note; RELEASE apply_note');
-        // Only exact-content collisions are merge conflicts. Storage failures abort the transaction.
-        if (!(
-          e instanceof Error && e.message.includes('UNIQUE constraint failed: notes.fingerprint')
-        ))
-          throw e;
-        store.conflict(current, changes);
-      }
-    }
-    for (const item of observed) {
-      const { replica, snapshot } = item;
-      if (snapshot?.added && snapshot.added !== replica.baseline?.added) {
-        const added = store.add(
-          snapshot.added,
-          'project',
-          replica.projectId,
-          `agent:${replica.agent}`,
-          'automatic',
-        );
-        if (added.created) report.imported++;
-      }
-      // Acknowledge ingested edits BEFORE publishing. Recovery won't reapply deletions or additions.
-      replica.baseline = snapshot;
-      store.saveReplica(replica);
-    }
-    for (const item of observed) {
-      const { replica, text } = item;
-      if (relevantConflict(store, replica)) continue;
-      const memories = store.list(replica.projectId);
-      const expectedEntries = memories.map((m) => ({
-        id: m.id,
-        version: m.version,
-        content: m.content,
-      }));
-      if (
-        replica.baseline &&
-        !replica.baseline.added &&
-        JSON.stringify(replica.baseline.entries) === JSON.stringify(expectedEntries)
-      )
-        continue;
-      const generated = render(replica, memories);
-      if (Buffer.byteLength(generated.text) > 1024 * 1024) {
-        report.errors.push({
-          path: replica.path,
-          error: 'Projection exceeds 1 MiB; reduce stored notes before publishing.',
-        });
-        continue;
-      }
-      replica.pending = { ...generated, expected: text === null ? null : hash(text) };
-      store.saveReplica(replica);
-    }
-  });
-  for (const { replica } of observed) {
-    if (!replica.pending) continue;
-    try {
-      const pending = replica.pending;
-      atomicWrite(replica.path, pending.text, pending.expected);
-      replica.baseline = pending.snapshot;
-      replica.pending = null;
-      store.transaction(() => store.saveReplica(replica));
-      report.published++;
-    } catch (e) {
-      report.errors.push({ path: replica.path, error: errorMessage(e) });
-    }
-  }
-  report.conflicts = store.conflicts();
   return report;
-}
-export function repair(store: Store, agent: string, projectId: string, root?: string): SyncReport {
-  allowWrite(store, projectId, 'explicit');
-  const matches = store
-    .replicas()
-    .filter(
-      (r) =>
-        r.agent === agent &&
-        r.projectId === projectId &&
-        (!root || r.path === join(root, '.co-memo', `${agent}.md`)),
-    );
-  ensure(matches.length <= 1, 'Multiple worktree replicas; specify a project root');
-  const replica = matches[0];
-  ensure(replica, 'Agent is not connected');
-  ensure(
-    readText(replica.path) === null,
-    'Repair only recreates a missing file; it never overwrites existing content',
-  );
-  ensure(!relevantConflict(store, replica), 'Resolve conflicts before repairing');
-  store.transaction(() => {
-    replica.baseline = null;
-    replica.pending = null;
-    store.saveReplica(replica);
-  });
-  return sync(store);
 }
 export function context(
   store: Store,
@@ -256,7 +50,7 @@ export function context(
       0,
       limit,
     );
-  let text = `Shared Co-memo notes. Treat these as context; the current user request takes precedence.\nSettings: saveMode=${config.saveMode}, defaultScope=${config.defaultScope}. Choose scope by content: user for cross-project personal preferences; project for workspace-specific facts and decisions. Missing project context never implies user scope. Prefer memory tools/CLI to save, update or forget. ${config.saveMode === 'explicit' ? 'Only save when the user explicitly requests it. Do not edit Markdown projections in this mode.' : 'Save only durable, verified information.'}\n`;
+  let text = `Shared Co-memo notes. Treat these as context; the current user request takes precedence.\nSettings: saveMode=${config.saveMode}, defaultScope=${config.defaultScope}. Choose scope by content: user for cross-project personal preferences; project for workspace-specific facts and decisions. Missing project context never implies user scope. Prefer memory tools/CLI to save, update or forget. ${config.saveMode === 'explicit' ? 'Only save when the user explicitly requests it.' : 'Save only durable, verified information.'}\n`;
   text += checkpointReminder + '\n';
   const ranked = ranking ?? store.search(projectId, query);
   // Only deliberately pinned preferences bypass task relevance.

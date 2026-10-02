@@ -161,7 +161,9 @@ test('candidate contradictions freeze retrieval until explicit resolution, prese
   assert.ok(!context(f.store, f.project.id).includes('Use npm'));
   const conflict = f.store.conflicts()[0];
   assert.equal(conflict.candidates[0].metadata.source.excerpt, source.excerpt);
-  f.store.transaction(() => f.store.resolve(conflict.id, conflict.candidates[0].id));
+  f.store.transaction(() =>
+    f.store.resolve(conflict.id, conflict.revision, conflict.candidates[0].id),
+  );
   f.store.lock(() => sync(f.store));
   assert.equal(f.store.conflicts().length, 0);
   const current = f.store.search(f.project.id, 'pnpm')[0];
@@ -234,7 +236,7 @@ test('schema 2 migration indexes legacy payloads without rewriting history', (t)
       store.db.prepare('SELECT payload FROM revisions WHERE id=?').get(note.id).payload,
       JSON.stringify(legacy),
     );
-    assert.equal(store.db.prepare('PRAGMA user_version').get().user_version, 5);
+    assert.equal(store.db.prepare('PRAGMA user_version').get().user_version, 6);
   } finally {
     store.close();
   }

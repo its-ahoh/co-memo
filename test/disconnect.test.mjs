@@ -37,25 +37,23 @@ function fixture(t) {
   return { root, project, store, setup };
 }
 for (const agent of ['claude', 'codex', 'opencode', 'pi'])
-  test(`disconnect ${agent} archives pending edits, retains central memory and permits reconnect`, async (t) => {
+  test(`disconnect ${agent} preserves legacy files and central memory and permits reconnect`, async (t) => {
     const { project, store, setup } = fixture(t);
     setup(agent);
     const projectId = store.project(project).id;
     const memory = store.add('Keep this central decision', 'project', projectId, 'test').memory;
     sync(store);
     const path = join(project, '.co-memo', `${agent}.md`);
-    const before = readFileSync(path, 'utf8').replace(
-      'Keep this central decision',
-      'Pending unsaved edit',
-    );
+    mkdirSync(join(project, '.co-memo'));
+    const before = 'Pending unsaved edit';
     writeFileSync(path, before);
     const plan = planDisconnect(project, agent);
     assert.equal(readFileSync(path, 'utf8'), before);
     const result = store.lock(() => applyDisconnect(store, plan));
     assert.equal(result.hostUnloaded, false);
-    assert.equal(store.replicas().length, 0);
+    assert.equal(store.connections().length, 0);
     assert.equal(store.get(memory.id).content, memory.content);
-    assert.equal(existsSync(path), false);
+    assert.equal(readFileSync(path, 'utf8'), before);
     const hostRoot = { codex: '.agents', claude: '.claude', pi: '.pi', opencode: '.opencode' }[
       agent
     ];
@@ -64,12 +62,14 @@ for (const agent of ['claude', 'codex', 'opencode', 'pi'])
     if (agent === 'opencode')
       assert.equal(existsSync(join(project, '.opencode/commands/co-memo.md')), false);
     const manifest = JSON.parse(readFileSync(join(result.archive, 'manifest.json'), 'utf8'));
-    const backup = manifest.find((e) => e.original === path);
-    assert.equal(readFileSync(join(result.archive, backup.backup), 'utf8'), before);
+    assert.equal(
+      manifest.some((e) => e.original === path),
+      false,
+    );
     assert.equal(applyDisconnect(store, planDisconnect(project, agent)).archive, null);
     setup(agent);
     assert.equal(store.get(memory.id).content, memory.content);
-    assert.ok(!readFileSync(path, 'utf8').includes('Pending unsaved edit'));
+    assert.equal(readFileSync(path, 'utf8'), before);
     const report = await doctor({ root: project, home: store.home, agent, probe: agent !== 'pi' });
     assert.equal(report.readiness.hostMemoryLoaded, 'unverified');
     if (agent !== 'pi') assert.equal(report.transport, 'passed');
@@ -108,7 +108,7 @@ test('disconnect preserves other agent blocks, hooks, MCP servers and gitignore'
   assert.ok(!instructions.includes('co-memo:adapter-codex:start'));
   assert.equal(readFileSync(join(project, '.gitignore'), 'utf8'), ignore);
   assert.deepEqual(
-    store.replicas().map((r) => r.agent),
+    store.connections().map((r) => r.agent),
     ['pi'],
   );
 });
@@ -128,7 +128,7 @@ test('disconnect rejects malformed, unmanaged, changed and symlinked files befor
   const plan = planDisconnect(project, 'claude');
   writeFileSync(config, original + '\n');
   assert.throws(() => applyDisconnect(store, plan), /changed since preview/);
-  assert.equal(store.replicas().length, 1);
+  assert.equal(store.connections().length, 1);
   rmSync(config);
   const outside = join(root, 'outside.json');
   writeFileSync(outside, original);

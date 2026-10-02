@@ -180,7 +180,7 @@ export interface SemanticRanking {
     | 'paused';
   matches: { id: string; version: number; score: number }[];
 }
-/** Snapshot under lock, await outside it, then merge only against current eligible notes. */
+/** Take a read snapshot, await outside it, then merge against current eligible notes. */
 export async function semanticRanking(
   store: Store,
   projectId: string | null,
@@ -201,7 +201,7 @@ export async function semanticRanking(
     return fallback('invalid_configuration');
   }
   if (!config) return fallback('disabled');
-  const snapshot = store.lock(() =>
+  const snapshot = store.read(() =>
     eligible(store, projectId).flatMap((m) => {
       const vector = cached(store, config, m);
       return vector ? [{ id: m.id, version: m.version, vector }] : [];
@@ -233,7 +233,7 @@ export async function semanticRanking(
   }
 }
 
-/** Called with the store lock held; never returns the asynchronous snapshot's note text. */
+/** Called in a consistent read snapshot; never returns the asynchronous snapshot's note text. */
 export function hybridSearch(
   store: Store,
   projectId: string | null,
