@@ -91,10 +91,10 @@ test('backup refuses missing and newer stores without creating or migrating them
   const missing = join(f.root, 'missing');
   await assert.rejects(createBackup(f.archive, missing));
   assert.equal(existsSync(missing), false);
-  f.store.db.exec('PRAGMA user_version=7');
+  f.store.db.exec('PRAGMA user_version=99');
   await assert.rejects(createBackup(f.archive, f.home), /schema 4/);
   assert.equal(existsSync(f.archive), false);
-  assert.equal(f.store.db.prepare('PRAGMA user_version').get().user_version, 7);
+  assert.equal(f.store.db.prepare('PRAGMA user_version').get().user_version, 99);
 });
 test('CLI backup/check/restore previews then restores a usable database without model calls', (t) => {
   const f = fixture(t);
@@ -135,7 +135,7 @@ test('schema 4 backups remain readable and restored stores migrate without losin
   try {
     assert.equal(restored.get(note.id).deleted, true);
     assert.equal(restored.history(note.id).length, 2);
-    assert.equal(restored.db.prepare('PRAGMA user_version').get().user_version, 6);
+    assert.equal(restored.db.prepare('PRAGMA user_version').get().user_version, 7);
   } finally {
     restored.close();
   }

@@ -92,7 +92,10 @@ function render() {
       (m) =>
         (s === 'all' || m.deleted === (s === 'archived')) &&
         (p === 'all' || (p === 'user' ? m.scope === 'user' : m.projectId === p)) &&
-        [m.content, m.origin, m.metadata.module || ''].join(' ').toLowerCase().includes(q),
+        [m.content, m.origin, m.writerAgent || '', m.metadata.module || '']
+          .join(' ')
+          .toLowerCase()
+          .includes(q),
     )
     .sort((a, b) => {
       const sort = $('sort').value;
@@ -131,7 +134,11 @@ function render() {
       top.append(node('span', m.deleted ? 'archived' : 'conflict', 'badge warning'));
     if (m.metadata.pinned) top.append(node('span', 'pinned', 'meta'));
     const bottom = node('div', '', 'card-bottom'),
-      meta = node('span', `${date(m.updatedAt)} · v${m.version} · ${m.origin}`, 'meta');
+      meta = node(
+        'span',
+        `${date(m.updatedAt)} · v${m.version} · ${m.origin} · Writer: ${m.writerAgent ?? 'unknown'}`,
+        'meta',
+      );
     meta.title = m.id;
     bottom.append(meta);
     if (!m.conflicted) {

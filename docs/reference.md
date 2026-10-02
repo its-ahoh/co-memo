@@ -8,6 +8,8 @@ co-memo --home /path/to/data --project /path/to/project COMMAND
 
 `--home` overrides `CO_MEMO_HOME`, otherwise storage is under `$XDG_DATA_HOME/co-memo` or `~/.local/share/co-memo`. A fresh `shared-memory-v1.sqlite` is used. `--project` defaults to the working directory and resolves the nearest connected ancestor where applicable.
 
+`--agent-id ID` binds the writing integration for the process, including MCP `serve`. Setup adds it automatically for built-in agents; manual clients can use IDs such as `cursor` or `gemini`. IDs contain 1–100 lowercase letters, digits, dots, underscores or hyphens and start with a letter or digit. It is configuration provenance, not authentication. Every new memory version records `writerAgent` independently of optional caller-declared evidence; missing binding remains null. `notes.writer_agent` and `revisions.writer_agent` are queryable generated columns. `history ID` shows original and subsequent writers. Existing setup must be refreshed after upgrading. The web console's manual writes remain unbound regardless of who launched it.
+
 | Command                                                  | Behavior                                                                                                       |
 | -------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------- |
 | `setup AGENT [--tools-only] [--opencode-api v1\|v2]`     | Install tools, dialogue skill and optional lifecycle hooks                                                     |

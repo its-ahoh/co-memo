@@ -107,7 +107,7 @@ test('schema 5 upgrade preserves notes, old pending data and connections without
   f.store.db.exec('DROP TABLE connections; PRAGMA user_version=5;');
   const upgraded = new Store(f.home);
   try {
-    assert.equal(upgraded.db.prepare('PRAGMA user_version').get().user_version, 6);
+    assert.equal(upgraded.db.prepare('PRAGMA user_version').get().user_version, 7);
     assert.deepEqual(upgraded.connections(), [
       { id, projectId: f.project.id, agent: 'codex', root: f.path },
     ]);

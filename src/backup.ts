@@ -24,7 +24,7 @@ const tables = [
 ] as const;
 const Manifest = z.strictObject({
   format: z.literal(1),
-  schema: z.union([z.literal(4), z.literal(5), z.literal(6)]),
+  schema: z.union([z.literal(4), z.literal(5), z.literal(6), z.literal(7)]),
   createdAt: z.string().datetime(),
   database: z.literal(filename),
   sha256: z.string().regex(/^[a-f0-9]{64}$/),
@@ -40,8 +40,8 @@ function open(path: string) {
 }
 function inspect(db: DatabaseSync) {
   ensure(
-    [4, 5, 6].includes(Number(db.prepare('PRAGMA user_version').get()?.user_version)),
-    'Backup requires schema 4, 5 or 6; unsupported database',
+    [4, 5, 6, 7].includes(Number(db.prepare('PRAGMA user_version').get()?.user_version)),
+    'Backup requires schema 4, 5, 6 or 7; unsupported database',
   );
   ensure(
     db.prepare('PRAGMA integrity_check').get()?.integrity_check === 'ok',

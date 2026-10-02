@@ -77,7 +77,7 @@ export async function doctor(input: {
     db = new DatabaseSync(database, { readOnly: true });
     db.exec('PRAGMA busy_timeout=1000');
     ensure(
-      [6].includes(Number(db.prepare('PRAGMA user_version').get()?.user_version)),
+      [7].includes(Number(db.prepare('PRAGMA user_version').get()?.user_version)),
       'Unsupported schema',
     );
     ensure(db.prepare('PRAGMA quick_check').get()?.quick_check === 'ok', 'Integrity check failed');
@@ -98,7 +98,7 @@ export async function doctor(input: {
     ensure(project, 'Project not registered');
     root = String(project.root);
     const id = String(project.id);
-    add('database', 'pass', 'Schema 6, integrity check and project registration passed.');
+    add('database', 'pass', 'Schema 7, integrity check and project registration passed.');
     const effective = db
       .prepare("SELECT payload FROM settings WHERE scope_key IN ('user', ?)")
       .all(id)
@@ -171,7 +171,17 @@ export async function doctor(input: {
     for (const agent of agents) {
       try {
         const entry = config(root, agent);
-        const expected = [cli, '--home', home, '--project', root, 'serve', '--co-memo-managed'];
+        const expected = [
+          cli,
+          '--home',
+          home,
+          '--project',
+          root,
+          '--agent-id',
+          agent,
+          'serve',
+          '--co-memo-managed',
+        ];
         if (entry) {
           const command =
             agent === 'opencode'

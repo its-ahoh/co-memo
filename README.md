@@ -42,7 +42,7 @@ npm install -g https://registry.npmjs.org/@ahoh.tech/co-memo/-/co-memo-0.7.0.tgz
 
 Version 0.7.0 includes automatic workspace detection, the memory console, file-location inspection, namespaced shortcuts, and separate archive/permanent-delete actions. It upgrades the memory database to schema 5; update all connected Co-memo installations together.
 
-The schema 6 database-only workflow and save-time duplicate review described below are **unreleased checkout changes**, not part of the published 0.7.0 package. See [Build from this checkout](#build-from-this-checkout) to try them. The latest changes have automated coverage but have not yet been revalidated in each real agent host.
+The schema 7 database-only workflow and save-time duplicate review described below are **unreleased checkout changes**, not part of the published 0.7.0 package. See [Build from this checkout](#build-from-this-checkout) to try them. The latest changes have automated coverage but have not yet been revalidated in each real agent host.
 
 The npm package contains compiled JavaScript. Users do not need pnpm, TypeScript, an API key for Co-memo, or a checkout of this repository. Restart your agents after setup. Add `--hooks` to `init` for automatic lifecycle delivery; without it, agents must call the memory tools.
 
@@ -108,6 +108,8 @@ For clients using an `mcpServers` JSON object, add an entry like this after inst
         "/absolute/path/to/data",
         "--project",
         "/absolute/path/to/workspace",
+        "--agent-id",
+        "cursor",
         "serve"
       ]
     }
@@ -115,7 +117,7 @@ For clients using an `mcpServers` JSON object, add an entry like this after inst
 }
 ```
 
-Replace the paths with the installed executable, your existing Co-memo data directory, and the actual workspace. Use the same data directory across local clients to share memory. For VS Code's `.vscode/mcp.json`, use a top-level `servers` object and add `"type": "stdio"` to the server entry. Follow each client's guide for the configuration location and approval settings.
+Replace the paths with the installed executable, your existing Co-memo data directory, and the actual workspace. Replace `cursor` with the client ID you are configuring, such as `gemini` or `cline`. Use the same data directory across local clients to share memory, but a separate configured process per agent identity. For VS Code's `.vscode/mcp.json`, use a top-level `servers` object and add `"type": "stdio"` to the server entry. Follow each client's guide for the configuration location and approval settings.
 
 Restart or reload the client, enable the tools, and ask it to call `memory_context`; check the actual tool result. Use `memory_submit` for durable notes and handle `needs_review` before claiming a save. For a server shared across workspaces, supply the current `projectPath` on each call. Local MCP processes need Node.js 24.12+ and access to the data directory. A cloud or remote agent cannot access your local database merely by copying this configuration; Co-memo does not currently expose an HTTP MCP endpoint.
 
@@ -223,9 +225,17 @@ Settings are persisted and checked by the program. Explicit-only mode rejects au
 
 All agents read and write the same SQLite store through MCP tools or the CLI. `init`, `setup` and `connect` register agent connections and install instructions/configuration; they do not create `.co-memo/<agent>.md` files. Native instruction files such as `AGENTS.md` and `CLAUDE.local.md` still explain how to use Co-memo.
 
-Schema 6 migrates existing agent registrations into database connections. Existing notes, versions, conflicts and settings are retained. Legacy Markdown files and their stored bookkeeping are retained for manual recovery but are never read, ingested, recreated or updated by the new runtime. Review any unsaved legacy edits and save the intended content through tools/CLI before archiving those files yourself. Do not import a whole marked projection: save individual note text without its Co-memo markers.
+Schema 7 migrates existing agent registrations into database connections. Existing notes, versions, conflicts and settings are retained. Legacy Markdown files and their stored bookkeeping are retained for manual recovery but are never read, ingested, recreated or updated by the new runtime. Review any unsaved legacy edits and save the intended content through tools/CLI before archiving those files yourself. Do not import a whole marked projection: save individual note text without its Co-memo markers.
 
-Upgrade all installations sharing the store together and rerun setup to replace old file-editing instructions. Older clients reject schema 6. `sync` and `watch` remain compatibility commands for maintenance/conflict reporting; `repair` is removed because there are no active memory files to rebuild.
+Upgrade all installations sharing the store together and rerun setup to replace old file-editing instructions. Older clients reject schema 7. `sync` and `watch` remain compatibility commands for maintenance/conflict reporting; `repair` is removed because there are no active memory files to rebuild.
+
+### Which agent wrote a memory?
+
+Built-in setup binds the agent ID in the generated MCP command and pinned CLI invocation using `--agent-id`. The program records this as `writerAgent` on each new memory version, including edits, archive/restore, and conflict resolution. Conflict candidates retain their own submitting writer. An exact duplicate reuses the existing record without changing its writer or history.
+
+Both `notes` and `revisions` expose a queryable `writer_agent` column derived from the saved JSON payload. The current note shows its latest writer; `co-memo history ID` shows each version's writer, including the initial save. The console displays the latest writer and supports searching by agent ID.
+
+This configured identity is separate from optional `metadata.source` evidence (claimed agent, excerpt, session/message IDs). Evidence cannot override the configured writer. Legacy notes and unbound CLI/MCP writes retain `null` for unknown writers; manual console edits are unbound as well. Migration never guesses attribution from a connection or old evidence. This identifies the configured integration, not an authenticated user or a particular model. Rerun setup after upgrading to bind existing integrations; manual clients add `--agent-id` before `serve` or another CLI command.
 
 ## Bring existing memory
 
@@ -283,7 +293,7 @@ co-memo restore /path/to/new-backup --to /path/to/new-data --apply
 
 Restore never overwrites an existing destination and detaches old agent connections. Backups do not include unsynchronized Markdown edits or host configuration. See [backup and restore](docs/backup-and-restore.md) before switching agent bindings to a recovered store.
 
-**The current runtime uses SQLite schema 6.** See the database-only migration notes above and [installation maintenance](docs/releasing.md).
+**The current runtime uses SQLite schema 7.** See the database-only migration notes above and [installation maintenance](docs/releasing.md).
 
 ## Storage and boundaries
 

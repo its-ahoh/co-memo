@@ -7,7 +7,7 @@ description: Set up Co-memo shared memory for coding agents, manage remembered p
 
 # Co-memo
 
-Use the connected Co-memo memory tools when available; otherwise use its CLI. Read the project's Co-memo instruction block for the pinned CLI executable, data directory and project. Do not substitute a different store. Global CLI options precede the command.
+Use the connected Co-memo memory tools when available; otherwise use its CLI. Read the project's Co-memo instruction block for the pinned CLI executable, data directory, project and `--agent-id`. Preserve that configured agent identity on CLI calls; do not guess one when absent or substitute a different store. Global CLI options precede the command. The server records the configured writer separately from optional caller-declared source evidence; never invent source identifiers or excerpts.
 
 ## Direct invocation
 

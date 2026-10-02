@@ -60,7 +60,7 @@ The source, memory type, intent and update basis are agent declarations. The pro
 
 Schema 3 adds FTS5 and submission records transactionally, indexes existing current notes and retains history without rewriting it. The filename remains `shared-memory-v1.sqlite`. Upgrade all connected CLI installations and rerun `setup AGENT`; older clients reject this schema. No new external database, model credential or service is required.
 
-Schema 6 uses agent connections with no active Markdown replicas. Legacy notes, history, conflicts and registrations are preserved during upgrade; old files remain untouched. Upgrade all clients together and rerun setup.
+Schema 7 uses agent connections with no active Markdown replicas and records configured writers separately from source evidence. Legacy notes, history, conflicts and registrations are preserved during upgrade; old files remain untouched and unknown historical writers remain null. Upgrade all clients together and rerun setup.
 
 ## Review before saving
 

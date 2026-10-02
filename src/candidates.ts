@@ -87,7 +87,11 @@ export function submitBatch(
   const args = Submission.extend({ candidates: z.array(Candidate).min(1).max(100) }).parse(input);
   const projectId = resolveProjectId(store, root);
   allowWrite(store, projectId, args.intent);
-  const fingerprint = hash(JSON.stringify(args));
+  // Reusing another configured agent's receipt must not masquerade as this agent's write.
+  // Preserve the old hash for unbound clients and their existing retries.
+  const fingerprint = hash(
+    JSON.stringify(store.writerAgent === null ? args : { ...args, writerAgent: store.writerAgent }),
+  );
   const before = sync(store);
   // Empty namespace is reserved for personal submissions; project IDs are UUIDs.
   const submissionScope = projectId ?? '';

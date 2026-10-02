@@ -39,7 +39,7 @@ import { Store } from './store.js';
 import { sync, context, inspectSync } from './sync.js';
 import { prepareAdapter, applyAdapter } from './adapters.js';
 import { readText } from './fs.js';
-import { Agent, Scope, Content, ensure, errorMessage } from './model.js';
+import { Agent, WriterAgent, Scope, Content, ensure, errorMessage } from './model.js';
 import type { SyncReport, Memory } from './model.js';
 
 type ReviewOptions = { reviewToken?: string; reviewReason?: string };
@@ -60,6 +60,10 @@ const app = new Command()
   .description('One local memory store for your coding agents')
   .option('--home <directory>', 'Local data directory (or CO_MEMO_HOME)')
   .option(
+    '--agent-id <id>',
+    'Configured writing agent (for example codex or cursor); not an authentication credential',
+  )
+  .option(
     '--project <directory>',
     'Agent workspace (otherwise detected from the working directory)',
     process.cwd(),
@@ -68,8 +72,10 @@ const print = (value: unknown) => {
   process.stdout.write(JSON.stringify(value, null, 2) + '\n');
 };
 const positive = (s: string) => z.number().int().positive().safe().parse(Number(s));
-function options(): { home?: string | undefined; project: string } {
-  return z.object({ home: z.string().optional(), project: z.string() }).parse(app.opts());
+function options(): { home?: string | undefined; project: string; agentId?: string | undefined } {
+  return z
+    .object({ home: z.string().optional(), project: z.string(), agentId: WriterAgent.optional() })
+    .parse(app.opts());
 }
 function prepareMemoryProject(store: Store, root: string, locked = false): void {
   const command = app.args[0];
@@ -105,7 +111,7 @@ function prepareMemoryProject(store: Store, root: string, locked = false): void 
 }
 function using<T>(fn: (store: Store, root: string) => T): T {
   const opts = options(),
-    store = new Store(opts.home);
+    store = new Store(opts.home, opts.agentId);
   try {
     const reading =
       [
@@ -135,7 +141,7 @@ function using<T>(fn: (store: Store, root: string) => T): T {
 }
 async function usingAsync<T>(fn: (store: Store, root: string) => Promise<T>): Promise<T> {
   const opts = options(),
-    store = new Store(opts.home);
+    store = new Store(opts.home, opts.agentId);
   try {
     prepareMemoryProject(store, opts.project);
     return await fn(store, opts.project);
@@ -806,7 +812,12 @@ app
   .description('Run an MCP server over stdio with automatic workspace detection')
   .action(async () => {
     const opts = options();
-    await serve(opts.home, opts.project, app.getOptionValueSource('project') === 'cli');
+    await serve(
+      opts.home,
+      opts.project,
+      app.getOptionValueSource('project') === 'cli',
+      opts.agentId,
+    );
   });
 app
   .command('ui')

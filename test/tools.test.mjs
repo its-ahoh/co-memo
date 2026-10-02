@@ -65,6 +65,7 @@ test('MCP stdio initializes, discovers tools, saves/updates/forgets, rejects sta
   assert.ok(names.includes('memory_settings_set'));
   const note = (await call('memory_remember', { content: '中文 preference', intent: 'explicit' }))
     .memory;
+  assert.equal(note.writerAgent, 'codex');
   assert.match((await call('memory_context')).context, /中文 preference/);
   assert.equal((await call('memory_recall', { query: '中文' })).memories[0].id, note.id);
   const updated = await call('memory_update', {
@@ -74,6 +75,7 @@ test('MCP stdio initializes, discovers tools, saves/updates/forgets, rejects sta
     intent: 'explicit',
   });
   assert.equal(updated.memory.version, 2);
+  assert.equal(updated.memory.writerAgent, 'codex');
   assert.equal(
     (await raw('memory_forget', { id: note.id, version: 1, intent: 'explicit' })).isError,
     true,
@@ -422,7 +424,7 @@ test('Schema upgrade preserves existing notes and revisions and rejects future d
     assert.equal(store.get(note.id).content, 'updated user note');
     assert.equal(store.history(note.id).length, 2);
     assert.deepEqual(store.settings(null), {});
-    assert.equal(store.db.prepare('PRAGMA user_version').get().user_version, 6);
+    assert.equal(store.db.prepare('PRAGMA user_version').get().user_version, 7);
     store.db.exec('PRAGMA user_version=99;');
   } finally {
     store.close();

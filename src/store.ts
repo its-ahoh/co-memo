@@ -27,6 +27,7 @@ import {
   Metadata,
   Snapshot,
   Version,
+  WriterAgent,
   Pending,
   Conflict,
   ensure,
@@ -46,7 +47,11 @@ export class Store {
   readonly home: string;
   private readonly mutex: DatabaseSync;
   private reading = false;
-  constructor(home = dataHome()) {
+  constructor(
+    home = dataHome(),
+    readonly writerAgent: string | null = null,
+  ) {
+    this.writerAgent = WriterAgent.nullable().parse(writerAgent);
     mkdirSync(home, { recursive: true, mode: 0o700 });
     this.home = realpathSync(home);
     const path = join(this.home, 'shared-memory-v1.sqlite');
@@ -63,12 +68,12 @@ export class Store {
     this.mutex.exec('PRAGMA busy_timeout=5000;');
     try {
       const currentVersion = Number(this.db.prepare('PRAGMA user_version').get()?.user_version);
-      ensure(currentVersion <= 6, 'Database is from a newer Co-memo version');
-      if (currentVersion < 6)
+      ensure(currentVersion <= 7, 'Database is from a newer Co-memo version');
+      if (currentVersion < 7)
         this.lock(() => {
           const version = this.db.prepare('PRAGMA user_version').get();
-          ensure(Number(version?.user_version) <= 6, 'Database is from a newer Co-memo version');
-          if (Number(version?.user_version) === 6) return;
+          ensure(Number(version?.user_version) <= 7, 'Database is from a newer Co-memo version');
+          if (Number(version?.user_version) === 7) return;
           this.transaction(() => {
             this.db.exec(`
         CREATE TABLE IF NOT EXISTS projects(id TEXT PRIMARY KEY,root TEXT NOT NULL UNIQUE);
@@ -113,6 +118,22 @@ export class Store {
                     dirname(dirname(String(row.path))),
                   );
             }
+            // Queryable columns derived from the canonical payload, including historical versions.
+            // Never infer a bound writer from legacy caller-declared evidence or connections.
+            for (const table of ['notes', 'revisions']) {
+              if (
+                !this.db
+                  .prepare(`PRAGMA table_xinfo(${table})`)
+                  .all()
+                  .some((c) => c.name === 'writer_agent')
+              )
+                this.db.exec(
+                  `ALTER TABLE ${table} ADD COLUMN writer_agent TEXT GENERATED ALWAYS AS (json_extract(payload, '$.writerAgent')) VIRTUAL`,
+                );
+            }
+            this.db.exec(
+              'CREATE INDEX IF NOT EXISTS notes_writer_agent ON notes(writer_agent); PRAGMA user_version=7;',
+            );
           });
         });
     } catch (error) {
@@ -432,7 +453,7 @@ export class Store {
     return memory;
   }
   private write(memory: Memory): Memory {
-    memory = Memory.parse(memory);
+    memory = Memory.parse({ ...memory, writerAgent: this.writerAgent });
     let fingerprint = hash(JSON.stringify([memory.scope, memory.projectId, memory.content]));
     if (
       memory.deleted &&
@@ -509,6 +530,7 @@ export class Store {
       version: 1,
       deleted: false,
       origin,
+      writerAgent: this.writerAgent,
       createdAt: Date.now(),
       updatedAt: Date.now(),
     };
@@ -617,8 +639,11 @@ export class Store {
   conflict(
     memory: Memory,
     proposals: Proposal[],
-    candidates: Conflict['candidates'] = [],
+    candidates: z.input<typeof Conflict>['candidates'] = [],
   ): Conflict {
+    const attributed = Conflict.shape.candidates.parse(
+      candidates.map((candidate) => ({ ...candidate, writerAgent: this.writerAgent })),
+    );
     const existing = this.conflicts().find((c) => c.memoryId === memory.id);
     if (existing) {
       ensure(
@@ -626,11 +651,12 @@ export class Store {
         'Memory changed since conflict; inspect it again',
       );
       const merged = [...existing.candidates];
-      for (const candidate of candidates)
+      for (const candidate of attributed)
         if (
           !merged.some(
             (c) =>
               c.content === candidate.content &&
+              c.writerAgent === candidate.writerAgent &&
               JSON.stringify(c.metadata) === JSON.stringify(candidate.metadata),
           )
         )
@@ -662,7 +688,7 @@ export class Store {
       currentVersion: memory.version,
       currentContent: memory.deleted ? null : memory.content,
       proposals,
-      candidates,
+      candidates: attributed,
       createdAt: Date.now(),
     };
     this.db

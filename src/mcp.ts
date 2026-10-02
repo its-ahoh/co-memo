@@ -23,7 +23,11 @@ import {
   Version,
 } from './service.js';
 
-export function createMemoryServer(home: string | undefined, workspace: string) {
+export function createMemoryServer(
+  home: string | undefined,
+  workspace: string,
+  writerAgent: string | null = null,
+) {
   const server = new McpServer(
     { name: 'co-memo', version: '0.7.0' },
     {
@@ -38,7 +42,7 @@ export function createMemoryServer(home: string | undefined, workspace: string) 
     root = workspace,
     explicit = false,
   ) => {
-    const store = new Store(home);
+    const store = new Store(home, writerAgent);
     try {
       if (reading || unlocked) store.ensureProject(root, explicit);
       const value = unlocked
@@ -274,7 +278,12 @@ export function createMemoryServer(home: string | undefined, workspace: string) 
   );
   return server;
 }
-export async function serve(home: string | undefined, root: string, explicit = false) {
+export async function serve(
+  home: string | undefined,
+  root: string,
+  explicit = false,
+  writerAgent: string | null = null,
+) {
   if (explicit) {
     const store = new Store(home);
     try {
@@ -283,6 +292,6 @@ export async function serve(home: string | undefined, root: string, explicit = f
       store.close();
     }
   }
-  const server = createMemoryServer(home, root);
+  const server = createMemoryServer(home, root, writerAgent);
   await server.connect(new StdioServerTransport());
 }

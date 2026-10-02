@@ -42,7 +42,7 @@ npm install -g https://registry.npmjs.org/@ahoh.tech/co-memo/-/co-memo-0.7.0.tgz
 
 0.7.0 包含自动项目识别、记忆控制台、文件位置、命名空间快捷指令，以及独立的归档和永久删除操作。此版本会将记忆数据库升级至 schema 5，请同时更新所有已连接的 Co-memo 安装。
 
-下文的 schema 6 数据库直读写和保存时查重属于**尚未发布的源码改动**，不包含在已发布的 0.7.0 包中。试用方式见[从源码构建](#从源码构建)。最新改动有自动化测试覆盖，但尚未在各个真实 Agent 宿主中重新联调。
+下文的 schema 7 数据库直读写和保存时查重属于**尚未发布的源码改动**，不包含在已发布的 0.7.0 包中。试用方式见[从源码构建](#从源码构建)。最新改动有自动化测试覆盖，但尚未在各个真实 Agent 宿主中重新联调。
 
 npm 包已包含编译后的 JavaScript。普通用户无需 pnpm、TypeScript、Co-memo API Key 或本仓库源码。配置后重启 Agent。为 `init` 添加 `--hooks` 可启用生命周期自动注入；不添加时，由 Agent 主动调用记忆工具。
 
@@ -108,6 +108,8 @@ Co-memo 通过 `co-memo serve` 提供标准的本地 **stdio MCP 服务**。以�
         "/absolute/path/to/data",
         "--project",
         "/absolute/path/to/workspace",
+        "--agent-id",
+        "cursor",
         "serve"
       ]
     }
@@ -115,7 +117,7 @@ Co-memo 通过 `co-memo serve` 提供标准的本地 **stdio MCP 服务**。以�
 }
 ```
 
-将路径替换成实际的可执行文件、现有 Co-memo 数据目录和工作区。多个本地客户端使用相同数据目录即可共享记忆。VS Code 的 `.vscode/mcp.json` 使用顶层 `servers`，并在服务条目中添加 `"type": "stdio"`。配置位置和工具审批设置以各客户端官方文档为准。
+将路径替换成实际的可执行文件、现有 Co-memo 数据目录和工作区，并将 `cursor` 替换成正在配置的客户端 ID，例如 `gemini` 或 `cline`。多个本地客户端使用相同数据目录即可共享记忆，但各 Agent 身份应使用独立配置的进程。VS Code 的 `.vscode/mcp.json` 使用顶层 `servers`，并在服务条目中添加 `"type": "stdio"`。配置位置和工具审批设置以各客户端官方文档为准。
 
 重启或重新加载客户端，启用工具，让它调用 `memory_context` 并检查实际返回结果。持久记忆通过 `memory_submit` 保存；返回 `needs_review` 时，先处理再报告保存成功。多个工作区共用服务时，每次调用应传入当前 `projectPath`。本地 MCP 进程需要 Node.js 24.12+ 及数据目录访问权限。云端或远程 Agent 不能仅靠复制配置访问本机数据库；Co-memo 目前没有 HTTP MCP 端点。
 
@@ -223,9 +225,17 @@ co-memo settings set --scope project --paused false
 
 所有 Agent 通过 MCP 工具或 CLI 读写同一份 SQLite 数据库。`init`、`setup` 和 `connect` 只登记连接并安装指引和配置，不再创建 `.co-memo/<agent>.md`。`AGENTS.md`、`CLAUDE.local.md` 等原生指引文件继续保留。
 
-数据库升级到 schema 6 时，会迁移已有 Agent 连接，保留记忆、版本、冲突和设置。旧 Markdown 文件及数据库内的历史副本记录保留供手动恢复，新版不再读取、导入、重建或更新它们。请检查未同步的旧编辑，通过工具或 CLI 保存需要的文字，再自行归档旧文件。不要直接导入带有 Co-memo 标记的整个副本，应保存其中的单条记忆正文。
+数据库升级到 schema 7 时，会迁移已有 Agent 连接，保留记忆、版本、冲突和设置。旧 Markdown 文件及数据库内的历史副本记录保留供手动恢复，新版不再读取、导入、重建或更新它们。请检查未同步的旧编辑，通过工具或 CLI 保存需要的文字，再自行归档旧文件。不要直接导入带有 Co-memo 标记的整个副本，应保存其中的单条记忆正文。
 
-共用数据库的安装需一起升级，并重新运行 setup 更新旧指引。旧客户端会拒绝 schema 6。`sync`、`watch` 保留为维护和冲突检查的兼容命令；不再需要文件修复，因此移除了 `repair`。
+共用数据库的安装需一起升级，并重新运行 setup 更新旧指引。旧客户端会拒绝 schema 7。`sync`、`watch` 保留为维护和冲突检查的兼容命令；不再需要文件修复，因此移除了 `repair`。
+
+### 记忆来自哪个 Agent？
+
+内置接入会通过 `--agent-id`，将 Agent ID 绑定到生成的 MCP 启动命令和固定 CLI 调用中。每次新增、修改、归档、恢复或解决冲突时，程序会在新版本上记录 `writerAgent`；冲突候选也保留各自的提交 Agent。完全重复的新增会复用已有记忆，不改变其来源或历史。
+
+`notes` 和 `revisions` 两张表都有可查询的 `writer_agent` 列，由已保存的 JSON 数据派生，避免存两份信息。当前记忆显示最近一次写入者，`co-memo history ID` 可查看各版本的写入者，包括最初创建者。控制台显示最近写入者，也支持按 Agent ID 搜索。
+
+配置绑定的身份与可选的 `metadata.source` 原文证据分开保存，Agent 自报的来源不能覆盖绑定身份。旧记录、未绑定的 CLI／MCP 写入和手动控制台编辑，其未知写入者保持为 `null`；迁移不会根据连接或旧证据猜测来源。此字段代表配置的接入端，不是用户身份认证，也不代表某个模型。升级后重新执行 setup 即可绑定已有接入；手动客户端在 `serve` 或其他 CLI 命令前添加 `--agent-id`。
 
 ## 导入已有记忆
 
@@ -283,7 +293,7 @@ co-memo restore /path/to/new-backup --to /path/to/new-data --apply
 
 恢复不会覆盖已有目标目录，并会解除旧 Agent 连接。备份不包含未同步的 Markdown 修改或宿主配置。切换到恢复后的存储前，请阅读[备份与恢复](docs/backup-and-restore.md)。
 
-**当前使用 SQLite schema 6。** 升级方式见上面的数据库迁移说明和[安装维护说明](docs/releasing.md)。
+**当前使用 SQLite schema 7。** 升级方式见上面的数据库迁移说明和[安装维护说明](docs/releasing.md)。
 
 ## 存储与边界
 
