@@ -13,8 +13,9 @@ import {
 } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { tmpdir } from 'node:os';
+import { render } from '../dist/document.js';
 import { Store } from '../dist/store.js';
-import { sync, repair } from '../dist/sync.js';
+import { sync, context } from '../dist/sync.js';
 import { prepareSetup } from '../dist/setup.js';
 import { applyAdapter } from '../dist/adapters.js';
 import { planSetup, describePlan, applySetup, detectAgents } from '../dist/onboarding.js';
@@ -112,28 +113,25 @@ test('explicit worktree links share notes, settings and conflicts while maintain
     assert.equal(linked.id, id);
     assert.equal(linked.root, worktree);
     setup(store, worktree, 'codex');
-    assert.equal(store.replicas().length, 2);
+    assert.equal(store.connections().length, 2);
     assert.equal(store.project(worktree).id, id);
     mkdirSync(join(worktree, 'nested'));
     assert.equal(store.project(join(worktree, 'nested')).id, id);
     store.configure(id, { saveMode: 'explicit' });
     assert.equal(store.settings(store.project(worktree).id).saveMode, 'explicit');
   });
-  assert.ok(readFileSync(join(worktree, '.co-memo/codex.md'), 'utf8').includes(note.content));
+  assert.ok(context(store, store.project(worktree).id).includes(note.content));
   const diagnosis = await doctor({ home: f.home, root: worktree, agent: 'codex', probe: true });
   assert.equal(diagnosis.transport, 'passed', JSON.stringify(diagnosis));
   assert.equal(diagnosis.root, worktree);
   store.lock(() => {
     store.change(note.id, 1, 'Repository uses npm', 'test');
     sync(store);
-    assert.ok(readFileSync(join(f.project, '.co-memo/codex.md'), 'utf8').includes('uses npm'));
-    assert.ok(readFileSync(join(worktree, '.co-memo/codex.md'), 'utf8').includes('uses npm'));
-    unlinkSync(join(worktree, '.co-memo/codex.md'));
-    assert.throws(() => repair(store, 'codex', id), /Multiple worktree/);
-    repair(store, 'codex', id, worktree);
+    assert.match(context(store, store.project(worktree).id), /uses npm/);
+    assert.equal(existsSync(join(worktree, '.co-memo')), false);
     store.change(note.id, 2, null, 'test');
     sync(store);
-    assert.ok(!readFileSync(join(worktree, '.co-memo/codex.md'), 'utf8').includes('uses npm'));
+    assert.doesNotMatch(context(store, store.project(worktree).id), /uses npm/);
   });
 });
 
@@ -171,20 +169,36 @@ test('schema 3 replica migration preserves pending state and identities', (t) =>
   const f = fixture(t);
   let store = new Store(f.home);
   const project = store.project(f.project, true);
-  const replica = store.connect(project, 'claude');
+  const connection = store.connect(project, 'claude');
+  const replica = {
+    ...connection,
+    path: join(f.project, '.co-memo/claude.md'),
+    baseline: null,
+    pending: null,
+  };
   const note = store.add('preserve history', 'project', project.id, 'test').memory;
-  sync(store);
-  const baseline = store.replicas()[0].baseline;
-  const pending = { expected: null, text: readFileSync(replica.path, 'utf8'), snapshot: baseline };
-  store.saveReplica({ ...store.replicas()[0], pending });
+  const generated = render(replica, [note]);
+  const baseline = generated.snapshot;
+  const pending = { ...generated, expected: null };
+  store.db
+    .prepare('INSERT INTO replicas VALUES (?,?,?,?,?,?)')
+    .run(
+      replica.id,
+      project.id,
+      'claude',
+      replica.path,
+      JSON.stringify(baseline),
+      JSON.stringify(pending),
+    );
+  store.db.exec('DROP TABLE connections');
   store.db.exec(`ALTER TABLE replicas RENAME TO saved_replicas;
     CREATE TABLE replicas(id TEXT PRIMARY KEY, project_id TEXT NOT NULL, agent TEXT NOT NULL,path TEXT NOT NULL UNIQUE,baseline TEXT,pending TEXT,UNIQUE(project_id,agent));
     INSERT INTO replicas SELECT * FROM saved_replicas; DROP TABLE saved_replicas; DROP TABLE project_links; PRAGMA user_version=3;`);
   store.close();
   store = new Store(f.home);
   try {
-    assert.equal(store.db.prepare('PRAGMA user_version').get().user_version, 5);
-    assert.equal(store.replicas()[0].id, replica.id);
+    assert.equal(store.db.prepare('PRAGMA user_version').get().user_version, 8);
+    assert.equal(store.connections()[0].id, replica.id);
     assert.deepEqual(store.replicas()[0].baseline, baseline);
     assert.deepEqual(store.replicas()[0].pending, pending);
     assert.equal(store.get(note.id).version, 1);
@@ -217,6 +231,30 @@ test('unlinked nested worktrees do not inherit enclosing repository memories', a
     assert.equal(result.status, 'needs_attention');
     store.transaction(() => store.linkWorktree(nested, f.project));
     assert.equal(store.project(nested).id, store.project(f.project).id);
+  } finally {
+    store.close();
+  }
+});
+
+test('initializing an agent does not return another projects conflict or misreport setup failure', async (t) => {
+  const f = fixture(t);
+  const other = join(f.root, 'foreign');
+  mkdirSync(other);
+  const store = new Store(f.home);
+  try {
+    const p = store.project(other, true);
+    const memory = store.add('Foreign initialization secret', 'project', p.id, 'fixture').memory;
+    store.conflict(memory, []);
+    const result = await applySetup({
+      root: f.project,
+      home: f.home,
+      agents: ['pi'],
+      toolsOnly: true,
+    });
+    assert.equal(result.status, 'configured');
+    assert.deepEqual(result.sync.conflicts, []);
+    assert.doesNotMatch(JSON.stringify(result), /Foreign initialization secret/);
+    assert.equal(store.conflicts().length, 1);
   } finally {
     store.close();
   }

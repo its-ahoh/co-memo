@@ -3,6 +3,11 @@ import { z } from 'zod';
 
 export const Agent = z.enum(['pi', 'claude', 'codex', 'opencode']);
 export type Agent = z.infer<typeof Agent>;
+// Configuration identity, independent of the built-in setup adapter list.
+export const SourceAgent = z
+  .string()
+  .trim()
+  .regex(/^[a-z0-9][a-z0-9._-]{0,99}$/);
 export const Content = z
   .string()
   .trim()
@@ -11,6 +16,8 @@ export const Content = z
   .refine((s) => !s.includes('<!-- co-memo:'), 'Reserved Co-memo marker in content');
 export const Scope = z.enum(['user', 'project']);
 export type Scope = z.infer<typeof Scope>;
+export const IntentSchema = z.enum(['explicit', 'automatic']);
+export const Version = z.number().int().positive().safe();
 export const MemoryKind = z.enum(['note', 'preference', 'decision', 'constraint', 'lesson']);
 export const Evidence = z.strictObject({
   agent: z.string().trim().min(1).max(100),
@@ -19,15 +26,19 @@ export const Evidence = z.strictObject({
     .trim()
     .min(1)
     .max(200)
+    .nullable()
+    .default(null)
     .describe(
-      'Actual known session identifier. Never invent one; use memory_remember when unavailable.',
+      'Actual known session identifier; omit or use null when unavailable. Never invent one.',
     ),
   messageId: z
     .string()
     .trim()
     .min(1)
     .max(200)
-    .describe('Actual known source-message identifier, not a fabricated placeholder.'),
+    .nullable()
+    .default(null)
+    .describe('Actual known source-message identifier; omit or use null when unavailable.'),
   excerpt: z.string().trim().min(1).max(2000),
 });
 export const Metadata = z.strictObject({
@@ -58,6 +69,7 @@ export const Memory = z.object({
   version: z.number().int().positive(),
   deleted: z.boolean(),
   origin: z.string(),
+  sourceAgent: SourceAgent.nullable().default(null),
   createdAt: z.number(),
   updatedAt: z.number(),
 });
@@ -101,11 +113,21 @@ export const Proposal = z.object({
 export type Proposal = z.infer<typeof Proposal>;
 export const Conflict = z.object({
   id: z.uuid(),
+  revision: Version.default(1),
   memoryId: z.uuid(),
   currentVersion: z.number().int().positive(),
   currentContent: Content.nullable(),
   proposals: z.array(Proposal),
-  candidates: z.array(z.object({ id: z.uuid(), content: Content, metadata: Metadata })).default([]),
+  candidates: z
+    .array(
+      z.object({
+        id: z.uuid(),
+        content: Content,
+        metadata: Metadata,
+        sourceAgent: SourceAgent.nullable().default(null),
+      }),
+    )
+    .default([]),
   createdAt: z.number(),
 });
 export type Conflict = z.infer<typeof Conflict>;

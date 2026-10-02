@@ -77,19 +77,19 @@ co-memo settings set --scope project --reset
 
 Settings are stored in SQLite, separate from memory text. Responses show user overrides, project overrides and effective values. Project settings use the automatically detected workspace; user settings can be changed without a project.
 
-| Setting        | Default   | Behavior                                                                                                                                                 |
-| -------------- | --------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `saveMode`     | `auto`    | Automatic and explicit tool writes are allowed. In `explicit`, automatic writes and edited Markdown ingestion are rejected.                              |
-| `defaultScope` | `project` | Used by new CLI/tool notes and CLI imports when scope is omitted. It never changes the scope of existing notes. Markdown additions retain project scope. |
-| `paused`       | `false`   | Stops synchronization of this project's replicas, memory tool reads/writes and injected notes. Settings tools remain available to resume.                |
+| Setting        | Default   | Behavior                                                                                                        |
+| -------------- | --------- | --------------------------------------------------------------------------------------------------------------- |
+| `saveMode`     | `auto`    | Automatic and explicit tool writes are allowed. In `explicit`, automatic writes are rejected.                   |
+| `defaultScope` | `project` | Used by new CLI/tool notes and CLI imports when scope is omitted. It never changes the scope of existing notes. |
+| `paused`       | `false`   | Stops memory tool reads/writes and injected notes. Settings tools remain available to resume.                   |
 
 Project defaultScope overrides user defaultScope. A user-level pause or explicit-only restriction cannot be weakened by a project override. Reset removes overrides at that scope, revealing inherited/default values.
 
-`auto` does not start an extraction model or mine transcripts: the agent still decides what merits saving. Defaults retain 0.3's Markdown capture behavior. For manual capture only, set user saveMode to explicit.
+`auto` does not start an extraction model or mine transcripts: the agent still decides what merits saving. Memory writes use tools or CLI. For manual capture only, set user saveMode to explicit.
 
 Tool mutations require `intent=explicit|automatic`. CLI `add`, `edit`, and `forget` default to explicit because they are direct commands; an agent saving inferred information must pass `--intent automatic`. Explicit-only mode checks this declaration. Co-memo cannot independently prove that the user asked: it has no conversation transcript. Settings/resolve tools similarly require `userRequested=true`. These are behavior controls for cooperating agents, not an authorization boundary against an agent with local filesystem access.
 
-Rejected Markdown edits are retained, not imported or overwritten. To accept one, save it explicitly through tools/CLI and restore the local projection to its previous unmodified text before syncing; alternatively re-enable automatic capture to ingest it. Inspect the sync report for files needing attention. Avoid editing managed files in explicit-only mode.
+Legacy Markdown files are ignored in every save mode. Save intended edits through tools or CLI.
 
 Pause does not erase local files or text already present in a conversation. CLI inspection commands (`list`, `show`, `history`, `conflicts`) remain available for the user to inspect stored state. Resuming may ingest pending file edits. Start a new conversation if you need a context without previously loaded notes.
 
@@ -101,14 +101,14 @@ The local stdio server is started with:
 co-memo --home /path/to/data --project /path/to/project serve
 ```
 
-It registers the project if necessary and also works without Markdown replicas or hooks. It exposes no HTTP listener, API key requirement, arbitrary shell tool or caller-selectable project path. Each operation reads current settings and acquires the shared store lock; multiple hosts use the same database.
+It registers the project if necessary and also works without Markdown replicas or hooks. It exposes no HTTP listener, API key requirement, arbitrary shell tool or caller-selectable project path. Each operation reads current settings; writes acquire the shared store lock and reads use consistent WAL snapshots; multiple hosts use the same database.
 
 | Tool                  | Purpose                                                             |
 | --------------------- | ------------------------------------------------------------------- |
 | `memory_context`      | Bounded shared context and effective settings                       |
 | `memory_recall`       | FTS5/BM25 with optional cached semantic ranking; conflicts excluded |
 | `memory_submit`       | Atomic evidence-backed candidates with verified receipts            |
-| `memory_checkpoint`   | Verify legacy write receipts against current storage                |
+| `memory_checkpoint`   | Optionally recheck earlier receipts against current storage         |
 | `memory_get`          | Full note, current version and optional revision history            |
 | `memory_remember`     | Save with scope and declared intent                                 |
 | `memory_update`       | Compare-and-update using the last-read version                      |
@@ -118,7 +118,7 @@ It registers the project if necessary and also works without Markdown replicas o
 | `memory_settings_get` | Overrides and effective settings                                    |
 | `memory_settings_set` | Apply a minimal settings patch or reset one scope                   |
 
-Writes go directly to the central store and then reconcile projections. A committed write can still return file-publication errors; inspect the returned memory and sync report before retrying. MCP results filter conflicts/errors to the configured project and user scope. The local store remains a single-user system, not a multi-user security boundary.
+Writes go directly to the central store with transactions and version checks. Reports include scoped conflicts and maintenance errors. There is no file publication step. The local store remains a single-user system, not a multi-user security boundary.
 
 ## Upgrade and verification
 
@@ -134,9 +134,9 @@ Sources: [MCP tools](https://modelcontextprotocol.io/specification/draft/server/
 
 Generated Claude/Codex prompt hooks consume the host's `prompt` field from JSON stdin; Pi uses `before_agent_start.prompt`. OpenCode's generated context hooks currently have no task query: use `memory_context` with `query` for task-specific selection. Prompts used for ranking are not persisted. Re-run `setup AGENT` after upgrading to refresh hooks, instructions and the skill.
 
-Before final replies and after durable corrections or decisions, the injected guidance asks the current agent to consider a memory update and verify its receipts. `memory_checkpoint` takes `reason` (`task_completed`, `user_correction`, `project_decision`), `outcome` (`saved`, `nothing_to_save`, `skipped`) and, for `saved`, `receipts` containing the exact `id`, `version`, and `deleted` returned by writes. CLI: `checkpoint --reason task_completed --outcome saved --receipts '[{"id":"UUID","version":1,"deleted":false}]'`.
+Before final replies and after durable corrections or decisions, the agent considers a memory update. Successful saves include verification; nothing to save requires no extra tool call. Checkpoint is optional diagnostics. `memory_checkpoint` takes `reason` (`task_completed`, `user_correction`, `project_decision`), `outcome` (`saved`, `nothing_to_save`, `skipped`) and, for `saved`, `receipts` containing the exact `id`, `version`, and `deleted` returned by writes. CLI: `checkpoint --reason task_completed --outcome saved --receipts '[{"id":"UUID","version":1,"deleted":false}]'`.
 
-Checkpoints reconcile first, reject inaccessible, conflicted or stale receipts, and verify central storage only. Sync failures remain visible in the response. They cannot prove delivery into another agent's active context. Non-save outcomes are declarations; paused checkpoints return `verified: false`. Checkpoints do not mine transcripts, create memories, audit the agent's judgment or force another turn. A host or model can ignore a reminder.
+Checkpoints read a consistent snapshot, reject inaccessible, conflicted or stale receipts, and verify central storage only. Sync failures remain visible in the response. They cannot prove delivery into another agent's active context. Non-save outcomes are declarations; paused checkpoints return `verified: false`. Checkpoints do not mine transcripts, create memories, audit the agent's judgment or force another turn. A host or model can ignore a reminder.
 
 See [retrieval and extraction](retrieval-and-extraction.md) for `memory_submit`, provenance, conflict candidates and idempotent retries. Prefer this interface for agent-selected memories; it verifies writes without a second checkpoint call.
 
@@ -162,3 +162,5 @@ Claude Code, OpenCode and Pi support `/co-memo:ui`, `/co-memo:recall QUERY`, `/c
 Setup installs Claude command files under `.claude/commands/co-memo/`, OpenCode commands as `.opencode/commands/co-memo:ACTION.md`, and Pi prompt templates as `.pi/prompts/co-memo:ACTION.md`. Each wrapper points to the installed canonical skill. Setup preserves unmanaged files and disconnect archives managed shortcuts. Pi templates require project trust and prompt-template discovery to be enabled. Reload or restart the host after installation.
 
 `memory_archive` has the same ID/version/intent inputs as `memory_forget` and retains content/history. `memory_delete` permanently removes the note and history; `memory_restore` restores an archived note. Both require ID, version and `userRequested: true`. Their skill shortcuts are `/co-memo:archive`, `/co-memo:delete`, and `/co-memo:restore` (Codex: `$co-memo ACTION`). Schema 5 introduces content-free purged IDs; upgrade all connected CLI paths before continuing to use the store.
+
+`memory_submit` checks candidates during saving; `memory_prepare` is an optional preview. Related additions require a fresh review token and explanation, or a revised update/conflict/skip decision. `needs_review` saves no part of the batch. This lexical review does not classify meaning automatically; remember/add, imports and the console use the same gate. See [review before saving](retrieval-and-extraction.md#review-before-saving).

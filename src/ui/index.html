@@ -87,6 +87,15 @@
         <div class="editor-meta">
           <span id="edit-meta"></span><span id="length">0 / 32000</span>
         </div>
+        <div id="duplicate-review" hidden>
+          <p>
+            Similar memories found. Nothing has been saved. Cancel to edit an existing memory, or
+            explain why this is a separate fact.
+          </p>
+          <ul id="related-memories"></ul>
+          <label for="review-reason">Reason to save separately</label>
+          <input id="review-reason" maxlength="1000" />
+        </div>
         <p id="form-error" role="alert"></p>
         <div class="dialog-actions">
           <button type="button" id="cancel">Cancel</button

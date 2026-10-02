@@ -12,7 +12,7 @@ Only preferences explicitly marked `pinned` bypass task matching, under a 2,000-
 
 ## Candidate submission
 
-An agent should extract durable facts rather than summarize the entire conversation. It first searches related notes, then submits a bounded batch through `memory_submit`, or writes this JSON to a file and runs `co-memo submit --file /absolute/path/submission.json`:
+An agent should extract durable facts rather than summarize the entire conversation. It submits a bounded batch directly; saving searches for related notes and returns a review only when needed. Use `memory_submit`, or writes this JSON to a file and runs `co-memo submit --file /absolute/path/submission.json`:
 
 ```json
 {
@@ -37,7 +37,7 @@ An agent should extract durable facts rather than summarize the entire conversat
 }
 ```
 
-Replace identifiers and evidence with real values; generate a fresh UUID per logical submission. If the host does not expose reliable identifiers, use legacy remember/update tools with unknown provenance. Never fabricate evidence. Source snippets are retained in the local database and revision history, but are not copied into Markdown projections or ordinary injected context. They must not contain secrets. Evidence is supplied by the agent; Co-memo cannot independently authenticate it or determine whether a proposed fact is true.
+Replace identifiers and evidence with real values; generate a fresh UUID per logical submission. Source is optional/null; unknown session/message identifiers may be omitted or null. Never fabricate evidence. Source snippets are retained in the local database and revision history, but are not copied into ordinary injected context. They must not contain secrets. Evidence is supplied by the agent; Co-memo cannot independently authenticate it or determine whether a proposed fact is true.
 
 Actions:
 
@@ -50,14 +50,34 @@ Types are `note`, `preference`, `decision`, `constraint`, and `lesson`. Only pre
 
 ## Reliability and limitations
 
-A submission accepts 1–20 candidates. Its mutations, revisions, full-text index updates and retry record commit atomically; any invalid/stale/inaccessible target rolls back the whole batch. The normal reconciliation before submission is a separate transaction and can import existing legitimate projection edits. Publication after committing can fail independently: central verification and sync errors are returned separately.
+A submission accepts 1–20 candidates. Its mutations, revisions, full-text index updates and retry record commit atomically; any invalid/stale/inaccessible target rolls back the whole batch. Writes commit directly to SQLite. There is no projection ingestion or publication. Verification confirms central state; maintenance errors are reported separately.
 
 Retrying identical normalized input with the same requestId in the same project never reapplies writes. Reusing that ID for different input fails. Replays recheck receipts against current versions, deletion state and conflicts; an earlier success can now report stale. This is not semantic deduplication across differently worded requests. Skips and conflict candidates are not reported as verified saves. Agents must inspect per-candidate status rather than treating a non-error MCP response as proof of success.
 
-The source, memory type, intent and update basis are agent declarations. The program enforces pause/explicit-only policy, expected versions, scopes and exact-content deduplication. It does not judge evidence quality. Markdown or legacy content changes clear obsolete evidence on the new revision; older evidence remains in history. Explicit conflict resolution records a new revision. A save receipt verifies central storage at that instant, not delivery into another agent's active context.
+The source, memory type, intent and update basis are agent declarations. The program enforces pause/explicit-only policy, expected versions, scopes and exact-content deduplication. It does not judge evidence quality. Legacy content edits clear obsolete evidence on the new revision; older evidence remains in history. Explicit conflict resolution records a new revision. A save receipt verifies central storage at that instant, not delivery into another agent's active context.
 
 ## Upgrade
 
 Schema 3 adds FTS5 and submission records transactionally, indexes existing current notes and retains history without rewriting it. The filename remains `shared-memory-v1.sqlite`. Upgrade all connected CLI installations and rerun `setup AGENT`; older clients reject this schema. No new external database, model credential or service is required.
 
-Schema 4 (Co-memo 0.6) adds explicit worktree links and allows multiple worktree replicas for the same agent. Existing replica IDs, baselines, pending publications and note histories are preserved transactionally. Older clients reject schema 4; update all connected installations before opening an upgraded store.
+Schema 8 uses agent connections with no active Markdown replicas and records configured writers separately from source evidence. Legacy notes, history, conflicts and registrations are preserved during upgrade; old files remain untouched and unknown historical writers remain null. Upgrade all clients together and rerun setup.
+
+## Review before saving
+
+Submit directly, or optionally preview with `memory_prepare` / `co-memo prepare --file FILE` and `{ "intent": "automatic", "candidates": [...] }` (the same candidate schema as submit, without requestId/review). This reads scoped lexical matches, including archived and conflicted notes, and returns their versions, metadata and a review token. At most ten ranked matches plus exact matches/targets are returned per candidate. Other projects and other scopes are excluded; different-scope relationships still require agent judgment.
+
+`submit` runs this check under the same process lock as the commit. Related additions or related additions within a batch return `status: needs_review` with no memory/retry-record writes. CLI exits 2. Exact duplicates still reuse existing records; archived exact duplicates remain archived. To confirm that unchanged candidates are distinct, add `review: { "token": "TOKEN_FROM_PREPARE", "reason": "Explanation of why these are distinct facts" }` to the submission. A token is a freshness check, not authentication or proof of semantic correctness. Relevant changes invalidate it. Changed actions/content require a new preparation; successful retries retain the entire original payload.
+
+Choose skip for equivalent facts, update with the existing ID/version and correction basis for clear changes, and conflict for uncertain contradictions. Repeated conflict submissions preserve additional source evidence on the same conflict, up to 100 candidates; they do not silently pick the latest version. Exact content plus identical metadata is deduplicated within a conflict. Explicit resolution selects an existing candidate/current content or a supplied merge and retains revision history.
+
+The review uses local lexical retrieval, not embeddings or a model; paraphrases without shared terms can be missed and similar wording can mean opposite things. No automatic semantic merging is performed. The same pipeline covers submit, add/remember, Markdown import and console creation. Prepare is optional; successful saves include verification. No save/checkpoint call is needed when there is nothing durable to save.
+
+### Batch and concurrent review
+
+Updates and conflict proposals are considered alongside new candidates. A stored exact match that this batch changes is not an automatic exemption from review. After review, updates/conflicts execute before additions in one transaction; receipts remain in the original candidate order. An addition matching an updated note reuses that note.
+
+Only ten ranked matches are displayed, but the review token covers the entire reviewed scope, including archived records and conflict revisions. Any change in that scope invalidates an old token, even a lower-ranked or unrelated note. This conservative check avoids accepting a decision based on stale state.
+
+Conflicts have a separate `revision`, starting at 1 for existing legacy records. Adding new evidence increments it; identical proposals do not. Read conflicts before resolving, then pass `revision` to `memory_resolve`, or `--revision N` to CLI `resolve`. The note's `currentVersion` is not the conflict revision. Missing/stale revisions are rejected; reread and reconsider new evidence instead of automatically retrying the old choice.
+
+Edits and additions use the same trimmed content for storage, fingerprints and receipts. Existing notes written with older untrimmed fingerprints are reused without rewriting history; redundant legacy records can still be archived. Conflict retries report `verification: stale` when new evidence was appended, or `status: conflict_closed` / `verification: closed` when no longer open; neither is a verified save or a new conflict.

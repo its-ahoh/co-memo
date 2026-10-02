@@ -27,10 +27,20 @@ export async function projects(home = dataHome(), check = false, probe = false) 
   try {
     db.exec('PRAGMA busy_timeout=1000; BEGIN;');
     ensure(
-      [4, 5].includes(Number(db.prepare('PRAGMA user_version').get()?.user_version)),
+      [4, 5, 6, 7, 8].includes(Number(db.prepare('PRAGMA user_version').get()?.user_version)),
       'Unsupported schema; upgrade before listing projects',
     );
-    const replicas = db.prepare('SELECT agent,path,project_id FROM replicas').all();
+    const modern = Number(db.prepare('PRAGMA user_version').get()?.user_version) >= 6;
+    const connections = modern
+      ? db.prepare('SELECT agent,root,project_id FROM connections').all()
+      : db
+          .prepare('SELECT agent,path,project_id FROM replicas')
+          .all()
+          .map((r) => ({
+            agent: r.agent,
+            project_id: r.project_id,
+            root: dirname(dirname(String(r.path))),
+          }));
     const roots = db
       .prepare(
         `SELECT id,root,NULL AS shared FROM projects UNION ALL SELECT l.project_id AS id,l.root,p.root AS shared FROM project_links l JOIN projects p ON p.id=l.project_id ORDER BY root`,
@@ -42,8 +52,8 @@ export async function projects(home = dataHome(), check = false, probe = false) 
         root: String(row.root),
         sharedWith: row.shared === null ? null : String(row.shared),
         exists: existsSync(String(row.root)),
-        agents: replicas
-          .filter((r) => r.project_id === row.id && dirname(dirname(String(r.path))) === row.root)
+        agents: connections
+          .filter((r) => r.project_id === row.id && r.root === row.root)
           .map((r) => Agent.parse(r.agent)),
         memories: Number(
           db

@@ -9,9 +9,8 @@ import type { ParseError } from 'jsonc-parser';
 import { z } from 'zod';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
-import { Agent, Memory, Snapshot, ensure } from './model.js';
+import { Agent, ensure } from './model.js';
 import { readText, safeParents } from './fs.js';
-import { parse } from './document.js';
 import { prepareSetup } from './setup.js';
 import { SettingsPatch } from './settings.js';
 import { dataHome } from './store.js';
@@ -78,7 +77,7 @@ export async function doctor(input: {
     db = new DatabaseSync(database, { readOnly: true });
     db.exec('PRAGMA busy_timeout=1000');
     ensure(
-      [4, 5].includes(Number(db.prepare('PRAGMA user_version').get()?.user_version)),
+      [8].includes(Number(db.prepare('PRAGMA user_version').get()?.user_version)),
       'Unsupported schema',
     );
     ensure(db.prepare('PRAGMA quick_check').get()?.quick_check === 'ok', 'Integrity check failed');
@@ -99,7 +98,7 @@ export async function doctor(input: {
     ensure(project, 'Project not registered');
     root = String(project.root);
     const id = String(project.id);
-    add('database', 'pass', 'Schema 4, integrity check and project registration passed.');
+    add('database', 'pass', 'Schema 8, integrity check and project registration passed.');
     const effective = db
       .prepare("SELECT payload FROM settings WHERE scope_key IN ('user', ?)")
       .all(id)
@@ -112,7 +111,7 @@ export async function doctor(input: {
         'Resume only when intended: settings set --scope user|project --paused false.',
       );
     if (effective.some((s) => s.saveMode === 'explicit'))
-      add('save-mode', 'pass', 'Explicit-only mode: inferred and Markdown writes are rejected.');
+      add('save-mode', 'pass', 'Explicit-only mode: inferred writes are rejected.');
     const conflicts = Number(
       db
         .prepare(
@@ -126,56 +125,19 @@ export async function doctor(input: {
       `${conflicts} unresolved conflicts affect this project.`,
       'Inspect conflicts and resolve only with a user-selected version.',
     );
-    const replicas = db
-      .prepare('SELECT * FROM replicas WHERE project_id=?')
-      .all(id)
-      .filter((r) => dirname(dirname(String(r.path))) === root);
-    if (!agents.length) agents = replicas.map((r) => Agent.parse(r.agent));
-    if (!agents.length) add('agents', 'fail', 'No connected agent replicas.', 'Run setup AGENT.');
-    const memories = db
-      .prepare(
-        "SELECT payload FROM notes WHERE deleted=0 AND (scope='user' OR project_id=?) ORDER BY rowid",
-      )
-      .all(id)
-      .map((r) => Memory.parse(JSON.parse(String(r.payload))));
+    const connections = db
+      .prepare('SELECT * FROM connections WHERE project_id=? AND root=?')
+      .all(id, root);
+    if (!agents.length) agents = connections.map((c) => Agent.parse(c.agent));
+    if (!agents.length) add('agents', 'fail', 'No connected agents.', 'Run setup AGENT.');
     for (const agent of agents) {
-      const r = replicas.find((r) => r.agent === agent);
-      if (!r) {
-        add(`${agent}:replica`, 'fail', 'Agent is not connected.', `Run setup ${agent}.`);
-        continue;
-      }
-      try {
-        const text = readText(String(r.path));
-        ensure(text !== null, 'Missing projection');
-        const snapshot = parse(text, String(r.id));
-        const baseline = r.baseline ? Snapshot.parse(JSON.parse(String(r.baseline))) : null;
-        const expected = memories.map((m) => ({
-          id: m.id,
-          version: m.version,
-          content: m.content,
-        }));
-        const changed = !baseline || JSON.stringify(snapshot) !== JSON.stringify(baseline);
-        const stale = JSON.stringify(snapshot.entries) !== JSON.stringify(expected);
-        add(
-          `${agent}:replica`,
-          r.pending || changed || stale ? 'warn' : 'pass',
-          r.pending
-            ? 'Publication is pending.'
-            : changed
-              ? 'Projection contains unsynchronized changes.'
-              : stale
-                ? 'Projection differs from current central notes.'
-                : 'Projection matches central notes.',
-          'Run sync and inspect errors; doctor never imports edits.',
-        );
-      } catch {
-        add(
-          `${agent}:replica`,
-          'fail',
-          'Projection is missing, unsafe or malformed.',
-          'Inspect the file; use repair only for a missing projection.',
-        );
-      }
+      const connected = connections.some((c) => c.agent === agent);
+      add(
+        `${agent}:connection`,
+        connected ? 'pass' : 'fail',
+        connected ? 'Agent uses the shared database.' : 'Agent is not connected.',
+        `Run setup ${agent}.`,
+      );
     }
     // Check index coverage without returning memory contents.
     const missing = Number(
@@ -209,7 +171,17 @@ export async function doctor(input: {
     for (const agent of agents) {
       try {
         const entry = config(root, agent);
-        const expected = [cli, '--home', home, '--project', root, 'serve', '--co-memo-managed'];
+        const expected = [
+          cli,
+          '--home',
+          home,
+          '--project',
+          root,
+          '--agent-id',
+          agent,
+          'serve',
+          '--co-memo-managed',
+        ];
         if (entry) {
           const command =
             agent === 'opencode'

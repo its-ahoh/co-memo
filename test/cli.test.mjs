@@ -14,7 +14,6 @@ import {
 import { join, resolve } from 'node:path';
 import { tmpdir } from 'node:os';
 import { pathToFileURL } from 'node:url';
-import { parse } from '../dist/document.js';
 import { Store } from '../dist/store.js';
 
 const cli = resolve('dist/cli.js');
@@ -79,8 +78,6 @@ test('Connect preserves user settings, hooks and instructions; reruns are byte-s
     '.gitignore',
     '.claude/settings.local.json',
     '.pi/extensions/co-memo.ts',
-    '.co-memo/pi.md',
-    '.co-memo/claude.md',
   ];
   const first = paths.map((p) => read(join(f.project, p)));
   f.run('connect', 'pi');
@@ -129,19 +126,17 @@ test('Generated Pi extension executes lifecycle callbacks and sees Claude edits'
   extension.default({ on: (name, fn) => handlers.set(name, fn) });
   const ctx = { ui: { notify: (...args) => notices.push(args) } };
   await handlers.get('session_start')({}, ctx);
-  f.run('add', '--content', 'Speak Chinese');
-  const claude = join(f.project, '.co-memo/claude.md');
-  writeFileSync(claude, read(claude).replace('Speak Chinese', 'Speak English'));
+  const note = f.run('add', '--content', 'Speak Chinese').memory;
+  f.run('edit', note.id, '--version', '1', '--content', 'Speak English');
   const response = await handlers.get('before_agent_start')(
     { systemPrompt: 'Host instructions' },
     ctx,
   );
   assert.match(response.systemPrompt, /^Host instructions/);
   assert.match(response.systemPrompt, /Speak English/);
-  const pi = join(f.project, '.co-memo/pi.md');
-  writeFileSync(pi, read(pi).replace('Speak English', 'Speak French'));
+  f.run('edit', note.id, '--version', '2', '--content', 'Speak French');
   await handlers.get('agent_end')({}, ctx);
-  assert.match(read(claude), /Speak French/);
+  assert.equal(f.run('show', note.id).content, 'Speak French');
   assert.deepEqual(notices, []);
 });
 
@@ -159,7 +154,7 @@ test('Import keeps originals intact and is idempotent', (t) => {
   assert.equal(f.run('list')[0].scope, 'user');
 });
 
-test('Malformed settings fail before writing agent files or registering a replica', (t) => {
+test('Malformed settings fail before writing agent files or registering a connection', (t) => {
   const f = fixture(t);
   mkdirSync(join(f.project, '.claude'));
   writeFileSync(join(f.project, '.claude/settings.local.json'), '{bad');
@@ -169,7 +164,7 @@ test('Malformed settings fail before writing agent files or registering a replic
   assert.equal(result.status, 1);
   assert.equal(existsSync(join(f.project, 'CLAUDE.local.md')), false);
   const store = new Store(f.home);
-  assert.deepEqual(store.replicas(), []);
+  assert.deepEqual(store.connections(), []);
   store.close();
 });
 
@@ -190,36 +185,64 @@ test('Parallel CLI writers use one central store without losing notes', async (t
   const f = fixture(t);
   f.run('connect', 'pi');
   f.run('connect', 'claude');
+  const attempt = (i, review) =>
+    new Promise((done, fail) => {
+      const child = spawn(process.execPath, [
+        cli,
+        ...f.argv,
+        'add',
+        '--content',
+        `parallel note ${i}`,
+        ...(review
+          ? [
+              '--review-token',
+              review.token,
+              '--review-reason',
+              'Synthetic independently numbered notes',
+            ]
+          : []),
+      ]);
+      let out = '',
+        err = '';
+      child.stdout.on('data', (b) => {
+        out += b;
+      });
+      child.stderr.on('data', (b) => {
+        err += b;
+      });
+      child.on('error', fail);
+      child.on('close', (code) => {
+        if (code !== 0 && code !== 2) {
+          fail(new Error(err || out));
+          return;
+        }
+        try {
+          done({ code, value: JSON.parse(out) });
+        } catch (error) {
+          fail(error);
+        }
+      });
+    });
   await Promise.all(
-    Array.from(
-      { length: 6 },
-      (_, i) =>
-        new Promise((done, fail) => {
-          const child = spawn(process.execPath, [
-            cli,
-            ...f.argv,
-            'add',
-            '--content',
-            `parallel note ${i}`,
-          ]);
-          let err = '';
-          child.stderr.on('data', (b) => {
-            err += b;
-          });
-          child.stdout.resume();
-          child.on('error', fail);
-          child.on('exit', (code) => (code === 0 ? done() : fail(new Error(err))));
-        }),
-    ),
+    Array.from({ length: 6 }, async (_, i) => {
+      let review;
+      for (let retry = 0; retry < 10; retry++) {
+        const result = await attempt(i, review);
+        if (result.code === 0) {
+          assert.equal(result.value.verified, true);
+          return;
+        }
+        assert.equal(result.value.status, 'needs_review');
+        review = result.value.review;
+      }
+      assert.fail('Review did not stabilize after writers finished');
+    }),
   );
   assert.equal(f.run('list').length, 6);
-  assert.equal(
-    (read(join(f.project, '.co-memo/pi.md')).match(/<!-- co-memo:memory /g) ?? []).length,
-    6,
-  );
+  assert.equal(existsSync(join(f.project, '.co-memo')), false);
 });
 
-test('Watch reconciles edits and shuts down on SIGTERM', async (t) => {
+test('Watch checks database maintenance and shuts down on SIGTERM', async (t) => {
   const f = fixture(t);
   f.run('connect', 'pi');
   f.run('connect', 'claude');
@@ -233,18 +256,9 @@ test('Watch reconciles edits and shuts down on SIGTERM', async (t) => {
   });
   child.stderr.resume();
   await new Promise((resolve) => setTimeout(resolve, 300));
-  const pi = join(f.project, '.co-memo/pi.md');
-  writeFileSync(
-    pi,
-    read(pi).replace('<!-- co-memo:new -->\n\n', '<!-- co-memo:new -->\nFrom watcher\n'),
-  );
-  const deadline = Date.now() + 8000;
-  while (
-    Date.now() < deadline &&
-    !read(join(f.project, '.co-memo/claude.md')).includes('From watcher')
-  )
-    await new Promise((resolve) => setTimeout(resolve, 100));
-  assert.match(read(join(f.project, '.co-memo/claude.md')), /From watcher/);
+  f.run('add', '--content', 'From database');
+  assert.equal(f.run('list')[0].content, 'From database');
+  assert.equal(existsSync(join(f.project, '.co-memo')), false);
   const stopped = new Promise((resolve) => child.on('exit', resolve));
   child.kill('SIGTERM');
   assert.equal(await stopped, 0);
@@ -298,15 +312,14 @@ for (const agent of ['codex', 'opencode']) {
   });
 }
 
-test('Codex hooks return context and Stop publishes memory to all four agents', (t) => {
+test('Codex hooks return context and all four agents see database updates', (t) => {
   const f = fixture(t);
   for (const agent of ['pi', 'claude', 'codex', 'opencode']) f.run('connect', agent);
-  f.run('add', '--content', 'Use pnpm');
-  const path = join(f.project, '.co-memo/codex.md');
+  const note = f.run('add', '--content', 'Use pnpm').memory;
   const config = JSON.parse(read(join(f.project, '.codex/hooks.json')));
   for (const event of ['SessionStart', 'UserPromptSubmit', 'Stop']) {
     if (event === 'Stop')
-      writeFileSync(path, read(path).replace('Use pnpm', 'Use frozen lockfiles'));
+      f.run('edit', note.id, '--version', '1', '--content', 'Use frozen lockfiles');
     const result = spawnSync('/bin/sh', ['-c', config.hooks[event][0].hooks[0].command], {
       cwd: f.root,
       encoding: 'utf8',
@@ -322,7 +335,13 @@ test('Codex hooks return context and Stop publishes memory to all four agents', 
     }
   }
   for (const agent of ['pi', 'claude', 'codex', 'opencode']) {
-    assert.match(read(join(f.project, `.co-memo/${agent}.md`)), /Use frozen lockfiles/);
+    assert.equal(existsSync(join(f.project, `.co-memo/${agent}.md`)), false);
+    const event =
+      agent === 'pi' ? 'before_agent_start' : agent === 'opencode' ? 'context' : 'SessionStart';
+    assert.match(
+      JSON.stringify(f.run('bridge', '--agent', agent, '--event', event)),
+      /Use frozen lockfiles/,
+    );
   }
 });
 
@@ -363,25 +382,17 @@ for (const api of ['v1', 'v2']) {
       };
       after = () => handlers.get('execute.after')();
     }
-    f.run('add', '--content', 'Use pnpm');
-    const codex = join(f.project, '.co-memo/codex.md');
-    writeFileSync(codex, read(codex).replace('Use pnpm', 'Use npm'));
+    const note = f.run('add', '--content', 'Use pnpm').memory;
+    f.run('edit', note.id, '--version', '1', '--content', 'Use npm');
     assert.match(await context(), /Use npm/);
-    const projection = join(f.project, '.co-memo/opencode.md');
-    writeFileSync(projection, read(projection).replace('Use npm', 'Use pnpm again'));
+    f.run('edit', note.id, '--version', '2', '--content', 'Use pnpm again');
     await after();
-    for (const agent of ['pi', 'claude', 'codex']) {
-      assert.match(read(join(f.project, `.co-memo/${agent}.md`)), /Use pnpm again/);
-    }
-    writeFileSync(
-      projection,
-      read(projection).replace(/<!-- co-memo:memory [\s\S]*?<!-- co-memo:\/memory -->\n?/g, ''),
-    );
+    assert.match(await context(), /Use pnpm again/);
+    f.run('forget', note.id, '--version', '3');
     await after();
     assert.deepEqual(f.run('list'), []);
-    for (const agent of ['pi', 'claude', 'codex']) {
-      assert.doesNotMatch(read(join(f.project, `.co-memo/${agent}.md`)), /Use pnpm again/);
-    }
+    assert.doesNotMatch(await context(), /Use pnpm again/);
+    assert.equal(existsSync(join(f.project, '.co-memo')), false);
   });
 }
 
@@ -401,7 +412,7 @@ test('New adapters refuse malformed hooks and unmanaged plugins before any setup
     assert.equal(existsSync(join(f.project, 'AGENTS.md')), false);
     const store = new Store(f.home);
     try {
-      assert.deepEqual(store.replicas(), []);
+      assert.deepEqual(store.connections(), []);
     } finally {
       store.close();
     }
@@ -446,4 +457,112 @@ test('CLI personal memory works without connecting a project, including paused i
   f.run('forget', note.id, '--version', '1');
   assert.deepEqual(f.run('list'), []);
   assert.equal(f.run('list', '--deleted')[0].id, note.id);
+});
+
+test('CLI add and atomic imports enforce shared review and accept a reviewed retry', (t) => {
+  const f = fixture(t);
+  f.run('add', '--content', 'Use pnpm for builds');
+  const raw = (...args) =>
+    spawnSync(process.execPath, [cli, ...f.argv, ...args], { encoding: 'utf8', cwd: f.root });
+  const addition = raw('add', '--content', 'Use pnpm for tests');
+  assert.equal(addition.status, 2);
+  assert.equal(JSON.parse(addition.stdout).status, 'needs_review');
+  assert.equal(f.run('list').length, 1);
+  const confirmed = f.run(
+    'add',
+    '--content',
+    'Use pnpm for tests',
+    '--review-token',
+    JSON.parse(addition.stdout).review.token,
+    '--review-reason',
+    'Separate test configuration',
+  );
+  assert.equal(confirmed.verified, true);
+  const dir = join(f.root, 'imports');
+  mkdirSync(dir);
+  writeFileSync(join(dir, 'a.md'), 'Use pnpm for packaging');
+  writeFileSync(join(dir, 'b.md'), 'SQLite durability');
+  const pending = raw('import', dir);
+  assert.equal(pending.status, 2);
+  assert.equal(f.run('list').length, 2);
+  const accepted = f.run(
+    'import',
+    dir,
+    '--review-token',
+    JSON.parse(pending.stdout).review.token,
+    '--review-reason',
+    'Packaging is separate from build and test policies',
+  );
+  assert.equal(accepted.notes.length, 2);
+  assert.ok(accepted.notes.every((n) => n.verified));
+  assert.match(accepted.notes[0].memory.origin, /^import:/);
+  assert.equal(f.run('list').length, 4);
+});
+
+test('CLI and bridges scope conflict reports and reject foreign or paused resolutions', (t) => {
+  const f = fixture(t);
+  f.run('connect', 'pi');
+  const other = join(f.root, 'other');
+  mkdirSync(other);
+  const store = new Store(f.home);
+  try {
+    const p = store.project(other, true);
+    const foreign = store.add('Foreign hidden conflict', 'project', p.id, 'fixture').memory;
+    const hidden = store.conflict(foreign, []);
+    const personal = store.add('Personal shared conflict', 'user', null, 'fixture').memory;
+    const visible = store.conflict(personal, []);
+    assert.deepEqual(
+      f.run('conflicts').map((c) => c.id),
+      [visible.id],
+    );
+    for (const result of [
+      f.run('status'),
+      JSON.parse(
+        spawnSync(process.execPath, [cli, ...f.argv, 'sync'], { encoding: 'utf8', cwd: f.root })
+          .stdout,
+      ),
+      f.run('bridge', '--agent', 'pi', '--event', 'before_agent_start'),
+    ]) {
+      assert.doesNotMatch(JSON.stringify(result), /Foreign hidden conflict/);
+      assert.match(JSON.stringify(result), /Personal shared conflict/);
+    }
+    const raw = (...args) =>
+      spawnSync(process.execPath, [cli, ...f.argv, ...args], { encoding: 'utf8', cwd: f.root });
+    const denied = raw('resolve', hidden.id, '--revision', '1', '--take', 'current');
+    assert.equal(denied.status, 1);
+    assert.match(denied.stderr, /another project/);
+    assert.equal(store.conflicts().length, 2);
+    f.run('settings', 'set', '--scope', 'project', '--paused', 'true');
+    const paused = raw('resolve', visible.id, '--revision', '1', '--take', 'current');
+    assert.equal(paused.status, 1);
+    assert.match(paused.stderr, /paused/);
+    assert.equal(store.conflicts().length, 2);
+    assert.doesNotMatch(
+      JSON.stringify(f.run('bridge', '--agent', 'pi', '--event', 'before_agent_start')),
+      /Personal shared conflict|Foreign hidden conflict/,
+    );
+  } finally {
+    store.close();
+  }
+});
+
+test('CLI add/import return unsuccessful-save exit status for archived duplicates', (t) => {
+  const f = fixture(t);
+  const note = f.run('add', '--content', 'Archived policy').memory;
+  f.run('archive', note.id, '--version', '1');
+  const file = join(f.root, 'archive.md');
+  writeFileSync(file, 'Archived policy');
+  for (const args of [
+    ['add', '--content', 'Archived policy'],
+    ['import', file],
+  ]) {
+    const result = spawnSync(process.execPath, [cli, ...f.argv, ...args], {
+      encoding: 'utf8',
+      cwd: f.root,
+    });
+    assert.equal(result.status, 2);
+    assert.equal(JSON.parse(result.stdout).results[0].status, 'deleted_duplicate');
+    assert.equal(JSON.parse(result.stdout).results[0].verified, false);
+  }
+  assert.equal(f.run('list').length, 0);
 });

@@ -3,13 +3,13 @@
 <p align="center"><strong>你的记忆，在不同编程 Agent 之间共享。</strong></p>
 <p align="center"><a href="README.md">English</a> | 简体中文</p>
 
-Co-memo 为 **Pi、Claude Code、Codex 和 OpenCode 提供同一个本地记忆库**。在一个 Agent 中记住偏好或项目决策，换到另一个 Agent 后仍可读取。修改和删除也会同步。
+Co-memo 为 **编程 Agent 提供同一个本地记忆库**，内置 Pi、Claude Code、Codex 和 OpenCode 的自动配置，也允许兼容的 MCP 客户端手动接入。在一个 Agent 中记住偏好或项目决策，换到另一个 Agent 后仍可读取。修改和删除也会同步。
 
 - **默认共享：** Agent 是记忆的贡献者，不是各自独立的记忆所有者。
 - **两种归属：** 项目事实、约定和决策属于 project；跨项目的个人偏好属于 personal（`user`）。Agent 根据内容选择归属，程序自动识别项目，不要求用户额外绑定。
-- **本地同步，无需额外模型：** 使用 SQLite 和可编辑 Markdown。Co-memo 本身不要求账号、API Key、向量嵌入或模型服务；编程 Agent 仍使用自己的模型判断哪些信息值得记住。语义检索需主动启用。
+- **本地同步，无需额外模型：** 通过 MCP 工具或 CLI 直接使用 SQLite。Co-memo 本身不要求账号、API Key、向量嵌入或模型服务；编程 Agent 仍使用自己的模型判断哪些信息值得记住。语义检索需主动启用。
 - **冲突可检查：** 保留相互竞争的修改，不会悄悄用最后一次写入覆盖其他版本。
-- **删除不会被旧副本撤销：** 删除标记会阻止过时副本重新恢复已遗忘的内容。
+- **保护已保存的修改：** 版本检查和删除标记保护数据库中的记录。
 
 ## Personal 与 project 如何区分
 
@@ -42,6 +42,8 @@ npm install -g https://registry.npmjs.org/@ahoh.tech/co-memo/-/co-memo-0.7.0.tgz
 
 0.7.0 包含自动项目识别、记忆控制台、文件位置、命名空间快捷指令，以及独立的归档和永久删除操作。此版本会将记忆数据库升级至 schema 5，请同时更新所有已连接的 Co-memo 安装。
 
+下文的 schema 8 数据库直读写和保存时查重属于**尚未发布的源码改动**，不包含在已发布的 0.7.0 包中。试用方式见[从源码构建](#从源码构建)。最新改动有自动化测试覆盖，但尚未在各个真实 Agent 宿主中重新联调。
+
 npm 包已包含编译后的 JavaScript。普通用户无需 pnpm、TypeScript、Co-memo API Key 或本仓库源码。配置后重启 Agent。为 `init` 添加 `--hooks` 可启用生命周期自动注入；不添加时，由 Agent 主动调用记忆工具。
 
 ## 接入 Agent
@@ -57,7 +59,7 @@ co-memo init --agents claude,codex --apply
 | 命令                                                 | 默认行为                                                     |
 | ---------------------------------------------------- | ------------------------------------------------------------ |
 | `co-memo init --agents claude,codex --apply`         | 仅工具模式：Agent 通过工具或 CLI 主动读取。                  |
-| `co-memo init --agents claude,codex --hooks --apply` | 配置生命周期 hooks，自动注入上下文并同步。                   |
+| `co-memo init --agents claude,codex --hooks --apply` | 配置生命周期 hooks，自动注入数据库中的上下文。               |
 | `co-memo setup AGENT`                                | 配置单个 Agent，默认启用 hooks；添加 `--tools-only` 可禁用。 |
 
 生成的指令要求 MCP Agent 在开始工作时调用 `memory_context`。Pi 在仅工具模式下使用 CLI。重新运行不带 `--hooks` 的 `init` 会选择仅工具模式，并移除 Co-memo 管理的 hooks。
@@ -75,9 +77,49 @@ co-memo setup opencode --opencode-api v2
 
 Pi 需要信任项目并执行 `/reload`；Claude Code 需要重启并批准项目 hooks；Codex 需要重启、信任项目并通过 `/hooks` 检查 hooks；OpenCode 需要重启以加载插件。配置会保留无关指令和设置，安装对话 skill，并为 Codex、Claude 和 OpenCode 添加项目级 MCP 工具。Pi 使用 CLI 和原生扩展。
 
-启用且被宿主加载后，Pi 的项目扩展、Claude Code/Codex 的生命周期 hooks，以及 OpenCode 的项目插件会在提示或模型请求前注入当前上下文，在回合结束或工具执行后同步修改。新连接默认使用 OpenCode V1；`--opencode-api v2` 选择其不兼容的 V2 API。不指定该选项重新连接时，会保留已安装的 API 版本。Agent 未运行时，也可使用 `co-memo watch` 每两秒同步一次。
+启用且被宿主加载后，Pi 的项目扩展、Claude Code/Codex 的生命周期 hooks，以及 OpenCode 的项目插件会在提示或模型请求前注入当前上下文，通过工具或 CLI 直接保存修改。新连接默认使用 OpenCode V1；`--opencode-api v2` 选择其不兼容的 V2 API。不指定该选项重新连接时，会保留已安装的 API 版本。共享记忆无需后台文件监视器。
 
-只安装工具、不使用 hooks：`co-memo setup codex --tools-only`，其他 Agent 同样支持。较底层的 `connect` 命令仅安装 hooks 集成。
+只安装工具、不使用 hooks：`co-memo setup codex --tools-only`，其他内置 Agent 同样支持。较底层的 `connect` 命令仅安装 hooks 集成。
+
+## 其他编程 Agent
+
+Co-memo 通过 `co-memo serve` 提供标准的本地 **stdio MCP 服务**。以下客户端的官方文档均支持这一协议，因此具备协议兼容性；这不代表已经完成 Co-memo 的逐款实机联调。官方文档核对日期：2026 年 10 月 2 日。
+
+| 客户端                   | 官方配置文档                                                                               | Co-memo 接入状态           |
+| ------------------------ | ------------------------------------------------------------------------------------------ | -------------------------- |
+| Cursor                   | [MCP](https://cursor.com/docs/mcp)                                                         | 手动配置 MCP，尚未实机联调 |
+| Gemini CLI               | [MCP servers](https://geminicli.com/docs/tools/mcp-server/)                                | 手动配置 MCP，尚未实机联调 |
+| GitHub Copilot / VS Code | [MCP configuration](https://code.visualstudio.com/docs/agents/reference/mcp-configuration) | 手动配置 MCP，尚未实机联调 |
+| Windsurf / Cascade       | [Cascade MCP configuration](https://docs.devin.ai/desktop/cascade/mcp)                     | 手动配置 MCP，尚未实机联调 |
+| Cline                    | [MCP](https://docs.cline.bot/mcp/mcp-overview)                                             | 手动配置 MCP，尚未实机联调 |
+| Continue                 | [MCP setup](https://docs.continue.dev/customize/deep-dives/mcp)                            | 手动配置 MCP，尚未实机联调 |
+
+`init`、`setup`、`connect` 和按 Agent 检查的 `doctor` 目前只接受 `pi`、`claude`、`codex`、`opencode`。上表客户端尚无 Co-memo 管理的 hooks、skill 或快捷指令。MCP 提供记忆工具，但不会自动在每次提示前注入记忆，也不保证模型会主动保存。无需额外的 Agent 记忆 Markdown。
+
+安装 Co-memo 后，对于使用 `mcpServers` JSON 格式的客户端，可添加以下配置：
+
+```json
+{
+  "mcpServers": {
+    "co-memo": {
+      "command": "/absolute/path/to/co-memo",
+      "args": [
+        "--home",
+        "/absolute/path/to/data",
+        "--project",
+        "/absolute/path/to/workspace",
+        "--agent-id",
+        "cursor",
+        "serve"
+      ]
+    }
+  }
+}
+```
+
+将路径替换成实际的可执行文件、现有 Co-memo 数据目录和工作区，并将 `cursor` 替换成正在配置的客户端 ID，例如 `gemini` 或 `cline`。多个本地客户端使用相同数据目录即可共享记忆，但各 Agent 身份应使用独立配置的进程。VS Code 的 `.vscode/mcp.json` 使用顶层 `servers`，并在服务条目中添加 `"type": "stdio"`。配置位置和工具审批设置以各客户端官方文档为准。
+
+重启或重新加载客户端，启用工具，让它调用 `memory_context` 并检查实际返回结果。持久记忆通过 `memory_submit` 保存；返回 `needs_review` 时，先处理再报告保存成功。多个工作区共用服务时，每次调用应传入当前 `projectPath`。本地 MCP 进程需要 Node.js 24.12+ 及数据目录访问权限。云端或远程 Agent 不能仅靠复制配置访问本机数据库；Co-memo 目前没有 HTTP MCP 端点。
 
 ## 可视化记忆管理
 
@@ -85,11 +127,11 @@ Pi 需要信任项目并执行 `/reload`；Claude Code 需要重启并批准项�
 
 英文控制台支持 System、Dark 和 Light 三种主题。选择会保存在当前浏览器中，并在页面渲染前应用；System 跟随操作系统配色。
 
-页面支持浏览所有已登记项目及个人记忆、全文子串搜索、按项目和归档状态筛选，以及添加、编辑、归档、恢复和永久删除记忆。编辑和删除会校验版本，沿用 CLI 的同步与冲突保护；Archive 会从召回和 Agent 文件中隐藏记忆，长期保留内容及历史；Restore 可恢复。Delete 会永久清除记录、修订历史、相关冲突历史和派生缓存，只保留不含内容的 ID 标记，阻止旧副本复活。已有备份、导出副本和对话不受影响；文件清理失败会报告并在同步时重试。已有软删除记录显示为 Archived。浏览和刷新只读取中央存储，不触发 Agent 同步；保存后会尝试同步，并显示同步错误。
+页面支持浏览个人记忆及已登记项目、搜索、筛选和增删改查。所有操作直接使用数据库，并校验版本和冲突。Archive 保留内容和历史，Restore 恢复记忆，Delete 删除记录及相关历史和缓存。旧 Markdown 文件、备份、导出文件和已有对话不受影响。
 
 可用 `co-memo --home /path/to/data ui --port 4319` 指定数据目录与端口。服务只监听 `127.0.0.1`，按 Ctrl+C 停止。需要处理冲突时使用 `co-memo conflicts` 和 `co-memo resolve`。
 
-也可以调用 Co-memo skill，说“打开 Co-memo 记忆管理页面”。展开记忆卡片的 **File locations** 可查看中央数据库路径、记录 ID，以及 Agent Markdown 副本的路径、行号和同步状态。命令行可用 `co-memo --project /path/to/project locations MEMORY_ID`。查看位置不会触发文件同步。
+也可以调用 Co-memo skill，说“打开 Co-memo 记忆管理页面”。展开记忆卡片的 **Storage and connected agents** 可查看数据库路径、记录 ID 和 Agent 连接。命令行可用 `co-memo --project /path/to/project locations MEMORY_ID`。连接登记不代表运行中的 Agent 已加载该记忆。
 
 ## 在 Agent 中直接调用
 
@@ -114,11 +156,11 @@ Pi 需要信任项目并执行 `/reload`；Claude Code 需要重启并批准项�
 | `delete ID`          | 永久删除记忆及历史                 |
 | `restore ID`         | 恢复归档记忆                       |
 | `forget ID`          | archive 的兼容别名                 |
-| `locations ID`       | 查看数据库和 Agent 文件路径        |
+| `locations ID`       | 查看数据库位置和 Agent 连接        |
 | `history ID`         | 查看修改历史                       |
 | `settings [REQUEST]` | 查看设置，或执行明确要求的设置变更 |
 | `status`             | 检查存储及 Agent 连接状态          |
-| `sync`               | 同步已连接的 Agent 文件            |
+| `sync`               | 检查数据库维护和冲突               |
 | `conflicts`          | 列出未解决的冲突                   |
 | `resolve ID CHOICE`  | 按用户明确选择解决冲突             |
 | `help`               | 查看功能和调用示例                 |
@@ -148,7 +190,7 @@ co-memo projects --check
 
 `doctor --probe` 只验证配置的 MCP 服务能否响应，不证明正在运行的 Agent 已加载或使用它，因此诊断会报告 `hostMemoryLoaded: "unverified"`。Pi 不适用 MCP 探测。
 
-保存后，其他 Agent 会在下一次成功的 hook 注入或工具/CLI 读取时取得记忆；已经加载的对话不会被改写。`.co-memo/<agent>.md` 是可编辑副本，不会仅因文件存在就自动进入模型上下文。
+保存后，其他 Agent 会在下一次成功的 hook 注入或工具/CLI 读取时取得记忆；已经加载的对话不会被改写。无需每个 Agent 的 Markdown 副本。
 
 ## 保存一次，多处读取
 
@@ -177,28 +219,25 @@ co-memo settings set --scope project --paused true
 co-memo settings set --scope project --paused false
 ```
 
-设置会持久化，并由程序检查。仅显式保存模式会拒绝自动工具写入和 Markdown 导入式同步。保存意图由调用者声明，Co-memo 不会读取对话来核实。暂停会停止注入、同步和工具写入，但无法清除已经加载的上下文或已有本地文件。
+设置会持久化，并由程序检查。仅显式保存模式会拒绝自动工具写入。保存意图由调用者声明，Co-memo 不会读取对话来核实。暂停会停止注入和工具写入，但无法清除已经加载的上下文或已有本地文件。
 
-## 可编辑的 Markdown
+## 直接使用数据库
 
-通过 `init`、`setup` 或 `connect` 配置的 Agent 会获得对应副本：
+所有 Agent 通过 MCP 工具或 CLI 读写同一份 SQLite 数据库。`init`、`setup` 和 `connect` 只登记连接并安装指引和配置，不再创建 `.co-memo/<agent>.md`。`AGENTS.md`、`CLAUDE.local.md` 等原生指引文件继续保留。
 
-```text
-project/
-  .co-memo/
-    pi.md
-    claude.md
-    codex.md
-    opencode.md
-```
+数据库升级到 schema 8 时，会迁移已有 Agent 连接，保留记忆、版本、冲突和设置。旧 Markdown 文件及数据库内的历史副本记录保留供手动恢复，新版不再读取、导入、重建或更新它们。请检查未同步的旧编辑，通过工具或 CLI 保存需要的文字，再自行归档旧文件。不要直接导入带有 Co-memo 标记的整个副本，应保存其中的单条记忆正文。
 
-每条记忆都有稳定 ID 和版本标记。修改块内文字即可更新；删除整个记忆块即可归档；在 `co-memo:new` 标记之间添加一条项目记忆即可新增。请保留文档标记及已有 ID、版本。
+共用数据库的安装需一起升级，并重新运行 setup 更新旧指引。旧客户端会拒绝 schema 8。`sync`、`watch` 保留为维护和冲突检查的兼容命令；不再需要文件修复，因此移除了 `repair`。
 
-```sh
-co-memo sync
-```
+### 记忆来自哪个 Agent？
 
-Co-memo 会把修改合并到中央存储，并更新其他副本。它不会在 Agent 之间复制整个原生指令文件。生成的本地记忆和配置路径会加入 `.gitignore`。
+内置接入会通过 `--agent-id`，将 Agent ID 绑定到生成的 MCP 启动命令和固定 CLI 调用中。每次新增、修改、归档、恢复或解决冲突时，程序会在新版本上记录 `sourceAgent`；冲突候选也保留各自的提交 Agent。完全重复的新增会复用已有记忆，不改变其来源或历史。
+
+`notes` 和 `histories` 两张表都有可查询的 `source_agent` 列，由已保存的 JSON 数据派生，避免存两份信息。当前记忆显示最近一次写入者，`co-memo history ID` 可查看各版本的写入者，包括最初创建者。控制台显示最近写入者，也支持按 Agent ID 搜索。
+
+Schema 8 会自动将旧的 `revisions` 表和 `writer_agent`／`writerAgent` 字段更名为 `histories` 和 `source_agent`／`sourceAgent`，保留已有记忆历史、冲突证据和已记录的 Agent 身份；旧备份仍可恢复。
+
+配置绑定的身份与可选的 `metadata.source` 原文证据分开保存，Agent 自报的来源不能覆盖绑定身份。旧记录、未绑定的 CLI／MCP 写入和手动控制台编辑，其未知写入者保持为 `null`；迁移不会根据连接或旧证据猜测来源。此字段代表配置的接入端，不是用户身份认证，也不代表某个模型。升级后重新执行 setup 即可绑定已有接入；手动客户端在 `serve` 或其他 CLI 命令前添加 `--agent-id`。
 
 ## 导入已有记忆
 
@@ -210,7 +249,7 @@ co-memo import /absolute/path/memory-directory
 
 导入是**显式、一次性的操作**。每个 Markdown 文件成为一条记忆，保留文字和来源路径。目录导入只处理其直接包含的 `.md` 文件，不会改写或持续监视原文件。重复导入完全相同的内容会复用原记忆；已归档的相同内容仍保持归档状态。
 
-Co-memo 不会猜测原生自动记忆或第三方 Pi 记忆插件的数据位置。导入后，通过 Co-memo 管理的文件或 CLI 更新共享记忆；当前不支持任意原生记忆目录的自动同步。
+Co-memo 不会猜测原生自动记忆或第三方 Pi 记忆插件的数据位置。导入后，通过 Co-memo 工具或 CLI 更新共享记忆；当前不支持任意原生记忆目录的自动同步。
 
 ## 修改、遗忘与解决冲突
 
@@ -223,14 +262,15 @@ co-memo delete MEMORY_ID --version 4
 co-memo history MEMORY_ID
 
 co-memo conflicts
-co-memo resolve CONFLICT_ID --take current
-# 或使用冲突输出中的 replicaId：
-co-memo resolve CONFLICT_ID --take REPLICA_ID
+# N 是 conflicts 返回的 revision（冲突版本），不是记忆的 currentVersion
+co-memo resolve CONFLICT_ID --revision N --take current
+# 或使用冲突输出中的候选 ID：
+co-memo resolve CONFLICT_ID --revision N --take CANDIDATE_ID
 # 或提供手动合并后的内容：
-co-memo resolve CONFLICT_ID --content '合并后的决策'
+co-memo resolve CONFLICT_ID --revision N --content '合并后的决策'
 ```
 
-冲突会冻结受影响的项目副本；解决前，冲突记忆不会进入注入上下文，所有竞争版本都会保留。删除整个副本文件**不代表删除全部记忆**。可用 `co-memo repair AGENT` 重建缺失文件，支持 pi、claude、codex 和 opencode。
+冲突解决前，相关记忆不会进入注入上下文，竞争版本保留在数据库中。删除旧 Markdown 文件不会删除数据库中的记忆。
 
 ## 安装维护
 
@@ -253,9 +293,9 @@ co-memo restore /path/to/new-backup --to /path/to/new-data          # 预览
 co-memo restore /path/to/new-backup --to /path/to/new-data --apply
 ```
 
-恢复不会覆盖已有目标目录，并会解除旧副本登记。备份不包含未同步的 Markdown 修改或宿主配置。切换到恢复后的存储前，请阅读[备份与恢复](docs/backup-and-restore.md)。
+恢复不会覆盖已有目标目录，并会解除旧 Agent 连接。备份不包含未同步的 Markdown 修改或宿主配置。切换到恢复后的存储前，请阅读[备份与恢复](docs/backup-and-restore.md)。
 
-**0.6 版本使用 SQLite schema 4**，支持关联 worktree 根目录和同一 Agent 的多个副本。升级保留已有记忆、历史和副本状态。旧客户端会拒绝新 schema，应一起升级连接到同一存储的安装，并重新配置，保留原有 hook 模式和自定义 `--home`。升级 Node 或移动安装目录后的固定路径修复，见[安装维护说明](docs/releasing.md)。
+**当前使用 SQLite schema 8。** 升级方式见上面的数据库迁移说明和[安装维护说明](docs/releasing.md)。
 
 ## 存储与边界
 
@@ -268,7 +308,7 @@ co-memo --home /path/to/data --project /path/to/project connect pi
 - 项目由规范化目录标识。子目录复用其项目身份；独立克隆和 worktree 默认隔离。同一 Git 仓库的 worktree 可以[显式关联](docs/onboarding-and-worktrees.md)，共享全部项目记忆、设置和冲突。不同克隆不会自动合并，也没有独立的 branch/task scope。
 - 同一 scope 内的记忆可由接入的 Agent 共享。这是单用户本地工具，不构成多用户安全边界。
 - 不包含云同步、对话挖掘或原生记忆路径发现。可选[语义检索](docs/semantic-retrieval.md)结合缓存向量与本地全文检索。MCP 服务通过本地 stdio 运行。
-- 每条记忆最多 32,000 字符；副本或导入文件最多 1 MiB。注入上下文约限于 16,000 字符，省略的记忆仍可通过 `list` 和 `show` 读取。
+- 每条记忆最多 32,000 字符；导入文件最多 1 MiB。注入上下文约限于 16,000 字符，省略的记忆仍可通过 `list` 和 `show` 读取。
 - 文件写入采用原子替换，并在写入前再次核对内容。外部编辑器不参与锁定，请避免在文件被替换时同时编辑。
 
 更多内容：[Agent 配置](docs/agent-configuration.md)、[CLI 参考](docs/reference.md)、[同步架构](docs/architecture.md)、[开发说明](CONTRIBUTING.md)。这些详细文档目前为英文。
@@ -318,3 +358,5 @@ npm install -g ./ahoh.tech-co-memo-0.7.0.tgz
 pnpm 仅用于开发。Co-memo 使用 [MIT 许可证](LICENSE)。
 
 归档沿用内部 `deleted` 字段，CLI `list --deleted` 可包含归档记录。`forget` / `memory_forget` 保留为归档的兼容入口；永久删除使用 `delete` / `memory_delete`。Skill 的 `restore` 动作调用 CLI `unarchive`，CLI `restore` 仍用于恢复数据库备份。新安装包含这些快捷指令；已有安装重新执行 setup 即可更新。
+
+保存前可用 `memory_prepare`／`co-memo prepare --file FILE` 检查同一作用域的相关记忆。`memory_submit` 遇到相似新增会返回 `needs_review`，整批暂不保存。Agent 判断应新增、更新、跳过或提交冲突；确认是独立事实后，携带检查凭据和理由继续。检查依据是关键词，不会自动判断语义或合并；`add`／`memory_remember`、文件导入和控制台也使用同一检查流程。可直接提交，`prepare` 只是可选预览；来源和未知来源 ID 可以留空。成功保存已附带验证，`checkpoint` 只在排查时按需调用。

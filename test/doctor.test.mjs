@@ -46,26 +46,24 @@ test('doctor does not create a store or upgrade old schemas, and returns actiona
   store.close();
 });
 
-test('doctor probes actual MCP without saving notes, syncing edited projections, or claiming host verification', async (t) => {
+test('doctor probes actual MCP without saving notes, reading legacy files, or claiming host verification', async (t) => {
   const f = fixture(t);
   assert.equal(f.cli('setup', 'codex', '--tools-only').status, 0);
   const projection = join(f.project, '.co-memo/codex.md');
-  const text = readFileSync(projection, 'utf8').replace(
-    '<!-- co-memo:new -->\n\n',
-    '<!-- co-memo:new -->\nUnimported note\n',
-  );
+  mkdirSync(join(f.project, '.co-memo'));
+  const text = 'Unimported legacy note';
   writeFileSync(projection, text);
   const result = await doctor({ root: f.project, home: f.home, agent: 'codex', probe: true });
   assert.equal(result.transport, 'passed');
   assert.equal(result.hostVerified, false);
-  assert.equal(result.checks.find((c) => c.id === 'codex:replica').status, 'warn');
+  assert.equal(result.checks.find((c) => c.id === 'codex:connection').status, 'pass');
   assert.equal(readFileSync(projection, 'utf8'), text);
   const store = new Store(f.home);
   assert.equal(store.list(store.project(f.project).id).length, 0);
   store.close();
 });
 
-test('doctor refuses malformed or foreign commands and reports missing skills, pending publication and conflicts', async (t) => {
+test('doctor refuses malformed or foreign commands and reports missing skills, conflicts', async (t) => {
   const f = fixture(t);
   f.cli('setup', 'opencode', '--tools-only');
   rmSync(join(f.project, '.opencode/skills/co-memo/SKILL.md'));

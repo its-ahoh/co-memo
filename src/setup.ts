@@ -88,7 +88,17 @@ export function prepareSetup(
   const edits = prepareAdapter(root, agent, home, api, !options.toolsOnly);
   const executable = realpathSync(process.execPath);
   const cli = realpathSync(fileURLToPath(new URL('./cli.js', import.meta.url)));
-  const args = [cli, '--home', home, '--project', root, 'serve', '--co-memo-managed'];
+  const args = [
+    cli,
+    '--home',
+    home,
+    '--project',
+    root,
+    '--agent-id',
+    agent,
+    'serve',
+    '--co-memo-managed',
+  ];
   const prepare = (relative: string, update: (text: string) => string) => {
     const path = join(root, relative),
       before = readText(path);

@@ -1,69 +1,46 @@
 # Architecture
 
-Co-memo synchronizes durable notes that users or their coding agents have already written. It does not mine transcripts or call models. The SQLite store is authoritative; per-agent Markdown documents are editable projections.
+Co-memo stores durable notes selected by users or agents in one local SQLite database. It does not mine transcripts or call an extraction model. All agents use MCP tools or CLI commands to read and write that database; there are no active Markdown replicas.
 
-## Domain
+## Storage and concurrency
 
-- **Memory:** ID, content, user/project scope, project ID, revision, origin, timestamps, deletion flag, type, optional evidence/module/pinning and prior-version linkage.
-- **Project:** canonical directory identity. Agent type is not part of memory ownership or deduplication.
-- **Replica:** agent, project, Markdown path, acknowledged snapshot, optional pending publication.
-- **Conflict:** central version/content and every competing proposal, including deletion proposals. Resolutions are retained separately.
+Memories have stable IDs, user/project scope, versions, content, metadata and history. Agent connections contain an ID, project ID, agent type and workspace root. Connections support multiple worktrees without owning private copies of notes.
 
-There is no private candidate queue, per-agent access grant, stage, or purpose hierarchy. A project note is readable by every connected agent in that project. A user note is available in all connected projects. Exact content deduplication is scoped to user or project and preserves case and internal whitespace.
+Writes and host-configuration changes acquire the shared SQLite process lock. Reads use short, query-only WAL snapshots without that lock, including CLI/MCP retrieval, hook context and the console. Opening a current-schema database skips migration transactions. First-time project registration and schema upgrades still require a write lock. Reads no longer perform cache cleanup; writes and explicit sync/watch retain maintenance. Writes use transactions and expected versions; stale updates fail instead of silently overwriting another agent. Structured candidate submissions commit the batch and retry receipt together. Uncertain contradictions preserve competing proposals as conflicts. Conflicted notes are excluded from context until explicitly resolved. Settings enforce pause and explicit-only policy; intent and evidence are caller declarations.
 
-## Reconciliation
+Retrieval uses FTS5 with Chinese/code-identifier normalization, scope and conflict filters, bounded context and optional semantic ranking. Hooks deliver current database context; tools-only agents call memory_context or CLI context. Existing conversations are not retroactively rewritten.
 
-All CLI operations acquire a separate SQLite transaction lock (`sync-lock.sqlite`). This serializes Co-memo processes through both database commits and filesystem publications, without holding a memory-database transaction across a file replacement. OS lock release handles process death.
+## Upgrade from file replicas
 
-1. Recover pending publications. A generation marker distinguishes the old file, the new file, and external edits to either generation.
-2. Read every healthy replica and compare it with its acknowledged snapshot, not merely the current central memory.
-3. Collect every proposal before applying any. Same-base identical changes merge. Divergent changes or stale edits become conflicts. Unchanged stale replicas simply receive the central version.
-4. In one memory transaction, apply uncontested changes, record conflicts, ingest new notes, acknowledge observed snapshots, and persist publication plans.
-5. Replace each healthy file using a temporary file, `fsync`, a content-hash check and rename. Acknowledge the published snapshot in SQLite afterward.
+Schema 8 copies existing replica registrations into the connections table using each legacy file's workspace root. Notes, history, conflicts, settings and worktree links remain intact. Legacy replica bookkeeping stays in the database for recovery and deletion of historical payloads. Legacy project files remain untouched, including unsaved edits, malformed files and missing files. No runtime operation ingests or publishes them. Review intended unsaved text and save it through tools/CLI; do not import whole marked documents.
 
-If a crash occurs between steps 4 and 5, the publication plan survives. If it occurs after rename but before acknowledgement, the generation marker identifies the published baseline—even when an agent has subsequently edited it. A later sync reconciles those edits rather than overwriting them.
+Upgrade all clients together and rerun setup to replace old file-editing instructions. Older clients refuse schema 8. `sync` and `watch` are compatibility maintenance/reporting entry points; `repair` is removed. No memory watcher or per-agent file is required.
 
-A pending conflict freezes projections that include that memory. Later edits remain on disk and are reconciled after explicit resolution; they may produce another conflict. Conflicting notes are excluded from injected context. Unaffected notes remain available in context.
+Schema 8 uses the `histories` table and nullable `source_agent` generated columns on `notes` and `histories`, exposing `payload.sourceAgent` without duplicate storage. Migration renames the legacy `revisions` table and `writerAgent` payload keys (including conflict candidates), preserving content, versions, timestamps and known identities. Unknown sources remain null. A Store receives an immutable configured source agent from CLI `--agent-id` (propagated by MCP serve); the write path stamps each committed version and conflict candidate. Caller-declared evidence remains separate and cannot override this identity. Exact duplicate reuse does not create a new version or change attribution. Submission fingerprints include bound identity, with compatibility for schema 7 fingerprints, so another agent cannot replay the same request as its own write. This is configuration provenance, not authentication. UI edits are unbound, even if an agent launched the console.
 
-## Deletion
+## Archive and deletion
 
-Removing a complete memory block archives it and creates a revision. Its stable ID remains in central storage. Stale unchanged copies cannot restore it. A stale edited copy creates a deletion/edit conflict; only explicit resolution can restore that ID. Exact duplicate additions also match archived notes and do not resurrect them.
-
-Missing files, truncated documents, duplicate IDs, unknown generations, and edited version markers produce errors rather than mass deletion. `repair` recreates only an absent replica. The user can restore a malformed file manually using its central notes and version history.
+Archive retains the note and revisions; exact archived duplicates remain archived. Permanent deletion removes the note, revisions, search data, related conflict/resolution data, submission receipts and vector caches, and scrubs historical replica payloads in the database. A content-free ID remains. External legacy files, exports, backups and conversations are not modified by deletion; review/remove those copies separately.
 
 ## I/O boundaries
 
-Input data is validated with Zod. Agent projections and source imports must be regular UTF-8 files; symlinked files and parent directories are refused. File size and context size are bounded. Filesystem replacement uses optimistic checks: an external process writing in the final check-to-rename interval can still race with publication. Co-memo's own processes are serialized; filesystem editors are not. This is not a distributed filesystem transaction.
-
-The first release uses bounded two-second reconciliation in `watch`, plus host lifecycle invocations. It does not need an always-on daemon, model service, or native filesystem-watching dependency.
+Zod validates input. Explicit imports accept bounded regular UTF-8 files and reject symlinks. Host configuration still uses checked atomic replacement. Config installation and database registration are not one filesystem transaction. The memory database uses transactions; it no longer depends on file publication or recovery journals.
 
 ## Modules
 
-| Module            | Responsibility                                         |
-| ----------------- | ------------------------------------------------------ |
-| `src/model.ts`    | Domain schemas and types                               |
-| `src/store.ts`    | SQLite, revisions, tombstones, conflicts, process lock |
-| `src/document.ts` | Editable Markdown format and parser                    |
-| `src/fs.ts`       | Bounded reads and checked atomic replacement           |
-| `src/sync.ts`     | Reconciliation, recovery, context projection           |
-| `src/adapters.ts` | Agent configuration, Pi extension, Claude/Codex hooks  |
-| `src/opencode.ts` | Self-contained OpenCode V1/V2 plugin generators        |
-| `src/cli.ts`      | User commands and lifecycle bridge                     |
+| Module              | Responsibility                                                 |
+| ------------------- | -------------------------------------------------------------- |
+| `src/store.ts`      | SQLite, connection migration, revisions, conflicts, lock       |
+| `src/service.ts`    | Shared CLI/MCP operations and settings checks                  |
+| `src/candidates.ts` | Evidence-backed batches, idempotency and verification          |
+| `src/sync.ts`       | Compatibility maintenance and bounded context                  |
+| `src/document.ts`   | Legacy stored-document decoding for historical payload cleanup |
+| `src/locations.ts`  | Database location and scoped connections                       |
+| `src/adapters.ts`   | Host instructions and lifecycle integration                    |
+| `src/setup.ts`      | MCP settings, skill and adapter preparation                    |
 
-The database filename is deliberately new. The old Rust database is not migrated. Earlier shared-memory-v1.sqlite schemas are upgraded transactionally.
+Earlier shared-memory-v1.sqlite schemas upgrade transactionally. The old Rust database is not migrated.
 
-## Tools and settings
+## Busy handling
 
-`src/service.ts` shares memory mutations between CLI and MCP. `src/mcp.ts` exposes a project-bound stdio server using the official SDK; each operation opens the store, acquires the process lock and reads fresh settings. Reports exclude unrelated project conflicts and paths.
-
-`src/settings.ts` defines user/project overrides and effective policy. Schema version 2 added settings; version 3 adds the FTS5 index and submission retry records without moving the database. Global explicit-only/pause restrictions combine with project restrictions; defaultScope uses the most specific value. The sync engine skips paused replicas and refuses edited Markdown in explicit-only mode before collecting proposals, preserving the original file/baseline. Store writes also check intent; user intent itself is caller-declared, not independently authenticated.
-
-`src/setup.ts` prepares MCP configuration and the packaged dialogue skill together with adapters before any setup writes. JSONC edits retain comments; a marked TOML table can be replaced without reformatting other tables. Tools-only setup removes managed command hooks or neutralizes generated native plugins. The sync engine remains available for manual file workflows.
-
-## Retrieval and candidate writes
-
-`src/relevance.ts` normalizes Chinese words and technical identifiers for both indexing and queries. `Store.search` applies scope/deletion/conflict filters and BM25 ranking through SQLite FTS5. Every central write updates the full-text index inside its caller's transaction. Migration rebuilds the index from current notes without rewriting revision payloads. CLI list, MCP recall and context share this path. Context separately reserves a bounded slice for pinned preferences.
-
-`src/candidates.ts` accepts structured candidates from the current agent, not raw transcripts. It reconciles first, then applies the complete candidate batch and its idempotency record in one transaction. Updates require the expected version; unclear contradictions use the existing conflict lifecycle with a separately identified candidate and evidence. Post-commit synchronization publishes projections; verification reports central state separately from publication. Replaying a request rechecks current receipts without reapplying old writes. Evidence, intent and correction basis are caller declarations, not authenticated transcripts or model-quality scores. No embeddings, external inference or background extraction are invoked.
-
-Schema 5 adds a content-free `purged` ID table. Permanent deletion removes the note, revisions, FTS entry, associated conflicts/resolutions and cached submission results, and scrubs replica baselines/pending publications. Sync removes marked blocks for purged IDs before ingestion, including paused or conflict-frozen replicas, without overwriting unrelated edits. Unsafe/missing files are reported; future sync retries cleanup. Existing backups and conversations are outside this deletion operation.
+Acquiring the process lock or a write transaction retries only SQLite BUSY errors, with short SQLite waits and capped exponential backoff plus jitter, for at most about five seconds per acquisition. Transaction callbacks execute once after acquisition. Version conflicts, validation errors, transaction bodies and commits are never replayed automatically. A transaction rolls back on failure. A read snapshot rejects accidental database writes and releases its transaction even when the callback throws. Provider requests run outside snapshots and their results are checked against a fresh snapshot before delivery.

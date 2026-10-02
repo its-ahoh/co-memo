@@ -7,7 +7,7 @@ co-memo --home /path/to/data --project /path/to/project doctor codex
 co-memo --home /path/to/data --project /path/to/project doctor opencode --probe
 ```
 
-Omit the agent to inspect every registered replica in the project. Static checks open the database read-only, check schema/integrity/project registration, inspect effective pause/explicit-only state, count scoped conflicts, compare projections with the central store, check index coverage, and inspect generated configuration/skills/instructions. They do not create or migrate a database, repair files, import pending Markdown edits, or execute commands found in configuration files. Diagnostics return paths/counts, not stored memory text, evidence or credentials.
+Omit the agent to inspect every registered agent connection in the project. Static checks open the database read-only, check schema/integrity/project registration, inspect effective pause/explicit-only state, count scoped conflicts, check database connections, check index coverage, and inspect generated configuration/skills/instructions. They do not create or migrate a database, repair files, import pending Markdown edits, or execute commands found in configuration files. Diagnostics return paths/counts, not stored memory text, evidence or credentials.
 
 The optional probe starts **this installation's pinned Node/CLI**, only after finding a matching project/store MCP binding. It initializes MCP, discovers tools and reads settings. It never requests memory writes, synchronization or model inference. Opening the existing current-schema store can create SQLite journal/lock files; this is why probing is explicit. Arbitrary configured executables, shell hooks and plugins are never run by doctor. Pi uses the CLI, so MCP probing does not apply.
 

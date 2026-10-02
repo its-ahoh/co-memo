@@ -1,4 +1,6 @@
 #!/usr/bin/env node
+import { randomUUID } from 'node:crypto';
+import { Review } from './review.js';
 import { createInterface } from 'node:readline/promises';
 import { detectAgents, planSetup, describePlan, applySetup } from './onboarding.js';
 import { repository } from './worktrees.js';
@@ -9,7 +11,7 @@ import { doctor } from './doctor.js';
 import { projects } from './projects.js';
 import { createBackup, verifyBackup, restoreBackup } from './backup.js';
 import { planDisconnect, describeDisconnect, applyDisconnect } from './disconnect.js';
-import { Submission, submit } from './candidates.js';
+import { Submission, submit, submitBatch, Preparation, prepare } from './candidates.js';
 import {
   configuration,
   configure,
@@ -17,6 +19,8 @@ import {
   change,
   remove,
   restore,
+  resolveConflict,
+  scopedReport,
   checkpoint,
 } from './service.js';
 import { allowWrite } from './settings.js';
@@ -32,11 +36,22 @@ import { join, extname } from 'node:path';
 import { setTimeout as delay } from 'node:timers/promises';
 import { z } from 'zod';
 import { Store } from './store.js';
-import { sync, context, repair } from './sync.js';
+import { sync, context, inspectSync } from './sync.js';
 import { prepareAdapter, applyAdapter } from './adapters.js';
 import { readText } from './fs.js';
-import { Agent, Scope, Content, ensure, errorMessage } from './model.js';
+import { Agent, SourceAgent, Scope, Content, ensure, errorMessage } from './model.js';
 import type { SyncReport, Memory } from './model.js';
+
+type ReviewOptions = { reviewToken?: string; reviewReason?: string };
+function reviewOptions(command: Command) {
+  return command
+    .option('--review-token <token>', 'Latest returned review token')
+    .option('--review-reason <text>', 'Why these are distinct memories');
+}
+function reviewInput(opts: ReviewOptions) {
+  if (opts.reviewToken === undefined && opts.reviewReason === undefined) return {};
+  return { review: Review.parse({ token: opts.reviewToken, reason: opts.reviewReason }) };
+}
 
 const app = new Command()
   .name('co-memo')
@@ -44,6 +59,10 @@ const app = new Command()
   .enablePositionalOptions()
   .description('One local memory store for your coding agents')
   .option('--home <directory>', 'Local data directory (or CO_MEMO_HOME)')
+  .option(
+    '--agent-id <id>',
+    'Configured writing agent (for example codex or cursor); not an authentication credential',
+  )
   .option(
     '--project <directory>',
     'Agent workspace (otherwise detected from the working directory)',
@@ -53,10 +72,12 @@ const print = (value: unknown) => {
   process.stdout.write(JSON.stringify(value, null, 2) + '\n');
 };
 const positive = (s: string) => z.number().int().positive().safe().parse(Number(s));
-function options(): { home?: string | undefined; project: string } {
-  return z.object({ home: z.string().optional(), project: z.string() }).parse(app.opts());
+function options(): { home?: string | undefined; project: string; agentId?: string | undefined } {
+  return z
+    .object({ home: z.string().optional(), project: z.string(), agentId: SourceAgent.optional() })
+    .parse(app.opts());
 }
-function prepareMemoryProject(store: Store, root: string): void {
+function prepareMemoryProject(store: Store, root: string, locked = false): void {
   const command = app.args[0];
   if (
     app.getOptionValueSource('project') === 'cli' &&
@@ -74,19 +95,44 @@ function prepareMemoryProject(store: Store, root: string): void {
       'index',
       'context',
       'submit',
+      'prepare',
       'checkpoint',
       'settings',
       'status',
+      'conflicts',
+      'resolve',
+      'sync',
+      'watch',
+      'locations',
     ].includes(command ?? '')
   )
-    store.autoProject(root, true);
+    if (locked) store.autoProject(root, true);
+    else store.ensureProject(root, true);
 }
 function using<T>(fn: (store: Store, root: string) => T): T {
   const opts = options(),
-    store = new Store(opts.home);
+    store = new Store(opts.home, opts.agentId);
   try {
-    return store.lock(() => {
+    const reading =
+      [
+        'show',
+        'history',
+        'locations',
+        'status',
+        'conflicts',
+        'prepare',
+        'checkpoint',
+        'bridge',
+      ].includes(app.args[0] ?? '') ||
+      (app.args[0] === 'settings' && app.args[1] === 'get');
+    if (reading) {
       prepareMemoryProject(store, opts.project);
+      store.ensureProject(opts.project);
+      return store.read(() => fn(store, opts.project));
+    }
+    return store.lock(() => {
+      // Already serialized; use the registration path without reacquiring the lock.
+      prepareMemoryProject(store, opts.project, true);
       return fn(store, opts.project);
     });
   } finally {
@@ -95,9 +141,9 @@ function using<T>(fn: (store: Store, root: string) => T): T {
 }
 async function usingAsync<T>(fn: (store: Store, root: string) => Promise<T>): Promise<T> {
   const opts = options(),
-    store = new Store(opts.home);
+    store = new Store(opts.home, opts.agentId);
   try {
-    store.lock(() => prepareMemoryProject(store, opts.project));
+    prepareMemoryProject(store, opts.project);
     return await fn(store, opts.project);
   } finally {
     store.close();
@@ -128,7 +174,7 @@ app
   .action(async (directory: string) => print(await verifyBackup(directory)));
 app
   .command('restore <directory>')
-  .description('Preview or restore a backup into a new data home; detach old replicas')
+  .description('Preview or restore a backup into a new data home; detach agent connections')
   .requiredOption('--to <directory>', 'New, non-existing memory home')
   .option('--apply', 'Perform the restore; otherwise validate and preview only')
   .action(async (directory: string, opts: { to: string; apply?: boolean }) =>
@@ -321,13 +367,14 @@ app
       using((store, path) => {
         const root = realpathSync(path);
         const edits = prepareAdapter(root, agent, store.home, opts.opencodeApi);
-        const replica = store.transaction(() => store.connect(store.project(root, true), agent));
+        const connection = store.transaction(() => store.connect(store.project(root, true), agent));
         applyAdapter(edits);
-        const report = sync(store);
+        const report = scopedReport(store, root, sync(store));
         reportExit(report);
         return {
           agent,
-          memoryFile: replica.path,
+          storage: 'database',
+          connection,
           files: edits.map((e) => e.path),
           ...report,
           next:
@@ -342,20 +389,23 @@ app
       }),
     );
   });
-scoped(
-  app
-    .command('add')
-    .description('Remember a note; omitted scope uses settings')
-    .requiredOption('--content <text>', 'Memory text')
-    .addOption(
-      new Option('--intent <intent>', 'explicit user request or automatic capture')
-        .choices(['explicit', 'automatic'])
-        .default('explicit'),
-    ),
-).action((opts: { content: string; scope?: 'project' | 'user'; intent: Intent }) =>
+reviewOptions(
+  scoped(
+    app
+      .command('add')
+      .description('Remember a note; omitted scope uses settings')
+      .requiredOption('--content <text>', 'Memory text')
+      .addOption(
+        new Option('--intent <intent>', 'explicit user request or automatic capture')
+          .choices(['explicit', 'automatic'])
+          .default('explicit'),
+      ),
+  ),
+).action((opts: { content: string; scope?: 'project' | 'user'; intent: Intent } & ReviewOptions) =>
   print(
     using((store, root) => {
-      const result = remember(store, root, opts, 'user');
+      const result = remember(store, root, { ...opts, ...reviewInput(opts) }, 'user');
+      if (result.results.some((r) => !r.verified && r.status !== 'skipped')) process.exitCode = 2;
       reportExit(result.sync);
       return result;
     }),
@@ -370,12 +420,12 @@ app
   .action(async (opts: { deleted?: boolean; query?: string; explain?: boolean }) => {
     const result = await usingAsync(async (store, root) => {
       // Human CLI inspection remains available while paused, without provider requests.
-      const inspection = store.lock(() => {
+      const inspection = store.read(() => {
         if (!configuration(store, root).effective.paused) return null;
         return {
           memories: store.search(projectId(store, root), opts.query, opts.deleted),
           retrieval: { mode: 'lexical', reason: 'paused' },
-          sync: sync(store),
+          sync: inspectSync(store),
         };
       });
       return inspection ?? (await retrieve(store, root, opts.query, opts.deleted));
@@ -391,7 +441,7 @@ app
   .action((id: string) => print(using((store, root) => checkScope(store, id, root))));
 app
   .command('locations <id>')
-  .description('Inspect the database and registered Markdown file locations without syncing')
+  .description('Inspect the database location and connected agents')
   .action((id: string) =>
     print(using((store, root) => locationReader(store)(checkScope(store, id, root)))),
   );
@@ -465,13 +515,15 @@ for (const action of ['delete', 'unarchive'] as const)
         }),
       ),
     );
-scoped(
-  app
-    .command('import <path>')
-    .description(
-      'Import a Markdown file, or a directory of Markdown files, without changing originals',
-    ),
-).action((path: string, opts: { scope?: string }) =>
+reviewOptions(
+  scoped(
+    app
+      .command('import <path>')
+      .description(
+        'Import a Markdown file, or a directory of Markdown files, without changing originals',
+      ),
+  ),
+).action((path: string, opts: { scope?: string } & ReviewOptions) =>
   print(
     using((store, root) => {
       const config = configuration(store, root);
@@ -493,64 +545,75 @@ scoped(
         ensure(text !== null, 'Import file missing');
         return { file, content: Content.parse(text) };
       });
-      sync(store);
-      const projectId = scope === 'project' ? requireProjectId(store, root) : null;
-      const result = store.transaction(() =>
-        notes.map((n) => store.add(n.content, scope, projectId, `import:${n.file}`)),
+      const result = submitBatch(
+        store,
+        root,
+        {
+          requestId: randomUUID(),
+          intent: 'explicit',
+          candidates: notes.map((n) => ({
+            action: 'add',
+            content: n.content,
+            scope,
+            kind: 'note',
+          })),
+          ...reviewInput(opts),
+        },
+        notes.map((n) => `import:${n.file}`),
       );
-      const report = sync(store);
-      reportExit(report);
-      return { notes: result, sync: report };
+      reportExit(result.sync);
+      if (result.results.some((r) => !r.verified && r.status !== 'skipped')) process.exitCode = 2;
+      if ('status' in result) {
+        process.exitCode = 2;
+        return result;
+      }
+      return {
+        ...result,
+        notes: result.results.map((r) => ({
+          memory: store.get(r.receipt!.id),
+          created: r.status === 'created',
+          verified: r.verified,
+        })),
+      };
     }),
   ),
 );
 app
   .command('sync')
-  .description('Reconcile all connected agents and projects')
+  .description('Check database maintenance and conflicts')
   .action(() => {
-    const report = using((store) => sync(store));
-    print(report);
-    reportExit(report);
-  });
-app
-  .command('repair <agent>')
-  .description('Recreate a missing replica from central memory; never overwrite a file')
-  .action((name: string) => {
-    const agent = Agent.parse(name),
-      report = using((store, root) =>
-        repair(store, agent, store.project(root).id, store.project(root).root),
-      );
+    const report = using((store, root) => scopedReport(store, root, sync(store)));
     print(report);
     reportExit(report);
   });
 app
   .command('conflicts')
   .description('Inspect competing versions; nothing is discarded')
-  .action(() => print(using((store) => store.conflicts())));
+  .action(() =>
+    print(using((store, root) => scopedReport(store, root, inspectSync(store)).conflicts)),
+  );
 app
   .command('resolve <id>')
-  .description('Resolve a conflict explicitly; proposed replica IDs appear in conflicts')
-  .option('--take <choice>', 'current or a proposal replicaId')
+  .requiredOption('--revision <number>', 'Expected conflict revision from conflicts', positive)
+  .description('Resolve a conflict explicitly; proposal IDs appear in conflicts')
+  .option('--take <choice>', 'current or a proposal/candidate ID')
   .option('--content <text>', 'Custom merged text')
-  .action((id: string, opts: { take?: string; content?: string }) => {
+  .action((id: string, opts: { revision: number; take?: string; content?: string }) => {
     ensure(
       (opts.take !== undefined) !== (opts.content !== undefined),
       'Specify exactly one of --take or --content',
     );
     print(
-      using((store) => {
-        const memory = store.transaction(() =>
-          store.resolve(id, opts.take ?? 'custom', opts.content),
-        );
-        const report = sync(store);
-        reportExit(report);
-        return { memory, sync: report };
+      using((store, root) => {
+        const result = resolveConflict(store, root, { id, ...opts });
+        reportExit(result.sync);
+        return result;
       }),
     );
   });
 app
   .command('status')
-  .description('Check storage, connected agents, pending writes and conflicts')
+  .description('Check storage, connected agents and conflicts')
   .action(() =>
     print(
       using((store, root) => {
@@ -559,16 +622,14 @@ app
           home: store.home,
           project,
           agents: store
-            .replicas()
+            .connections()
             .filter((r) => r.projectId === project?.id)
             .map((r) => ({
               agent: r.agent,
-              path: r.path,
-              pending: r.pending !== null,
-              exists: readText(r.path) !== null,
+              root: r.root,
             })),
           memories: store.list(project?.id ?? null).length,
-          conflicts: store.conflicts(),
+          conflicts: scopedReport(store, root, inspectSync(store)).conflicts,
           runtime: process.version,
           sharedRepository: project ? store.projectById(project.id).root : null,
           linkedWorktrees: project ? store.worktrees(project.id) : [],
@@ -585,6 +646,16 @@ app
     const result = await usingAsync((store, root) => retrieve(store, root, opts.query));
     reportExit(result.sync);
     process.stdout.write(result.context);
+  });
+app
+  .command('prepare')
+  .description('Review related memories before submitting candidates; no notes are saved')
+  .requiredOption('--file <path>', 'UTF-8 JSON with intent and candidates')
+  .action((opts: { file: string }) => {
+    const input = readText(opts.file);
+    ensure(input !== null, 'Preparation file is missing');
+    const args = Preparation.parse(JSON.parse(input));
+    print(using((store, root) => prepare(store, root, args)));
   });
 app
   .command('submit')
@@ -652,16 +723,11 @@ app
       const project = store.project(root);
       ensure(
         store
-          .replicas()
-          .some(
-            (r) =>
-              r.projectId === project.id &&
-              r.agent === agent &&
-              r.path === join(project.root, '.co-memo', `${agent}.md`),
-          ),
+          .connections()
+          .some((r) => r.projectId === project.id && r.agent === agent && r.root === project.root),
         'Agent is not connected',
       );
-      const report = sync(store);
+      const report = scopedReport(store, root, inspectSync(store));
       const warning =
         report.errors.length || report.conflicts.length
           ? '\nCo-memo needs attention. Run co-memo sync/conflicts; do not silently resolve conflicts.\n'
@@ -688,7 +754,7 @@ app
     let lastProblems = '';
     try {
       while (!controller.signal.aborted) {
-        const report = using((store) => sync(store));
+        const report = using((store, root) => scopedReport(store, root, sync(store)));
         const problems = JSON.stringify([report.errors, report.conflicts]);
         if (
           report.imported ||
@@ -723,14 +789,15 @@ app
       using((store, path) => {
         const root = realpathSync(path);
         const edits = prepareSetup(root, agent, store.home, opts);
-        const replica = store.transaction(() => store.connect(store.project(root, true), agent));
+        const connection = store.transaction(() => store.connect(store.project(root, true), agent));
         applyAdapter(edits);
-        const report = sync(store);
+        const report = scopedReport(store, root, sync(store));
         reportExit(report);
         return {
           agent,
           mode: opts.toolsOnly ? 'tools-only' : 'hybrid',
-          memoryFile: replica.path,
+          storage: 'database',
+          connection,
           files: edits.map((e) => e.path),
           transport: agent === 'pi' ? 'cli' : 'mcp-stdio',
           ...report,
@@ -745,7 +812,12 @@ app
   .description('Run an MCP server over stdio with automatic workspace detection')
   .action(async () => {
     const opts = options();
-    await serve(opts.home, opts.project, app.getOptionValueSource('project') === 'cli');
+    await serve(
+      opts.home,
+      opts.project,
+      app.getOptionValueSource('project') === 'cli',
+      opts.agentId,
+    );
   });
 app
   .command('ui')

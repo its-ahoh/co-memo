@@ -68,7 +68,7 @@ test('FTS shares Chinese and identifier tokenization across recall/context, and 
   assert.deepEqual(f.store.search(f.project.id, 'the 我 的'), []);
 });
 
-test('candidate source, pinning and supersession survive revisions; legacy edits clear stale evidence', (t) => {
+test('candidate source, pinning and supersession survive histories; legacy edits clear stale evidence', (t) => {
   const f = fixture(t);
   const created = f.run([
     add('Always answer in Chinese', { kind: 'preference', scope: 'user', pinned: true }),
@@ -108,7 +108,7 @@ test('candidate source, pinning and supersession survive revisions; legacy edits
   assert.deepEqual(f.store.get(note.id).metadata.supersedes, { id: note.id, version: 2 });
 });
 
-test('candidate batch rolls back notes, revisions, full-text index and retry record on stale writes', (t) => {
+test('candidate batch rolls back notes, histories, full-text index and retry record on stale writes', (t) => {
   const f = fixture(t);
   const note = f.run([add('Existing note')]).results[0].receipt;
   const requestId = randomUUID();
@@ -161,7 +161,9 @@ test('candidate contradictions freeze retrieval until explicit resolution, prese
   assert.ok(!context(f.store, f.project.id).includes('Use npm'));
   const conflict = f.store.conflicts()[0];
   assert.equal(conflict.candidates[0].metadata.source.excerpt, source.excerpt);
-  f.store.transaction(() => f.store.resolve(conflict.id, conflict.candidates[0].id));
+  f.store.transaction(() =>
+    f.store.resolve(conflict.id, conflict.revision, conflict.candidates[0].id),
+  );
   f.store.lock(() => sync(f.store));
   assert.equal(f.store.conflicts().length, 0);
   const current = f.store.search(f.project.id, 'pnpm')[0];
@@ -220,7 +222,7 @@ test('schema 2 migration indexes legacy payloads without rewriting history', (t)
   const { metadata, ...legacy } = note;
   store.db.prepare('UPDATE notes SET payload=? WHERE id=?').run(JSON.stringify(legacy), note.id);
   store.db
-    .prepare('UPDATE revisions SET payload=? WHERE id=?')
+    .prepare('UPDATE histories SET payload=? WHERE id=?')
     .run(JSON.stringify(legacy), note.id);
   store.db.exec('DROP TABLE notes_fts; DROP TABLE submissions; PRAGMA user_version=2;');
   store.close();
@@ -231,10 +233,10 @@ test('schema 2 migration indexes legacy payloads without rewriting history', (t)
     assert.equal(store.get(note.id).metadata.kind, 'note');
     assert.equal(store.history(note.id).length, 1);
     assert.equal(
-      store.db.prepare('SELECT payload FROM revisions WHERE id=?').get(note.id).payload,
+      store.db.prepare('SELECT payload FROM histories WHERE id=?').get(note.id).payload,
       JSON.stringify(legacy),
     );
-    assert.equal(store.db.prepare('PRAGMA user_version').get().user_version, 5);
+    assert.equal(store.db.prepare('PRAGMA user_version').get().user_version, 8);
   } finally {
     store.close();
   }
