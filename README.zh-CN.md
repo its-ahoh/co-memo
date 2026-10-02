@@ -37,12 +37,12 @@ co-memo init --agents claude,codex --apply
 也可以直接安装指定版本的官方 npm 压缩包，例如包索引尚未提供某个新版本时：
 
 ```sh
-npm install -g https://registry.npmjs.org/@ahoh.tech/co-memo/-/co-memo-0.7.0.tgz
+npm install -g https://registry.npmjs.org/@ahoh.tech/co-memo/-/co-memo-0.8.0.tgz
 ```
 
-0.7.0 包含自动项目识别、记忆控制台、文件位置、命名空间快捷指令，以及独立的归档和永久删除操作。此版本会将记忆数据库升级至 schema 5，请同时更新所有已连接的 Co-memo 安装。
+0.8.0 改为通过 MCP／CLI 直接读写共享数据库，新增保存时查重和配置绑定的 Agent 来源，并升级至 schema 8，使用 `histories` 和 `source_agent`。请同时更新所有共用数据库的 Co-memo 安装。
 
-下文的 schema 8 数据库直读写和保存时查重属于**尚未发布的源码改动**，不包含在已发布的 0.7.0 包中。试用方式见[从源码构建](#从源码构建)。最新改动有自动化测试覆盖，但尚未在各个真实 Agent 宿主中重新联调。
+**从 0.7.0 升级：** 先备份数据库、退出运行中的 Agent，再升级 Co-memo，并在原来配置过的项目中重新执行 setup，保持原数据目录及仅工具／hooks 模式，然后重启 Agent。数据会自动迁移，旧客户端无法打开 schema 8。旧 Markdown 中尚未同步的修改应在升级前通过旧安装保存。改动有自动化测试覆盖，但尚未在各个真实 Agent 宿主中重新联调。
 
 npm 包已包含编译后的 JavaScript。普通用户无需 pnpm、TypeScript、Co-memo API Key 或本仓库源码。配置后重启 Agent。为 `init` 添加 `--hooks` 可启用生命周期自动注入；不添加时，由 Agent 主动调用记忆工具。
 
@@ -352,7 +352,7 @@ Agent 发现和引导配置可用 `co-memo init`。预览、worktree 关联规�
 pnpm install --frozen-lockfile
 pnpm check
 pnpm pack
-npm install -g ./ahoh.tech-co-memo-0.7.0.tgz
+npm install -g ./ahoh.tech-co-memo-0.8.0.tgz
 ```
 
 pnpm 仅用于开发。Co-memo 使用 [MIT 许可证](LICENSE)。
