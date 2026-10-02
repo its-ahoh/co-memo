@@ -37,12 +37,12 @@ co-memo init --agents claude,codex --apply
 You can also install the exact release directly from the official npm tarball, including while a new version is unavailable through the package index:
 
 ```sh
-npm install -g https://registry.npmjs.org/@ahoh.tech/co-memo/-/co-memo-0.7.0.tgz
+npm install -g https://registry.npmjs.org/@ahoh.tech/co-memo/-/co-memo-0.8.0.tgz
 ```
 
-Version 0.7.0 includes automatic workspace detection, the memory console, file-location inspection, namespaced shortcuts, and separate archive/permanent-delete actions. It upgrades the memory database to schema 5; update all connected Co-memo installations together.
+Version 0.8.0 moves shared memory to direct MCP/CLI database access, adds save-time duplicate review and configured agent provenance, and upgrades the database to schema 8 with `histories` and `source_agent`. Update all installations sharing the store together.
 
-The schema 8 database-only workflow and save-time duplicate review described below are **unreleased checkout changes**, not part of the published 0.7.0 package. See [Build from this checkout](#build-from-this-checkout) to try them. The latest changes have automated coverage but have not yet been revalidated in each real agent host.
+**Upgrading from 0.7.0:** back up your store, close running agents, upgrade Co-memo, and rerun setup in each configured project using the same data directory and tools-only/hooks mode. Restart the agents afterward. Data migrates automatically; older clients cannot open schema 8. Save any unsynchronized legacy Markdown edits through the old installation before upgrading. The changes have automated coverage but have not yet been revalidated in each real agent host.
 
 The npm package contains compiled JavaScript. Users do not need pnpm, TypeScript, an API key for Co-memo, or a checkout of this repository. Restart your agents after setup. Add `--hooks` to `init` for automatic lifecycle delivery; without it, agents must call the memory tools.
 
@@ -352,7 +352,7 @@ Requires **Node.js 24.12+** and pnpm.
 pnpm install --frozen-lockfile
 pnpm check
 pnpm pack
-npm install -g ./ahoh.tech-co-memo-0.7.0.tgz
+npm install -g ./ahoh.tech-co-memo-0.8.0.tgz
 ```
 
 pnpm is only required for development. Co-memo is distributed under the [MIT license](LICENSE).
