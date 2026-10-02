@@ -27,7 +27,7 @@ import {
   Metadata,
   Snapshot,
   Version,
-  WriterAgent,
+  SourceAgent,
   Pending,
   Conflict,
   ensure,
@@ -49,9 +49,9 @@ export class Store {
   private reading = false;
   constructor(
     home = dataHome(),
-    readonly writerAgent: string | null = null,
+    readonly sourceAgent: string | null = null,
   ) {
-    this.writerAgent = WriterAgent.nullable().parse(writerAgent);
+    this.sourceAgent = SourceAgent.nullable().parse(sourceAgent);
     mkdirSync(home, { recursive: true, mode: 0o700 });
     this.home = realpathSync(home);
     const path = join(this.home, 'shared-memory-v1.sqlite');
@@ -68,17 +68,30 @@ export class Store {
     this.mutex.exec('PRAGMA busy_timeout=5000;');
     try {
       const currentVersion = Number(this.db.prepare('PRAGMA user_version').get()?.user_version);
-      ensure(currentVersion <= 7, 'Database is from a newer Co-memo version');
-      if (currentVersion < 7)
+      ensure(currentVersion <= 8, 'Database is from a newer Co-memo version');
+      if (currentVersion < 8)
         this.lock(() => {
           const version = this.db.prepare('PRAGMA user_version').get();
-          ensure(Number(version?.user_version) <= 7, 'Database is from a newer Co-memo version');
-          if (Number(version?.user_version) === 7) return;
+          ensure(Number(version?.user_version) <= 8, 'Database is from a newer Co-memo version');
+          if (Number(version?.user_version) === 8) return;
           this.transaction(() => {
+            if (
+              this.db
+                .prepare("SELECT name FROM sqlite_schema WHERE type='table' AND name='revisions'")
+                .get()
+            ) {
+              ensure(
+                !this.db
+                  .prepare("SELECT name FROM sqlite_schema WHERE type='table' AND name='histories'")
+                  .get(),
+                'Both histories and legacy revisions tables exist',
+              );
+              this.db.exec('ALTER TABLE revisions RENAME TO histories');
+            }
             this.db.exec(`
         CREATE TABLE IF NOT EXISTS projects(id TEXT PRIMARY KEY,root TEXT NOT NULL UNIQUE);
         CREATE TABLE IF NOT EXISTS notes(id TEXT PRIMARY KEY,project_id TEXT,scope TEXT NOT NULL,content TEXT NOT NULL,fingerprint TEXT NOT NULL UNIQUE,version INTEGER NOT NULL,deleted INTEGER NOT NULL,payload TEXT NOT NULL);
-        CREATE TABLE IF NOT EXISTS revisions(id TEXT NOT NULL,version INTEGER NOT NULL,payload TEXT NOT NULL,PRIMARY KEY(id,version));
+        CREATE TABLE IF NOT EXISTS histories(id TEXT NOT NULL,version INTEGER NOT NULL,payload TEXT NOT NULL,PRIMARY KEY(id,version));
         CREATE TABLE IF NOT EXISTS replicas(id TEXT PRIMARY KEY,project_id TEXT NOT NULL,agent TEXT NOT NULL,path TEXT NOT NULL UNIQUE,baseline TEXT,pending TEXT,UNIQUE(project_id,agent));
         CREATE TABLE IF NOT EXISTS conflicts(id TEXT PRIMARY KEY,memory_id TEXT NOT NULL UNIQUE,payload TEXT NOT NULL);
         CREATE TABLE IF NOT EXISTS resolutions(id TEXT PRIMARY KEY,payload TEXT NOT NULL);
@@ -118,21 +131,52 @@ export class Store {
                     dirname(dirname(String(row.path))),
                   );
             }
-            // Queryable columns derived from the canonical payload, including historical versions.
-            // Never infer a bound writer from legacy caller-declared evidence or connections.
-            for (const table of ['notes', 'revisions']) {
+            // Rename only attribution keys; user content and declared source evidence stay intact.
+            this.db.exec('DROP INDEX IF EXISTS notes_writer_agent');
+            for (const table of ['notes', 'histories']) {
               if (
-                !this.db
+                this.db
                   .prepare(`PRAGMA table_xinfo(${table})`)
                   .all()
                   .some((c) => c.name === 'writer_agent')
               )
+                this.db.exec(`ALTER TABLE ${table} DROP COLUMN writer_agent`);
+              this.db.exec(`UPDATE ${table} SET payload=json_remove(
+                CASE WHEN json_type(payload, '$.sourceAgent') IS NULL
+                  THEN json_set(payload, '$.sourceAgent', json_extract(payload, '$.writerAgent'))
+                  ELSE payload END, '$.writerAgent')
+                WHERE json_type(payload, '$.writerAgent') IS NOT NULL`);
+              if (
+                !this.db
+                  .prepare(`PRAGMA table_xinfo(${table})`)
+                  .all()
+                  .some((c) => c.name === 'source_agent')
+              )
                 this.db.exec(
-                  `ALTER TABLE ${table} ADD COLUMN writer_agent TEXT GENERATED ALWAYS AS (json_extract(payload, '$.writerAgent')) VIRTUAL`,
+                  `ALTER TABLE ${table} ADD COLUMN source_agent TEXT GENERATED ALWAYS AS (json_extract(payload, '$.sourceAgent')) VIRTUAL`,
                 );
             }
+            // Resolved conflicts retain the original candidates as well as live conflicts.
+            for (const table of ['conflicts', 'resolutions']) {
+              for (const row of this.db.prepare(`SELECT id,payload FROM ${table}`).all()) {
+                const payload = JSON.parse(String(row.payload));
+                let changed = false;
+                for (const candidate of payload.candidates ?? []) {
+                  if (Object.hasOwn(candidate, 'writerAgent')) {
+                    if (!Object.hasOwn(candidate, 'sourceAgent'))
+                      candidate.sourceAgent = candidate.writerAgent;
+                    delete candidate.writerAgent;
+                    changed = true;
+                  }
+                }
+                if (changed)
+                  this.db
+                    .prepare(`UPDATE ${table} SET payload=? WHERE id=?`)
+                    .run(JSON.stringify(payload), String(row.id));
+              }
+            }
             this.db.exec(
-              'CREATE INDEX IF NOT EXISTS notes_writer_agent ON notes(writer_agent); PRAGMA user_version=7;',
+              'CREATE INDEX IF NOT EXISTS notes_source_agent ON notes(source_agent); PRAGMA user_version=8;',
             );
           });
         });
@@ -453,7 +497,7 @@ export class Store {
     return memory;
   }
   private write(memory: Memory): Memory {
-    memory = Memory.parse({ ...memory, writerAgent: this.writerAgent });
+    memory = Memory.parse({ ...memory, sourceAgent: this.sourceAgent });
     let fingerprint = hash(JSON.stringify([memory.scope, memory.projectId, memory.content]));
     if (
       memory.deleted &&
@@ -485,7 +529,7 @@ export class Store {
         JSON.stringify(memory),
       );
     this.db
-      .prepare('INSERT INTO revisions VALUES (?,?,?)')
+      .prepare('INSERT INTO histories VALUES (?,?,?)')
       .run(memory.id, memory.version, JSON.stringify(memory));
     this.index(memory);
     return memory;
@@ -519,7 +563,7 @@ export class Store {
         ).find((m) => m.content === content) ?? existing;
     }
     // Older edits stored untrimmed fingerprints. Reuse their normalized records;
-    // do not rewrite historical revisions or silently merge existing duplicates.
+    // Do not rewrite saved history or silently merge existing duplicates.
     if (existing) return { memory: existing, created: false }; // Includes tombstones: never resurrect by rediscovery.
     const memory: Memory = {
       id: randomUUID(),
@@ -530,7 +574,7 @@ export class Store {
       version: 1,
       deleted: false,
       origin,
-      writerAgent: this.writerAgent,
+      sourceAgent: this.sourceAgent,
       createdAt: Date.now(),
       updatedAt: Date.now(),
     };
@@ -581,7 +625,7 @@ export class Store {
     ensure(old.version === version, 'Version changed; read the memory again');
     this.db.prepare('INSERT INTO purged VALUES (?)').run(id);
     this.db.prepare('DELETE FROM notes_fts WHERE id=?').run(id);
-    this.db.prepare('DELETE FROM revisions WHERE id=?').run(id);
+    this.db.prepare('DELETE FROM histories WHERE id=?').run(id);
     this.db.prepare('DELETE FROM conflicts WHERE memory_id=?').run(id);
     this.db
       .prepare(
@@ -631,7 +675,7 @@ export class Store {
     });
   }
   history(id: string): Memory[] {
-    return this.rows(Memory, 'SELECT payload FROM revisions WHERE id=? ORDER BY version', id);
+    return this.rows(Memory, 'SELECT payload FROM histories WHERE id=? ORDER BY version', id);
   }
   conflicts(): Conflict[] {
     return this.rows(Conflict, 'SELECT payload FROM conflicts ORDER BY rowid');
@@ -642,7 +686,7 @@ export class Store {
     candidates: z.input<typeof Conflict>['candidates'] = [],
   ): Conflict {
     const attributed = Conflict.shape.candidates.parse(
-      candidates.map((candidate) => ({ ...candidate, writerAgent: this.writerAgent })),
+      candidates.map((candidate) => ({ ...candidate, sourceAgent: this.sourceAgent })),
     );
     const existing = this.conflicts().find((c) => c.memoryId === memory.id);
     if (existing) {
@@ -656,7 +700,7 @@ export class Store {
           !merged.some(
             (c) =>
               c.content === candidate.content &&
-              c.writerAgent === candidate.writerAgent &&
+              c.sourceAgent === candidate.sourceAgent &&
               JSON.stringify(c.metadata) === JSON.stringify(candidate.metadata),
           )
         )

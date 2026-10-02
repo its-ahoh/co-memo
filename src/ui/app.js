@@ -92,7 +92,7 @@ function render() {
       (m) =>
         (s === 'all' || m.deleted === (s === 'archived')) &&
         (p === 'all' || (p === 'user' ? m.scope === 'user' : m.projectId === p)) &&
-        [m.content, m.origin, m.writerAgent || '', m.metadata.module || '']
+        [m.content, m.origin, m.sourceAgent || '', m.metadata.module || '']
           .join(' ')
           .toLowerCase()
           .includes(q),
@@ -136,7 +136,7 @@ function render() {
     const bottom = node('div', '', 'card-bottom'),
       meta = node(
         'span',
-        `${date(m.updatedAt)} · v${m.version} · ${m.origin} · Writer: ${m.writerAgent ?? 'unknown'}`,
+        `${date(m.updatedAt)} · v${m.version} · ${m.origin} · Source agent: ${m.sourceAgent ?? 'unknown'}`,
         'meta',
       );
     meta.title = m.id;

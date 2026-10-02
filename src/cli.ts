@@ -39,7 +39,7 @@ import { Store } from './store.js';
 import { sync, context, inspectSync } from './sync.js';
 import { prepareAdapter, applyAdapter } from './adapters.js';
 import { readText } from './fs.js';
-import { Agent, WriterAgent, Scope, Content, ensure, errorMessage } from './model.js';
+import { Agent, SourceAgent, Scope, Content, ensure, errorMessage } from './model.js';
 import type { SyncReport, Memory } from './model.js';
 
 type ReviewOptions = { reviewToken?: string; reviewReason?: string };
@@ -74,7 +74,7 @@ const print = (value: unknown) => {
 const positive = (s: string) => z.number().int().positive().safe().parse(Number(s));
 function options(): { home?: string | undefined; project: string; agentId?: string | undefined } {
   return z
-    .object({ home: z.string().optional(), project: z.string(), agentId: WriterAgent.optional() })
+    .object({ home: z.string().optional(), project: z.string(), agentId: SourceAgent.optional() })
     .parse(app.opts());
 }
 function prepareMemoryProject(store: Store, root: string, locked = false): void {

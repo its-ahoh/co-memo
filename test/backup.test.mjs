@@ -54,8 +54,8 @@ test('WAL backup preserves history, deletion, settings and search; restore detac
     assert.equal(restored.settings(null).saveMode, 'explicit');
     assert.equal(restored.db.prepare('SELECT count(*) AS n FROM notes').get().n, 2);
     assert.equal(
-      restored.db.prepare('SELECT count(*) AS n FROM revisions').get().n,
-      before.counts.revisions,
+      restored.db.prepare('SELECT count(*) AS n FROM histories').get().n,
+      before.counts.histories,
     );
     assert.equal(restored.search(f.id, 'pnpm')[0].id, note.id);
   } finally {
@@ -125,7 +125,9 @@ test('schema 4 backups remain readable and restored stores migrate without losin
   const f = fixture(t);
   const note = f.store.add('legacy archived note', 'project', f.id, 'test').memory;
   f.store.change(note.id, 1, null, 'test');
-  f.store.db.exec('DROP TABLE purged; PRAGMA user_version=4');
+  f.store.db.exec(
+    'DROP TABLE purged; ALTER TABLE histories RENAME TO revisions; PRAGMA user_version=4',
+  );
   const backup = await createBackup(f.archive, f.home);
   assert.equal(backup.counts.purged, undefined);
   assert.equal((await verifyBackup(f.archive)).schema, 4);
@@ -135,7 +137,7 @@ test('schema 4 backups remain readable and restored stores migrate without losin
   try {
     assert.equal(restored.get(note.id).deleted, true);
     assert.equal(restored.history(note.id).length, 2);
-    assert.equal(restored.db.prepare('PRAGMA user_version').get().user_version, 7);
+    assert.equal(restored.db.prepare('PRAGMA user_version').get().user_version, 8);
   } finally {
     restored.close();
   }

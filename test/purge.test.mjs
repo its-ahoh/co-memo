@@ -29,7 +29,7 @@ function fixture(t) {
   return { store, root, project, note, other };
 }
 
-test('archive retains revisions; restore works; purge erases records and deleted notes stay absent', (t) => {
+test('archive retains histories; restore works; purge erases records and deleted notes stay absent', (t) => {
   const { store, root, note, other } = fixture(t);
 
   store.lock(() =>

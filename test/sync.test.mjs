@@ -107,7 +107,7 @@ test('schema 5 upgrade preserves notes, old pending data and connections without
   f.store.db.exec('DROP TABLE connections; PRAGMA user_version=5;');
   const upgraded = new Store(f.home);
   try {
-    assert.equal(upgraded.db.prepare('PRAGMA user_version').get().user_version, 7);
+    assert.equal(upgraded.db.prepare('PRAGMA user_version').get().user_version, 8);
     assert.deepEqual(upgraded.connections(), [
       { id, projectId: f.project.id, agent: 'codex', root: f.path },
     ]);
@@ -143,7 +143,7 @@ test('database failure rolls back a write and does not create a conflict', (t) =
   const f = fixture(t),
     note = f.store.add('first', 'project', f.project.id, 'test').memory;
   f.store.db.exec(
-    "CREATE TRIGGER reject_revision BEFORE INSERT ON revisions BEGIN SELECT RAISE(ABORT, 'simulated storage failure'); END;",
+    "CREATE TRIGGER reject_revision BEFORE INSERT ON histories BEGIN SELECT RAISE(ABORT, 'simulated storage failure'); END;",
   );
   assert.throws(
     () =>

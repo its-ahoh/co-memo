@@ -27,7 +27,7 @@ export async function projects(home = dataHome(), check = false, probe = false) 
   try {
     db.exec('PRAGMA busy_timeout=1000; BEGIN;');
     ensure(
-      [4, 5, 6, 7].includes(Number(db.prepare('PRAGMA user_version').get()?.user_version)),
+      [4, 5, 6, 7, 8].includes(Number(db.prepare('PRAGMA user_version').get()?.user_version)),
       'Unsupported schema; upgrade before listing projects',
     );
     const modern = Number(db.prepare('PRAGMA user_version').get()?.user_version) >= 6;

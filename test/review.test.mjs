@@ -471,7 +471,7 @@ test('pre-existing untrimmed fingerprints are reused without rewriting history o
       old.id,
     );
   f.store.db
-    .prepare('UPDATE revisions SET payload=? WHERE id=?')
+    .prepare('UPDATE histories SET payload=? WHERE id=?')
     .run(JSON.stringify(untrimmed), old.id);
   const args = f.make([add('Legacy fact')]);
   const result = f.run(args);
@@ -479,7 +479,7 @@ test('pre-existing untrimmed fingerprints are reused without rewriting history o
   assert.equal(result.results[0].receipt.id, old.id);
   assert.equal(f.store.list(f.project.id).length, 1);
   assert.equal(
-    JSON.parse(f.store.db.prepare('SELECT payload FROM revisions WHERE id=?').get(old.id).payload)
+    JSON.parse(f.store.db.prepare('SELECT payload FROM histories WHERE id=?').get(old.id).payload)
       .content,
     untrimmed.content,
   );

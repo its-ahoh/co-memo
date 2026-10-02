@@ -11,7 +11,7 @@ const filename = 'shared-memory-v1.sqlite';
 const tables = [
   'projects',
   'notes',
-  'revisions',
+  'histories',
   'replicas',
   'connections',
   'conflicts',
@@ -24,7 +24,7 @@ const tables = [
 ] as const;
 const Manifest = z.strictObject({
   format: z.literal(1),
-  schema: z.union([z.literal(4), z.literal(5), z.literal(6), z.literal(7)]),
+  schema: z.union([z.literal(4), z.literal(5), z.literal(6), z.literal(7), z.literal(8)]),
   createdAt: z.string().datetime(),
   database: z.literal(filename),
   sha256: z.string().regex(/^[a-f0-9]{64}$/),
@@ -40,8 +40,8 @@ function open(path: string) {
 }
 function inspect(db: DatabaseSync) {
   ensure(
-    [4, 5, 6, 7].includes(Number(db.prepare('PRAGMA user_version').get()?.user_version)),
-    'Backup requires schema 4, 5, 6 or 7; unsupported database',
+    [4, 5, 6, 7, 8].includes(Number(db.prepare('PRAGMA user_version').get()?.user_version)),
+    'Backup requires schema 4, 5, 6, 7 or 8; unsupported database',
   );
   ensure(
     db.prepare('PRAGMA integrity_check').get()?.integrity_check === 'ok',
@@ -56,8 +56,13 @@ function inspect(db: DatabaseSync) {
     (t) =>
       Number(db.prepare('PRAGMA user_version').get()?.user_version) >=
       (t === 'connections' ? 6 : t === 'purged' ? 5 : 4),
-  ))
-    counts[table] = Number(db.prepare(`SELECT count(*) AS n FROM ${table}`).get()?.n);
+  )) {
+    const name =
+      table === 'histories' && Number(db.prepare('PRAGMA user_version').get()?.user_version) < 8
+        ? 'revisions'
+        : table;
+    counts[name] = Number(db.prepare(`SELECT count(*) AS n FROM ${name}`).get()?.n);
+  }
   for (const row of db.prepare('SELECT payload FROM notes').iterate())
     Memory.parse(JSON.parse(String(row.payload)));
   ensure(
@@ -155,7 +160,7 @@ export async function verifyBackup(directory: string) {
     );
     const counts = inspect(db);
     ensure(
-      tables.every((table) => counts[table] === manifest.counts[table]),
+      Object.keys(counts).every((table) => counts[table] === manifest.counts[table]),
       'Backup row counts differ from manifest',
     );
     return { status: 'verified', directory: root, ...manifest };
@@ -187,7 +192,9 @@ export async function restoreBackup(directory: string, destination: string, appl
     const copied = finalize(path);
     ensure(
       copied.schema === verified.schema &&
-        tables.every((table) => copied.counts[table] === verified.counts[table]),
+        Object.keys(copied.counts).every(
+          (table) => copied.counts[table] === verified.counts[table],
+        ),
       'Backup changed during restore',
     );
     ensure(

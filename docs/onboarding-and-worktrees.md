@@ -71,4 +71,4 @@ Temporary data is removed after normal completion or handled failure. `--keep` r
 
 ## Storage compatibility
 
-Schema 7 migrates legacy registrations into connections while retaining stored memory and history. Legacy files are left untouched and ignored. Upgrade connected installations together and rerun setup; older clients refuse schema 7. The store filename remains `shared-memory-v1.sqlite`.
+Schema 8 migrates legacy registrations into connections while retaining stored memory and history. Legacy files are left untouched and ignored. Upgrade connected installations together and rerun setup; older clients refuse schema 8. The store filename remains `shared-memory-v1.sqlite`.

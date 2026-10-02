@@ -90,7 +90,7 @@ export function submitBatch(
   // Reusing another configured agent's receipt must not masquerade as this agent's write.
   // Preserve the old hash for unbound clients and their existing retries.
   const fingerprint = hash(
-    JSON.stringify(store.writerAgent === null ? args : { ...args, writerAgent: store.writerAgent }),
+    JSON.stringify(store.sourceAgent === null ? args : { ...args, sourceAgent: store.sourceAgent }),
   );
   const before = sync(store);
   // Empty namespace is reserved for personal submissions; project IDs are UUIDs.
@@ -98,8 +98,12 @@ export function submitBatch(
   const previous = store.submission(submissionScope, args.requestId);
   let results: z.infer<typeof Results>;
   if (previous) {
+    // Schema 7 receipts used the old identity key in their fingerprint; retain valid retries.
     ensure(
-      previous.fingerprint === fingerprint,
+      previous.fingerprint === fingerprint ||
+        (store.sourceAgent !== null &&
+          previous.fingerprint ===
+            hash(JSON.stringify({ ...args, writerAgent: store.sourceAgent }))),
       'Request ID was already used with different candidates',
     );
     results = Results.parse(previous.result);

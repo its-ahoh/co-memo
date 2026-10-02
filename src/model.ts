@@ -4,7 +4,7 @@ import { z } from 'zod';
 export const Agent = z.enum(['pi', 'claude', 'codex', 'opencode']);
 export type Agent = z.infer<typeof Agent>;
 // Configuration identity, independent of the built-in setup adapter list.
-export const WriterAgent = z
+export const SourceAgent = z
   .string()
   .trim()
   .regex(/^[a-z0-9][a-z0-9._-]{0,99}$/);
@@ -69,7 +69,7 @@ export const Memory = z.object({
   version: z.number().int().positive(),
   deleted: z.boolean(),
   origin: z.string(),
-  writerAgent: WriterAgent.nullable().default(null),
+  sourceAgent: SourceAgent.nullable().default(null),
   createdAt: z.number(),
   updatedAt: z.number(),
 });
@@ -124,7 +124,7 @@ export const Conflict = z.object({
         id: z.uuid(),
         content: Content,
         metadata: Metadata,
-        writerAgent: WriterAgent.nullable().default(null),
+        sourceAgent: SourceAgent.nullable().default(null),
       }),
     )
     .default([]),
