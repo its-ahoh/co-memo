@@ -56,23 +56,23 @@ co-memo init --agents claude,codex --apply
 
 选择记忆进入 Agent 上下文的方式：
 
-| 命令                                                 | 默认行为                                                     |
-| ---------------------------------------------------- | ------------------------------------------------------------ |
-| `co-memo init --agents claude,codex --apply`         | 仅工具模式：Agent 通过工具或 CLI 主动读取。                  |
-| `co-memo init --agents claude,codex --hooks --apply` | 配置生命周期 hooks，自动注入数据库中的上下文。               |
-| `co-memo setup AGENT`                                | 配置单个 Agent，默认启用 hooks；添加 `--tools-only` 可禁用。 |
+| 命令                                                 | 默认行为                                               |
+| ---------------------------------------------------- | ------------------------------------------------------ |
+| `co-memo init --agents claude,codex --apply`         | 新安装为仅工具模式；已有配置保留各 Agent 的模式。      |
+| `co-memo init --agents claude,codex --hooks --apply` | 配置生命周期 hooks，自动注入数据库中的上下文。         |
+| `co-memo setup AGENT`                                | 配置单个 Agent；新安装仅工具模式，已有配置保留原模式。 |
 
-生成的指令要求 MCP Agent 在开始工作时调用 `memory_context`。Pi 在仅工具模式下使用 CLI。重新运行不带 `--hooks` 的 `init` 会选择仅工具模式，并移除 Co-memo 管理的 hooks。
+生成的指令要求 MCP Agent 在开始工作时调用 `memory_context`。Pi 在仅工具模式下使用 CLI。`init` 和 `setup` 均默认保留各 Agent 已有模式；新安装采用仅工具模式。使用 `--hooks` 启用或 `--tools-only` 禁用 hooks，两者不能同时使用。
 
 从项目目录单独配置各 Agent，并启用 hooks：
 
 ```sh
-co-memo setup pi
-co-memo setup claude
-co-memo setup codex
-co-memo setup opencode
+co-memo setup pi --hooks
+co-memo setup claude --hooks
+co-memo setup codex --hooks
+co-memo setup opencode --hooks
 # 使用 OpenCode V2，而非 V1：
-co-memo setup opencode --opencode-api v2
+co-memo setup opencode --hooks --opencode-api v2
 ```
 
 Pi 需要信任项目并执行 `/reload`；Claude Code 需要重启并批准项目 hooks；Codex 需要重启、信任项目并通过 `/hooks` 检查 hooks；OpenCode 需要重启以加载插件。配置会保留无关指令和设置，安装对话 skill，并为 Codex、Claude 和 OpenCode 添加项目级 MCP 工具。Pi 使用 CLI 和原生扩展。
@@ -129,7 +129,7 @@ Co-memo 通过 `co-memo serve` 提供标准的本地 **stdio MCP 服务**。以�
 
 页面支持浏览个人记忆及已登记项目、搜索、筛选和增删改查。所有操作直接使用数据库，并校验版本和冲突。Archive 保留内容和历史，Restore 恢复记忆，Delete 删除记录及相关历史和缓存。旧 Markdown 文件、备份、导出文件和已有对话不受影响。
 
-可用 `co-memo --home /path/to/data ui --port 4319` 指定数据目录与端口。服务只监听 `127.0.0.1`，按 Ctrl+C 停止。需要处理冲突时使用 `co-memo conflicts` 和 `co-memo resolve`。
+可用 `co-memo --home /path/to/data ui --port 4319` 指定数据目录与端口。服务只监听 `127.0.0.1`，按 Ctrl+C 停止。可通过 Conflicts 筛选和 Resolve conflict 按钮对比版本及来源，选择保留某个版本或手动合并。如果冲突在窗口打开后发生变化，需要重新加载并选择，合并草稿会保留。也可继续使用 `co-memo conflicts` 和 `co-memo resolve`。
 
 也可以调用 Co-memo skill，说“打开 Co-memo 记忆管理页面”。展开记忆卡片的 **Storage and connected agents** 可查看数据库路径、记录 ID 和 Agent 连接。命令行可用 `co-memo --project /path/to/project locations MEMORY_ID`。连接登记不代表运行中的 Agent 已加载该记忆。
 

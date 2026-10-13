@@ -64,7 +64,7 @@ Infer the workspace from the host's current project/working directory. Co-memo d
 
 Identify the target project and requested agents from the user's request. Check `co-memo --version` and Node (24.12+). If unavailable, use the user's Co-memo checkout or package: in the checkout run `pnpm install --frozen-lockfile`, `pnpm pack`, then install the resulting tarball with npm. This project is not published to npm; do not install an unrelated registry package. If no checkout/package is available, obtain the repository location from the user. Do not install into unrelated projects.
 
-Run `co-memo --project PROJECT setup AGENT` for each requested agent: `pi`, `claude`, `codex`, or `opencode`. Use `--opencode-api v2` for OpenCode V2. Default setup installs tools, a skill, and lifecycle hooks; `--tools-only` disables Co-memo lifecycle hooks. Pi uses the CLI instead of a native MCP configuration.
+Run `co-memo --project PROJECT setup AGENT` for each requested agent: `pi`, `claude`, `codex`, or `opencode`. Use `--opencode-api v2` for OpenCode V2. Setup and init preserve each installed agent’s mode; new installations default to tools-only. Use `--hooks` to enable or `--tools-only` to disable Co-memo lifecycle hooks explicitly. Pi uses the CLI instead of a native MCP configuration.
 
 Setup preserves other configuration and refuses ambiguous or unmanaged entries. On failure, inspect the reported path; do not overwrite the whole host configuration. Tell the user to restart/reload the host and review required trust prompts. Verify `co-memo status`, `settings get`, and a `memory_context` call if the host has loaded its MCP tools. A generated config file alone does not establish that the host loaded it. Do not invent a test memory unless the user requests one.
 

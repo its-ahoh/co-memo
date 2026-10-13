@@ -1,6 +1,6 @@
 # Agent connections
 
-For the recommended dialogue-based workflow, use `co-memo setup AGENT` to add MCP/CLI tools and the Co-memo skill alongside these hooks. Use `--tools-only` to disable Co-memo hooks. See [tools and settings](tools-and-settings.md). The `connect` commands below remain the hooks-only workflow.
+For the recommended dialogue-based workflow, use `co-memo setup AGENT` to add MCP/CLI tools and the Co-memo skill with optional hooks. Existing modes are preserved and new installs default to tools-only. Use `--hooks` to enable or `--tools-only` to disable Co-memo hooks. See [tools and settings](tools-and-settings.md). The `connect` commands below remain the hooks-only workflow.
 
 Run `co-memo connect AGENT` in the project root, where AGENT is `pi`, `claude`, `codex`, or `opencode`. All share one project identity and central store. Commands are idempotent and preserve unrelated settings.
 

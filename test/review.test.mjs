@@ -5,6 +5,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { Store } from '../dist/store.js';
+import { Metadata } from '../dist/model.js';
 import { prepare, submit } from '../dist/candidates.js';
 import { context } from '../dist/sync.js';
 const source = {
@@ -41,6 +42,66 @@ function fixture(t) {
       store.lock(() => prepare(store, root, { intent: args.intent, candidates: args.candidates })),
   };
 }
+test('incidental overlap saves distinct facts against stored notes and batch peers', (t) => {
+  const pairs = [
+    ['SQLite stores customer invoices', 'SQLite powers offline address lookup'],
+    ['项目使用 SQLite 保存订单数据', '项目通过邮件发送告警通知'],
+    [
+      'Service deployment uses containers behind regional load balancers',
+      'Service monitoring uses alerts tracking queue latency metrics',
+    ],
+  ];
+  for (const [left, right] of pairs) {
+    for (const stored of [false, true]) {
+      const f = fixture(t);
+      if (stored) f.store.add(left, 'project', f.project.id, 'fixture');
+      const args = f.make(stored ? [add(right)] : [add(left), add(right)]);
+      const review = f.review(args);
+      assert.equal(review.required, false, `${stored}: ${left}`);
+      assert.ok(review.items.every((item) => !item.related.length && !item.peers.length));
+      assert.ok(f.run(args).results.every((result) => result.verified));
+      assert.equal(f.store.list(f.project.id).length, 2);
+    }
+  }
+});
+
+test('short corrections, negations and substantial overlap still require review', (t) => {
+  const pairs = [
+    ['Color: blue', 'Color: red'],
+    ['颜色：蓝色', '颜色：红色'],
+    ['Use SQLite for invoice storage', 'Do not use SQLite for invoice storage'],
+    ['使用 SQLite 保存订单数据', '禁止使用 SQLite 保存订单数据'],
+    ['Build artifacts expire after 7 days', 'Build artifacts expire after 30 days'],
+    ['Use SQLite for invoice storage', 'Use SQLite for invoice storage with daily backups'],
+    ['Use SQLite for invoice storage', 'Ｕｓｅ ＳＱＬｉｔｅ for invoice storage'],
+  ];
+  for (const [left, right] of pairs) {
+    for (const stored of [false, true]) {
+      const f = fixture(t);
+      if (stored) f.store.add(left, 'project', f.project.id, 'fixture');
+      const args = f.make(stored ? [add(right)] : [add(left), add(right)]);
+      assert.equal(f.run(args).status, 'needs_review', `${stored}: ${left}`);
+      assert.equal(f.store.list(f.project.id).length, stored ? 1 : 0);
+    }
+  }
+});
+
+test('metadata-only matches do not block a distinct addition', (t) => {
+  const f = fixture(t);
+  f.store.add(
+    'Archive invoices annually',
+    'project',
+    f.project.id,
+    'fixture',
+    'explicit',
+    Metadata.parse({ module: 'SQLite' }),
+  );
+  const args = f.make([add('SQLite powers offline address lookup')]);
+  assert.equal(f.store.search(f.project.id, args.candidates[0].content).length, 1);
+  assert.equal(f.review(args).required, false);
+  assert.ok(f.run(args).results.every((result) => result.verified));
+});
+
 test('related addition returns evidence and saves nothing in the entire batch until reviewed', (t) => {
   const f = fixture(t),
     old = f.store.add('Use pnpm for builds', 'project', f.project.id, 'test').memory;

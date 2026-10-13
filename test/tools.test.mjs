@@ -250,7 +250,7 @@ for (const agent of ['codex', 'claude', 'opencode', 'pi']) {
     } else if (agent === 'claude') {
       writeFileSync(join(f.project, '.mcp.json'), '{"mcpServers":{"other":{"command":"other"}}}\n');
     }
-    const first = f.run('setup', agent);
+    const first = f.run('setup', agent, '--hooks');
     const before = first.files.map(read);
     f.run('setup', agent);
     assert.deepEqual(first.files.map(read), before);

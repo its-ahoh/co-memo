@@ -14,6 +14,17 @@ export type ReviewCandidate =
   | { action: 'add'; content: string; scope?: 'user' | 'project' | undefined }
   | { action: 'update' | 'conflict'; content: string; id: string; version: number };
 
+/** A review hint, never proof that two facts are equivalent. */
+function relatedTerms(left: Set<string>, right: Set<string>): boolean {
+  const shorter = Math.min(left.size, right.size);
+  if (!shorter) return false;
+  let shared = 0;
+  for (const term of left) if (right.has(term)) shared++;
+  // Keep short labels and corrections conservative (e.g. "Color: blue" / "Color: red").
+  // Longer notes need multiple shared terms covering at least half the shorter note.
+  return shared >= (shorter <= 2 ? 1 : 2) && shared / shorter >= 0.5;
+}
+
 /** Call with the process lock held, including the subsequent commit. Similarity is not truth. */
 export function reviewCandidates(
   store: Store,
@@ -61,18 +72,28 @@ export function reviewCandidates(
     scope,
     memories.map((m) => [m.id, m.version, m.deleted, conflicts.get(m.id)?.revision ?? null]),
   ]);
+  const termCache = new Map<string, Set<string>>();
+  const termsFor = (content: string) => {
+    let terms = termCache.get(content);
+    if (!terms) {
+      terms = new Set(searchTerms(content));
+      termCache.set(content, terms);
+    }
+    return terms;
+  };
   const items = candidates.map((candidate, index) => {
     if (candidate.action === 'skip')
       return { index, action: candidate.action, related: [], peers: [] };
     const target = candidate.action === 'add' ? null : targets.get(candidate.id)!;
     const scope = scopes[index]!;
     const withinScope = snapshots.get(scope)!;
+    const terms = termsFor(candidate.content);
     const exact =
       withinScope.find((m) => !m.deleted && m.content === candidate.content) ??
       withinScope.find((m) => m.content === candidate.content);
     const found = store
       .search(scope === 'user' ? null : projectId, candidate.content, true, true, scope)
-      .filter((m) => m.scope === scope)
+      .filter((m) => m.scope === scope && relatedTerms(terms, termsFor(m.content)))
       .slice(0, 10);
     const related = [
       ...new Map(
@@ -89,7 +110,6 @@ export function reviewCandidates(
       match: m.content === candidate.content ? 'exact' : 'related',
       conflict: conflicts.get(m.id) ?? null,
     }));
-    const terms = new Set(searchTerms(candidate.content));
     const peers = candidates.flatMap((other, otherIndex) => {
       if (
         otherIndex === index ||
@@ -101,7 +121,7 @@ export function reviewCandidates(
         return [];
       return other.content === candidate.content ||
         (other.action !== 'add' && targets.get(other.id)?.content === candidate.content) ||
-        searchTerms(other.content).some((term) => terms.has(term))
+        relatedTerms(terms, termsFor(other.content))
         ? [otherIndex]
         : [];
     });

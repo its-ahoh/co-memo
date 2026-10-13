@@ -507,8 +507,36 @@ textarea::placeholder {
   color: var(--danger);
 }
 #form-error,
-#delete-error {
+#delete-error,
+#resolve-error {
   color: var(--danger);
+}
+#resolve-options {
+  border: 0;
+  padding: 0;
+  margin: 20px 0 0;
+  min-width: 0;
+}
+#resolve-options legend {
+  font-size: 12px;
+  color: var(--muted);
+}
+.resolve-option {
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 12px;
+  cursor: pointer;
+}
+.resolve-option:has(input:checked) {
+  border-color: var(--accent);
+  background: var(--accent-bg);
+}
+.resolve-option .meta {
+  display: block;
+  margin-top: 8px;
+}
+.resolve-option pre {
+  margin-bottom: 0;
 }
 dialog {
   width: min(660px, calc(100% - 32px));

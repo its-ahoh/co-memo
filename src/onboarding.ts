@@ -1,7 +1,7 @@
 import { accessSync, constants, existsSync, realpathSync, statSync } from 'node:fs';
 import { basename, delimiter, dirname, join, resolve } from 'node:path';
 import { Agent, ensure, errorMessage } from './model.js';
-import { prepareSetup } from './setup.js';
+import { prepareSetup, setupToolsOnly } from './setup.js';
 import { applyAdapter } from './adapters.js';
 import { Store, dataHome } from './store.js';
 import { scopedReport } from './service.js';
@@ -46,7 +46,7 @@ export interface InitOptions {
   home?: string | undefined;
   root: string;
   agents: Agent[];
-  toolsOnly: boolean;
+  toolsOnly?: boolean | undefined;
   opencodeApi?: 'v1' | 'v2' | undefined;
 }
 export function planSetup(input: InitOptions) {
@@ -61,19 +61,23 @@ export function planSetup(input: InitOptions) {
     /* Non-Git projects remain supported. */
   }
   const options = {
-    toolsOnly: input.toolsOnly,
     ...(input.opencodeApi ? { opencodeApi: input.opencodeApi } : {}),
   };
+  const agents = input.agents.map((agent) => {
+    const toolsOnly = setupToolsOnly(root, agent, input.toolsOnly);
+    return {
+      agent,
+      mode: toolsOnly ? ('tools-only' as const) : ('hybrid' as const),
+      edits: prepareSetup(root, agent, home, { ...options, toolsOnly }),
+    };
+  });
   return {
     root,
     home,
-    mode: input.toolsOnly ? 'tools-only' : 'hybrid',
+    mode: agents.every((a) => a.mode === agents[0]!.mode) ? agents[0]!.mode : 'mixed',
     repository: git,
     detected: detectAgents(root),
-    agents: input.agents.map((agent) => ({
-      agent,
-      edits: prepareSetup(root, agent, home, options),
-    })),
+    agents,
   };
 }
 export function describePlan(plan: ReturnType<typeof planSetup>) {
@@ -84,8 +88,9 @@ export function describePlan(plan: ReturnType<typeof planSetup>) {
     detected: plan.detected,
     repository: plan.repository,
     sharing: 'Worktrees remain isolated unless explicitly linked with worktree link.',
-    agents: plan.agents.map(({ agent, edits }) => ({
+    agents: plan.agents.map(({ agent, mode, edits }) => ({
       agent,
+      mode,
       changes: edits.map((e) => ({
         path: e.path,
         action: e.before === e.after ? 'unchanged' : e.before === null ? 'create' : 'update',
@@ -96,7 +101,13 @@ export function describePlan(plan: ReturnType<typeof planSetup>) {
 /** All agents are preflighted before mutations; failures are reported, never called a complete setup. */
 export async function applySetup(input: InitOptions, plan = planSetup(input)) {
   const store = new Store(plan.home);
-  const results: { agent: Agent; status: string; error?: string; files?: string[] }[] = [];
+  const results: {
+    agent: Agent;
+    mode: string;
+    status: string;
+    error?: string;
+    files?: string[];
+  }[] = [];
   try {
     store.lock(() => {
       for (const { edits } of plan.agents)
@@ -105,17 +116,17 @@ export async function applySetup(input: InitOptions, plan = planSetup(input)) {
             readText(edit.path) === edit.before,
             'Configuration changed since preview; run init again',
           );
-      for (const { agent } of plan.agents) {
+      for (const { agent, mode } of plan.agents) {
         try {
           const edits = prepareSetup(plan.root, agent, store.home, {
-            toolsOnly: input.toolsOnly,
+            toolsOnly: mode === 'tools-only',
             ...(input.opencodeApi ? { opencodeApi: input.opencodeApi } : {}),
           });
           store.transaction(() => store.connect(store.project(plan.root, true), agent));
           applyAdapter(edits);
-          results.push({ agent, status: 'configured', files: edits.map((e) => e.path) });
+          results.push({ agent, mode, status: 'configured', files: edits.map((e) => e.path) });
         } catch (e) {
-          results.push({ agent, status: 'failed', error: errorMessage(e) });
+          results.push({ agent, mode, status: 'failed', error: errorMessage(e) });
           break;
         }
       }
@@ -146,9 +157,12 @@ export async function applySetup(input: InitOptions, plan = planSetup(input)) {
       sync: report,
       checks,
       hostVerified: false,
-      delivery: input.toolsOnly
-        ? 'agent-tool-call-required'
-        : 'hooks-configured-host-reload-required',
+      delivery:
+        plan.mode === 'mixed'
+          ? 'mixed-see-agent-results'
+          : plan.mode === 'tools-only'
+            ? 'agent-tool-call-required'
+            : 'hooks-configured-host-reload-required',
       next: 'Restart the selected agents and review host trust/tool approvals. Protocol probes do not establish model behavior.',
     };
   } finally {

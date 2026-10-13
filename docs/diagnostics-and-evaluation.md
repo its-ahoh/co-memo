@@ -13,7 +13,7 @@ The optional probe starts **this installation's pinned Node/CLI**, only after fi
 
 Checks return `pass`, `info`, `warn`, or `fail`, with remedies. CLI exit 2 means at least one failure; warnings alone exit 0. `hostVerified` remains false (an informational finding, not a failed check): checking files or speaking MCP directly cannot prove a host loaded its project config, approved hooks, or that a model followed memory instructions. Re-run `setup AGENT` to refresh generated files, preserving `--tools-only` and the intended OpenCode API version.
 
-The `readiness` field separates configuration inspection, protocol probe results, and `hostMemoryLoaded: "unverified"`. This last state is deliberate: no durable observation of your currently running host is recorded. Ask that host to call `memory_context` and inspect its tool result. `init` also reports `delivery`: `agent-tool-call-required` for tools-only, or `hooks-configured-host-reload-required` when hooks are enabled.
+The `readiness` field separates configuration inspection, protocol probe results, and `hostMemoryLoaded: "unverified"`. This last state is deliberate: no durable observation of your currently running host is recorded. Ask that host to call `memory_context` and inspect its tool result. `init` also reports `delivery`: `agent-tool-call-required` for tools-only, or `hooks-configured-host-reload-required` when hooks are enabled. Mixed-mode setups report `mixed-see-agent-results`, with the preserved mode listed for each agent.
 
 ## Real host readiness checks
 
@@ -109,6 +109,8 @@ This opt-in evaluation runs seven isolated Claude sessions using the installed C
 The evaluator checks actual successful tool calls, `automatic` intent, central-store contents, user/project scope, and same-ID version advancement for a correction. Non-save cases must not even attempt a write: a policy-rejected attempted save does not count as good extraction. A launch/quota/model failure stops the run as incomplete. Regex-based content checks are deliberately narrow and the output includes synthetic saved text for manual review. Passing these seven examples is not a general accuracy estimate, evidence of factual verification, or proof across all models and long conversations.
 
 ## Larger retrieval regression
+
+Dataset version 3 also checks automatic context separately from broad recall. Focused English, Chinese, mixed-language, path and module queries must retain the expected notes; weak-only and punctuation queries must inject no task notes. Pinned preferences must remain present. The report includes injected character counts and the CI gate rejects missing or unexpected context notes and budget violations in these synthetic cases. These cases measure a regression contract, not general semantic accuracy.
 
 ```sh
 pnpm eval:scale

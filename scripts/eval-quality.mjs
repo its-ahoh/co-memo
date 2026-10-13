@@ -163,6 +163,22 @@ export function evaluate(predictions, { distractors = 0 } = {}) {
         elapsedMs,
       };
     });
+    const pinned = new Set(cases.memories.filter((m) => m.pinned).map((m) => m.key));
+    const contextDetails = cases.contextRetrieval.map((item) => {
+      const injected = context(store, main.id, 16000, item.query);
+      const included = [...keys]
+        .filter(([id]) => injected.includes(`; ${id};`))
+        .map(([, key]) => key);
+      const returned = included.filter((key) => !pinned.has(key));
+      return {
+        id: item.id,
+        returned,
+        missing: item.relevant.filter((key) => !returned.includes(key)),
+        unexpected: returned.filter((key) => !item.relevant.includes(key)),
+        missingPinned: [...pinned].filter((key) => !included.includes(key)),
+        characters: injected.length,
+      };
+    });
     const mean = (items) => (items.length ? items.reduce((a, b) => a + b, 0) / items.length : null);
     const groups = Object.fromEntries(
       ['lexical', 'semantic'].map((group) => {
@@ -184,6 +200,16 @@ export function evaluate(predictions, { distractors = 0 } = {}) {
       distractors,
       corpusSize: cases.memories.length + distractors,
       runtime: process.version,
+      context: {
+        failures: contextDetails.filter(
+          (r) =>
+            r.missing.length ||
+            r.unexpected.length ||
+            r.missingPinned.length ||
+            r.characters > 16000,
+        ).length,
+        details: contextDetails,
+      },
       retrieval: {
         groups,
         leaks: details.filter((r) => r.leaked).length,
@@ -233,7 +259,8 @@ if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1]
   console.log(JSON.stringify(report, null, 2));
   if (
     args.includes('--check') &&
-    (report.retrieval.leaks ||
+    (report.context.failures ||
+      report.retrieval.leaks ||
       report.retrieval.contextBudgetViolations ||
       report.retrieval.groups.lexical.recallAt5 < 0.9 ||
       report.retrieval.groups.lexical.falsePositiveEmptyQueries ||

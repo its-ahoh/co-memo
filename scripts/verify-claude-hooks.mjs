@@ -30,7 +30,7 @@ try {
   mkdirSync(project);
   const store = new Store(home);
   try {
-    applyAdapter(prepareSetup(project, 'claude', home, {}));
+    applyAdapter(prepareSetup(project, 'claude', home, { toolsOnly: false }));
     const p = store.project(project, true);
     store.connect(p, 'claude');
     store.add(`${label}: verification value is ${value}.`, 'project', p.id, 'hook-fixture');

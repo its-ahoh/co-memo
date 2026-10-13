@@ -31,7 +31,7 @@ cd /path/to/your/project
 co-memo init --agents claude,codex --apply
 ```
 
-Restart the selected agents and accept their project/tool trust prompts. `init` defaults to tools-only; use `--hooks` if automatic lifecycle delivery is desired. Ask the running agent to call `memory_context` to confirm it can actually retrieve shared context.
+Restart the selected agents and accept their project/tool trust prompts. `init` defaults to tools-only for new installations and preserves existing modes; use `--hooks` if automatic lifecycle delivery is desired. Ask the running agent to call `memory_context` to confirm it can actually retrieve shared context.
 
 Local archives are also supported with `npm install -g /path/to/ahoh.tech-co-memo-0.8.0.tgz`. Prefer a persistent installation over `npx`/`pnpm dlx`: generated MCP, hook and skill instructions pin the Node executable and CLI to absolute paths, and disposable caches may disappear.
 
@@ -54,7 +54,7 @@ co-memo doctor claude --probe
 co-memo doctor codex --probe
 ```
 
-Specify the agents actually connected in that project. Include `--hooks` in both init commands if you want hooks to remain enabled; omitting it selects tools-only and removes Co-memo's managed hooks. Existing OpenCode API selection is preserved unless overridden. These are the same commands for repairing paths after changing Node versions or moving an installation. Unmanaged entries are refused; unrelated configuration and central memories are retained. Restart the hosts afterward.
+Specify the agents actually connected in that project. Omitting mode flags preserves each installed agent’s mode. Use `--hooks` to enable hooks or `--tools-only` to disable them explicitly. Existing OpenCode API selection is preserved unless overridden. These are the same commands for repairing paths after changing Node versions or moving an installation. Unmanaged entries are refused; unrelated configuration and central memories are retained. Restart the hosts afterward.
 
 A successful MCP probe means the configured server can start and respond. It does not prove that an existing host session has refreshed its tools. Schema upgrades may prevent older Co-memo versions from opening the database; upgrade all connected installations and consult the storage compatibility notes before downgrading.
 

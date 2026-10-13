@@ -1,5 +1,6 @@
 import test from 'node:test';
 import { get } from 'node:http';
+import { randomUUID } from 'node:crypto';
 import assert from 'node:assert/strict';
 import { existsSync, mkdtempSync, mkdirSync, rmSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -7,6 +8,96 @@ import { join } from 'node:path';
 import { startUI } from '../dist/ui.js';
 import { Store } from '../dist/store.js';
 import { sync } from '../dist/sync.js';
+
+test('UI resolves current, alternative, merged and archive choices with revision and policy checks', async (t) => {
+  const dir = mkdtempSync(join(tmpdir(), 'co-memo-ui-conflict-'));
+  const home = join(dir, 'data');
+  const store = new Store(home, 'fixture-agent');
+  const other = new Store(home, 'other-agent');
+  const project = store.project(dir, true);
+  const { server, url } = await startUI(home, dir, 0);
+  t.after(async () => {
+    await new Promise((resolve) => server.close(resolve));
+    store.close();
+    other.close();
+    rmSync(dir, { recursive: true, force: true });
+  });
+  const token = (await (await fetch(url)).text()).match(
+    /name="co-memo-token" content="([a-f0-9]+)"/,
+  )[1];
+  const request = async (path, body) => {
+    const response = await fetch(url + path, {
+      method: body ? 'POST' : 'GET',
+      headers: { 'X-Co-memo-token': token, 'Content-Type': 'application/json' },
+      ...(body ? { body: JSON.stringify(body) } : {}),
+    });
+    return { status: response.status, value: await response.json() };
+  };
+  for (const choice of ['current', 'alternative', 'custom', 'archive']) {
+    const old = store.add(`Color ${choice}: blue`, 'project', project.id, 'fixture').memory;
+    const candidate = {
+      id: randomUUID(),
+      content: `Color ${choice}: red`,
+      metadata: old.metadata,
+      sourceAgent: 'other-agent',
+    };
+    const replicaId = randomUUID();
+    const conflict = other.conflict(
+      old,
+      [{ replicaId, agent: 'codex', baseVersion: 1, content: null }],
+      [candidate],
+    );
+    const endpoint = `/api/conflicts/${conflict.id}/resolve`;
+    const listed = (await request('/api/memories')).value.memories.find((m) => m.id === old.id);
+    assert.equal(listed.conflict.candidates[0].sourceAgent, 'other-agent');
+    assert.equal(listed.sourceAgent, 'fixture-agent');
+    assert.equal((await fetch(url + endpoint, { method: 'POST' })).status, 403);
+    assert.equal(
+      (await request(endpoint, { revision: 1, take: 'current', content: 'both' })).status,
+      400,
+    );
+    assert.equal((await request(endpoint, { revision: 1, take: randomUUID() })).status, 400);
+    store.configure(project.id, { paused: true });
+    assert.equal((await request(endpoint, { revision: 1, take: 'current' })).status, 400);
+    store.configure(project.id, { paused: false });
+    store.conflict(
+      old,
+      [],
+      [{ ...candidate, id: randomUUID(), content: `Color ${choice}: green` }],
+    );
+    assert.equal((await request(endpoint, { revision: 1, take: 'current' })).status, 409);
+    assert.equal(store.get(old.id).version, 1);
+    const body =
+      choice === 'custom'
+        ? { content: `Color ${choice}: violet` }
+        : {
+            take:
+              choice === 'alternative'
+                ? candidate.id
+                : choice === 'archive'
+                  ? replicaId
+                  : 'current',
+          };
+    const result = await request(endpoint, { revision: 2, ...body });
+    assert.equal(result.status, 200);
+    assert.equal(result.value.memory.version, 2);
+    assert.equal(result.value.memory.deleted, choice === 'archive');
+    assert.equal(
+      result.value.memory.content,
+      choice === 'custom'
+        ? body.content
+        : choice === 'alternative'
+          ? candidate.content
+          : old.content,
+    );
+    assert.equal(store.history(old.id).length, 2);
+    assert.equal((await request(endpoint, { revision: 2, ...body })).status, 409);
+    assert.equal(
+      (await request('/api/memories')).value.memories.find((m) => m.id === old.id).conflict,
+      null,
+    );
+  }
+});
 
 test('UI persists CRUD, uses database storage, protects versions and serves packaged assets', async (t) => {
   const dir = mkdtempSync(join(tmpdir(), 'co-memo-ui-'));

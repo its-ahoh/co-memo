@@ -10,32 +10,32 @@ co-memo --home /path/to/data --project /path/to/project COMMAND
 
 `--agent-id ID` binds the writing integration for the process, including MCP `serve`. Setup adds it automatically for built-in agents; manual clients can use IDs such as `cursor` or `gemini`. IDs contain 1–100 lowercase letters, digits, dots, underscores or hyphens and start with a letter or digit. It is configuration provenance, not authentication. Every new memory version records `sourceAgent` independently of optional caller-declared evidence; missing binding remains null. `notes.source_agent` and `histories.source_agent` are queryable generated columns. `history ID` shows original and subsequent writers. Existing setup must be refreshed after upgrading. The web console's manual writes remain unbound regardless of who launched it.
 
-| Command                                                  | Behavior                                                                                                       |
-| -------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------- |
-| `setup AGENT [--tools-only] [--opencode-api v1\|v2]`     | Install tools, dialogue skill and optional lifecycle hooks                                                     |
-| `doctor [AGENT] [--probe]`                               | Inspect local readiness; optional MCP handshake/settings read, no model calls                                  |
-| `serve`                                                  | Run project-bound MCP over stdio                                                                               |
-| `settings get`                                           | Read settings overrides and effective values                                                                   |
-| `settings set --scope user\|project ...`                 | Set saveMode/defaultScope/paused, or --reset overrides                                                         |
-| `connect AGENT [--opencode-api v1\|v2]`                  | Register project/agent connection and configure host                                                           |
-| `add --content TEXT [--scope project\|user]`             | Save immediately; default scope follows settings                                                               |
-| `list [--deleted] [--query TEXT] [--explain]`            | List this project's and user notes; optional hybrid search (up to 100 matches), with mode/fallback diagnostics |
-| `show ID`                                                | Full note including current revision and deletion state                                                        |
-| `edit ID --version N --content TEXT`                     | Compare-and-update; stale versions fail                                                                        |
-| `forget ID --version N`                                  | Compatibility alias for archive                                                                                |
-| `history ID`                                             | Every stored version                                                                                           |
-| `import PATH [--scope project\|user]`                    | One-time file or nonrecursive directory import; originals untouched                                            |
-| `sync`                                                   | Compatibility maintenance and conflict report                                                                  |
-| `ui [--port NUMBER] [--no-open]`                         | Start the loopback memory console; open a browser by default; port 0 selects an available port                 |
-| `locations ID`                                           | Inspect the central database location and scoped agent connections                                             |
-| `watch`                                                  | Check maintenance/conflicts every two seconds; SIGINT/SIGTERM stops cleanly                                    |
-| `context [--query TEXT]`                                 | Bounded user/project context; excludes conflicting notes                                                       |
-| `conflicts`                                              | Personal and current-project conflicts with preserved proposals                                                |
-| `resolve ID --revision N --take current`                 | Keep central version                                                                                           |
-| `resolve ID --revision N --take REPLICA_OR_CANDIDATE_ID` | Choose a replica proposal or a submitted candidate                                                             |
-| `resolve ID --revision N --content TEXT`                 | Supply an explicit merged resolution                                                                           |
-| `status`                                                 | Storage, project, agent connections and conflicts                                                              |
-| `bridge --agent NAME --event EVENT`                      | Internal host adapter entry; not a transcript ingestion API                                                    |
+| Command                                                       | Behavior                                                                                                       |
+| ------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------- |
+| `setup AGENT [--hooks\|--tools-only] [--opencode-api v1\|v2]` | Install tools, dialogue skill and optional lifecycle hooks                                                     |
+| `doctor [AGENT] [--probe]`                                    | Inspect local readiness; optional MCP handshake/settings read, no model calls                                  |
+| `serve`                                                       | Run project-bound MCP over stdio                                                                               |
+| `settings get`                                                | Read settings overrides and effective values                                                                   |
+| `settings set --scope user\|project ...`                      | Set saveMode/defaultScope/paused, or --reset overrides                                                         |
+| `connect AGENT [--opencode-api v1\|v2]`                       | Register project/agent connection and configure host                                                           |
+| `add --content TEXT [--scope project\|user]`                  | Save immediately; default scope follows settings                                                               |
+| `list [--deleted] [--query TEXT] [--explain]`                 | List this project's and user notes; optional hybrid search (up to 100 matches), with mode/fallback diagnostics |
+| `show ID`                                                     | Full note including current revision and deletion state                                                        |
+| `edit ID --version N --content TEXT`                          | Compare-and-update; stale versions fail                                                                        |
+| `forget ID --version N`                                       | Compatibility alias for archive                                                                                |
+| `history ID`                                                  | Every stored version                                                                                           |
+| `import PATH [--scope project\|user]`                         | One-time file or nonrecursive directory import; originals untouched                                            |
+| `sync`                                                        | Compatibility maintenance and conflict report                                                                  |
+| `ui [--port NUMBER] [--no-open]`                              | Start the loopback memory console; open a browser by default; port 0 selects an available port                 |
+| `locations ID`                                                | Inspect the central database location and scoped agent connections                                             |
+| `watch`                                                       | Check maintenance/conflicts every two seconds; SIGINT/SIGTERM stops cleanly                                    |
+| `context [--query TEXT]`                                      | Bounded user/project context; excludes conflicting notes                                                       |
+| `conflicts`                                                   | Personal and current-project conflicts with preserved proposals                                                |
+| `resolve ID --revision N --take current`                      | Keep central version                                                                                           |
+| `resolve ID --revision N --take REPLICA_OR_CANDIDATE_ID`      | Choose a replica proposal or a submitted candidate                                                             |
+| `resolve ID --revision N --content TEXT`                      | Supply an explicit merged resolution                                                                           |
+| `status`                                                      | Storage, project, agent connections and conflicts                                                              |
+| `bridge --agent NAME --event EVENT`                           | Internal host adapter entry; not a transcript ingestion API                                                    |
 
 Memory commands use the database directly. User notes can be saved without project context; project notes require an identified workspace. CLI/MCP can identify the workspace without installing an agent integration.
 
@@ -65,7 +65,7 @@ Optional `prepare --file FILE` reads scoped related memories for `{intent, candi
 
 `index [--limit N]` explicitly builds optional embedding caches for eligible user/project memories. It requires provider configuration, sends note text to that provider, defaults to 100 notes, and reports remaining work. See [semantic retrieval](semantic-retrieval.md).
 
-`init [--agents codex,claude] [--apply] [--hooks]` discovers agents and previews setup; noninteractive runs need `--apply` to write. `worktree inspect` shows Git identity; `worktree link --to ROOT` explicitly shares an already connected repository’s project memory. `verify --from codex --to claude [--round-trip] [--keep]` runs real models with temporary synthetic memory and consumes host quota. See [the setup/worktree/verification guide](onboarding-and-worktrees.md) for scope and schema compatibility.
+`init [--agents codex,claude] [--apply] [--hooks|--tools-only]` discovers agents and previews setup; noninteractive runs need `--apply` to write. `worktree inspect` shows Git identity; `worktree link --to ROOT` explicitly shares an already connected repository’s project memory. `verify --from codex --to claude [--round-trip] [--keep]` runs real models with temporary synthetic memory and consumes host quota. See [the setup/worktree/verification guide](onboarding-and-worktrees.md) for scope and schema compatibility.
 
 ## Disconnect an agent
 

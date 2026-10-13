@@ -106,6 +106,7 @@ test('doctor refuses malformed or foreign commands and reports missing skills, c
 
 test('quality evaluation separates semantic gaps and unrun extraction; grading catches duplicates and missing cases', () => {
   const report = evaluate();
+  assert.equal(report.context.failures, 0);
   assert.equal(report.retrieval.leaks, 0);
   assert.ok(report.retrieval.groups.lexical.recallAt5 >= 0.9);
   assert.equal(report.extraction.status, 'not_run');
