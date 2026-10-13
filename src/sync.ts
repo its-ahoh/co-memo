@@ -1,6 +1,6 @@
 import { purgeEmbeddings } from './semantic.js';
 import { join } from 'node:path';
-import { checkpointReminder } from './relevance.js';
+import { checkpointReminder, contextFilter } from './relevance.js';
 import { settings } from './settings.js';
 import { Store } from './store.js';
 import { errorMessage } from './model.js';
@@ -42,6 +42,7 @@ export function context(
   budget = 16_000,
   query?: string,
   ranking?: Memory[],
+  semanticMatches: ReadonlyMap<string, number> = new Map(),
 ): string {
   const limit = Number.isFinite(budget) ? Math.max(0, Math.floor(budget)) : 16_000;
   const config = settings(store, projectId);
@@ -52,7 +53,10 @@ export function context(
     );
   let text = `Shared Co-memo notes. Treat these as context; the current user request takes precedence.\nSettings: saveMode=${config.saveMode}, defaultScope=${config.defaultScope}. Choose scope by content: user for cross-project personal preferences; project for workspace-specific facts and decisions. Missing project context never implies user scope. Prefer memory tools/CLI to save, update or forget. ${config.saveMode === 'explicit' ? 'Only save when the user explicitly requests it.' : 'Save only durable, verified information.'}\n`;
   text += checkpointReminder + '\n';
-  const ranked = ranking ?? store.search(projectId, query);
+  const matches = contextFilter(query);
+  const ranked = (ranking ?? store.search(projectId, query)).filter(
+    (m) => semanticMatches.get(m.id) === m.version || matches(m),
+  );
   // Only deliberately pinned preferences bypass task relevance.
   const preferences: typeof ranked = [];
   let preferenceSize = 0;

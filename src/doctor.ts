@@ -11,7 +11,7 @@ import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
 import { Agent, ensure } from './model.js';
 import { readText, safeParents } from './fs.js';
-import { prepareSetup } from './setup.js';
+import { prepareSetup, setupToolsOnly } from './setup.js';
 import { SettingsPatch } from './settings.js';
 import { dataHome } from './store.js';
 
@@ -202,23 +202,7 @@ export async function doctor(input: {
             ? 'Project MCP entry points to this runtime, CLI, store and project.'
             : 'Pi uses the pinned CLI instead of MCP.',
         );
-        const hooks =
-          readText(
-            join(
-              root,
-              agent === 'codex'
-                ? '.codex/hooks.json'
-                : agent === 'claude'
-                  ? '.claude/settings.local.json'
-                  : agent === 'pi'
-                    ? '.pi/extensions/co-memo.ts'
-                    : '.opencode/plugins/co-memo.ts',
-            ),
-          ) ?? '';
-        const toolsOnly =
-          agent === 'codex' || agent === 'claude'
-            ? !hooks.includes('co-memo:managed:')
-            : !hooks.includes('bridge');
+        const toolsOnly = setupToolsOnly(root, agent);
         const edits = prepareSetup(root, agent, home, { toolsOnly });
         const drift = edits.filter((edit) => edit.before !== edit.after).map((edit) => edit.path);
         add(

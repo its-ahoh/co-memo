@@ -4,6 +4,7 @@ const token = document.querySelector('meta[name="co-memo-token"]').content;
 let data = { memories: [], projects: [] },
   editing = null,
   deleting = null,
+  resolving = null,
   busy = false,
   selectedScope = 'all';
 const names = {
@@ -37,7 +38,11 @@ async function api(path, method = 'GET', body) {
     ...(body ? { body: JSON.stringify(body) } : {}),
   });
   const result = await response.json();
-  if (!response.ok) throw new Error(result.error || 'Request failed');
+  if (!response.ok) {
+    const error = new Error(result.error || 'Request failed');
+    error.status = response.status;
+    throw error;
+  }
   return result;
 }
 function projectName(id) {
@@ -90,7 +95,7 @@ function render() {
   const memories = data.memories
     .filter(
       (m) =>
-        (s === 'all' || m.deleted === (s === 'archived')) &&
+        (s === 'all' || (s === 'conflicts' ? m.conflicted : m.deleted === (s === 'archived'))) &&
         (p === 'all' || (p === 'user' ? m.scope === 'user' : m.projectId === p)) &&
         [m.content, m.origin, m.sourceAgent || '', m.metadata.module || '']
           .join(' ')
@@ -159,7 +164,11 @@ function render() {
       actions.append(remove);
       bottom.append(actions);
     }
-    if (m.conflicted) bottom.append(node('span', 'Resolve with co-memo resolve', 'meta'));
+    if (m.conflicted) {
+      const resolve = node('button', 'Resolve conflict');
+      resolve.onclick = () => openResolution(m);
+      bottom.append(resolve);
+    }
     const locations = node('details', '', 'locations');
     locations.append(node('summary', 'Storage and connected agents'));
     const database = node('div', '', 'location-entry');
@@ -241,10 +250,131 @@ function resultMessage(result, fallback) {
     (result.notice || fallback) +
     (errors.length ? '\nMaintenance errors: ' + errors.map((e) => e.error).join('; ') : '') +
     (result.sync?.conflicts?.length
-      ? '\nUnresolved memory conflicts. Inspect with co-memo conflicts.'
+      ? '\nUnresolved memory conflicts. Select the Conflicts filter to review them.'
       : '')
   );
 }
+function openResolution(memory, draft = '') {
+  resolving = memory;
+  $('resolve-options').disabled = false;
+  $('resolve-options').replaceChildren(node('legend', 'Version to keep'));
+  const conflict = memory.conflict;
+  const choices = [
+    {
+      value: 'current',
+      title: 'Current version',
+      content: conflict.currentContent,
+      source: memory.sourceAgent,
+    },
+    ...conflict.candidates.map((c, i) => ({
+      value: c.id,
+      title: `Alternative ${i + 1}`,
+      content: c.content,
+      source: c.sourceAgent,
+    })),
+    ...conflict.proposals.map((p, i) => ({
+      value: p.replicaId,
+      title: `Legacy proposal ${i + 1}`,
+      content: p.content,
+      source: p.agent,
+    })),
+    { value: 'custom', title: 'Combine manually' },
+  ];
+  for (const choice of choices) {
+    const label = node('label', '', 'resolve-option');
+    const radio = document.createElement('input');
+    radio.type = 'radio';
+    radio.name = 'resolution-choice';
+    radio.value = choice.value;
+    radio.required = true;
+    label.append(radio, node('span', choice.title));
+    if (choice.value !== 'custom') {
+      label.append(
+        node('span', `Source agent: ${choice.source ?? 'unknown'}`, 'meta'),
+        node(
+          'pre',
+          choice.content === null
+            ? 'Archive this memory (content and history retained).'
+            : choice.content,
+        ),
+      );
+    }
+    radio.onchange = () => {
+      const custom = choice.value === 'custom';
+      $('merge-label').hidden = !custom;
+      $('merge-content').required = custom;
+      $('resolve-save').disabled = false;
+    };
+    $('resolve-options').append(label);
+  }
+  $('merge-content').value = draft;
+  $('merge-content').required = false;
+  $('merge-label').hidden = true;
+  $('resolve-save').disabled = true;
+  $('resolve-error').textContent = '';
+  $('resolve-reload').hidden = true;
+  if (!$('resolution').open) $('resolution').showModal();
+}
+$('resolve-form').onsubmit = async (event) => {
+  event.preventDefault();
+  if (busy || !resolving) return;
+  const choice = document.querySelector('input[name="resolution-choice"]:checked')?.value;
+  if (!choice) return;
+  busy = true;
+  $('resolve-save').disabled = true;
+  $('resolve-options').disabled = true;
+  $('resolve-error').textContent = '';
+  let stale = false;
+  try {
+    const result = await api(`/api/conflicts/${resolving.conflict.id}/resolve`, 'POST', {
+      revision: resolving.conflict.revision,
+      ...(choice === 'custom' ? { content: $('merge-content').value.trim() } : { take: choice }),
+    });
+    $('resolution').close();
+    resolving = null;
+    notify(resultMessage(result, 'Conflict resolved.'));
+    try {
+      await load();
+    } catch (e) {
+      notify('Conflict resolved, but refresh failed: ' + e.message, true);
+    }
+  } catch (e) {
+    stale = e.status === 409;
+    $('resolve-error').textContent = stale
+      ? 'The conflict changed. Reload the latest versions and choose again. Your draft is kept.'
+      : e.message;
+    $('resolve-reload').hidden = !stale;
+  } finally {
+    busy = false;
+    $('resolve-options').disabled = stale;
+    $('resolve-save').disabled = stale;
+  }
+};
+$('resolve-reload').onclick = async () => {
+  if (busy || !resolving) return;
+  busy = true;
+  $('resolve-reload').disabled = true;
+  try {
+    await load();
+    const latest = data.memories.find((m) => m.id === resolving.id);
+    if (!latest?.conflict) {
+      $('resolve-error').textContent =
+        'This conflict has already been resolved or removed. Close this dialog to see the updated list.';
+      return;
+    }
+    openResolution(latest, $('merge-content').value);
+    $('resolve-options').disabled = false;
+  } catch (e) {
+    $('resolve-error').textContent = e.message;
+  } finally {
+    busy = false;
+    $('resolve-reload').disabled = false;
+  }
+};
+for (const id of ['resolve-close', 'resolve-cancel'])
+  $(id).onclick = () => {
+    if (!busy) $('resolution').close();
+  };
 $('form').onsubmit = async (event) => {
   event.preventDefault();
   if (busy) return;
@@ -364,7 +494,7 @@ for (const id of ['cancel', 'close'])
 $('keep').onclick = () => {
   if (!busy) $('deletion').close();
 };
-for (const id of ['editor', 'deletion'])
+for (const id of ['editor', 'deletion', 'resolution'])
   $(id).addEventListener('cancel', (event) => {
     if (busy) event.preventDefault();
   });

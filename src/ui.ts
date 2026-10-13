@@ -6,7 +6,7 @@ import { z } from 'zod';
 import { locationReader } from './locations.js';
 import { Store } from './store.js';
 import { Content, Scope, errorMessage } from './model.js';
-import { remember, change, remove, restore, Version } from './service.js';
+import { remember, change, remove, restore, resolveConflict, Version } from './service.js';
 
 async function body(req: IncomingMessage): Promise<unknown> {
   const chunks: Buffer[] = [];
@@ -96,7 +96,7 @@ export async function startUI(home?: string, root = process.cwd(), port = 4318) 
             ...store.list(null, true),
             ...projects.flatMap((p) => store.list(p.id, true).filter((m) => m.scope === 'project')),
           ];
-          const conflicts = new Set(store.conflicts().map((c) => c.memoryId));
+          const conflicts = new Map(store.conflicts().map((c) => [c.memoryId, c]));
           const locations = locationReader(store);
           return {
             home: store.home,
@@ -104,6 +104,7 @@ export async function startUI(home?: string, root = process.cwd(), port = 4318) 
             memories: memories.map((m) => ({
               ...m,
               conflicted: conflicts.has(m.id),
+              conflict: conflicts.get(m.id) ?? null,
               locations: locations(m),
             })),
           };
@@ -113,6 +114,31 @@ export async function startUI(home?: string, root = process.cwd(), port = 4318) 
       }
       if (req.headers['content-type'] !== 'application/json') {
         send(415, { error: 'Expected application/json' });
+        return;
+      }
+      const resolution = path.match(/^\/api\/conflicts\/([a-f0-9-]+)\/resolve$/);
+      if (resolution && req.method === 'POST') {
+        const input = z
+          .strictObject({
+            revision: Version,
+            take: z.union([z.literal('current'), z.uuid()]).optional(),
+            content: Content.optional(),
+          })
+          .parse(await body(req));
+        const result = store.lock(() => {
+          const id = z.uuid().parse(resolution[1]);
+          const conflict = store.conflicts().find((c) => c.id === id);
+          if (!conflict) throw new Error('Conflict not found; refresh the list');
+          const memory = store.get(conflict.memoryId);
+          const target = memory.projectId ? store.projectById(memory.projectId).root : root;
+          return resolveConflict(store, target, {
+            id,
+            revision: input.revision,
+            ...(input.take !== undefined ? { take: input.take } : {}),
+            ...(input.content !== undefined ? { content: input.content } : {}),
+          });
+        });
+        send(200, result);
         return;
       }
       if (path === '/api/memories' && req.method === 'POST') {
@@ -185,7 +211,7 @@ export async function startUI(home?: string, root = process.cwd(), port = 4318) 
       send(404, { error: 'Not found' });
     } catch (e) {
       const error = errorMessage(e);
-      send(/Version changed|conflict|UNIQUE constraint/.test(error) ? 409 : 400, { error });
+      send(/Version changed|conflict|UNIQUE constraint/i.test(error) ? 409 : 400, { error });
     }
   });
   server.requestTimeout = 15_000;

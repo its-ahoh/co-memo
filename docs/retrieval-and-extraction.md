@@ -10,6 +10,8 @@ Project and user scope, deletion and unresolved-conflict filters apply before th
 
 Only preferences explicitly marked `pinned` bypass task matching, under a 2,000-character allocation. The full context, including instructions, is bounded to 16,000 characters. Large notes can be omitted rather than truncated. Old notes default to kind `note`, no evidence/module, and unpinned. Existing user notes are no longer automatically included when unrelated to a task.
 
+Automatic context applies a stricter lexical filter than recall: notes must match at least 75% of the distinct normalized query terms, and at least two terms for multi-term queries. Single-term queries still need just that term; no-query reads keep their existing behavior. Module labels count as matches. Use a short, focused query for context; verbose requests or synonyms can miss relevant notes, which remain available through broader recall. Pinned preferences and current-version semantic matches above the configured similarity threshold bypass this lexical filter. Provider fallback applies the lexical filter again. Recall, list/search, and save-time duplicate review retain their own behavior.
+
 ## Candidate submission
 
 An agent should extract durable facts rather than summarize the entire conversation. It submits a bounded batch directly; saving searches for related notes and returns a review only when needed. Use `memory_submit`, or writes this JSON to a file and runs `co-memo submit --file /absolute/path/submission.json`:
@@ -71,6 +73,8 @@ Submit directly, or optionally preview with `memory_prepare` / `co-memo prepare 
 Choose skip for equivalent facts, update with the existing ID/version and correction basis for clear changes, and conflict for uncertain contradictions. Repeated conflict submissions preserve additional source evidence on the same conflict, up to 100 candidates; they do not silently pick the latest version. Exact content plus identical metadata is deduplicated within a conflict. Explicit resolution selects an existing candidate/current content or a supplied merge and retains revision history.
 
 The review uses local lexical retrieval, not embeddings or a model; paraphrases without shared terms can be missed and similar wording can mean opposite things. No automatic semantic merging is performed. The same pipeline covers submit, add/remember, Markdown import and console creation. Prepare is optional; successful saves include verification. No save/checkpoint call is needed when there is nothing durable to save.
+
+Stored search results and batch peers use the same body-text overlap check. After search-term normalization and deduplication, at least half of the shorter note's terms must overlap, with at least two shared terms for notes containing three or more terms each. If either note has only one or two terms, one shared term remains enough so short labels and corrections still receive review. Module metadata alone does not trigger review. This conservative heuristic reduces incidental keyword matches; it does not establish semantic similarity. Exact duplicates, batch target checks, scope isolation, and whole-batch review/commit behavior remain unchanged.
 
 ### Batch and concurrent review
 

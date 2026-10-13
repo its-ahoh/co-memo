@@ -19,7 +19,7 @@ co-memo setup opencode --opencode-api v2
 co-memo setup pi
 ```
 
-Setup adds the existing memory connection, a dialogue skill, MCP configuration where supported, and lifecycle hooks. It preserves unrelated configuration. Pi uses the CLI and its native extension rather than a native MCP server registration.
+Setup adds the existing memory connection, a dialogue skill, MCP configuration where supported, and optional lifecycle hooks. Both setup and init preserve each installed agent’s mode, defaulting to tools-only for new installations. Use `--hooks` to enable hooks or `--tools-only` to disable them. It preserves unrelated configuration. Pi uses the CLI and its native extension rather than a native MCP server registration.
 
 To use tools without lifecycle hooks:
 

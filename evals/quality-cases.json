@@ -1,5 +1,5 @@
 {
-  "version": 2,
+  "version": 3,
   "memories": [
     {
       "key": "packages",
@@ -351,6 +351,58 @@
         }
       ],
       "expected": []
+    }
+  ],
+  "contextRetrieval": [
+    {
+      "id": "focused-packages",
+      "query": "pnpm dependencies",
+      "relevant": [
+        "packages"
+      ]
+    },
+    {
+      "id": "focused-chinese",
+      "query": "数据库迁移 事务",
+      "relevant": [
+        "migration"
+      ]
+    },
+    {
+      "id": "mixed-language",
+      "query": "数据库 migration 事务",
+      "relevant": [
+        "migration"
+      ]
+    },
+    {
+      "id": "module-label",
+      "query": "storage sqlite",
+      "relevant": [
+        "module"
+      ]
+    },
+    {
+      "id": "technical-path",
+      "query": "src/protocol/parser.ts",
+      "relevant": [
+        "parser"
+      ]
+    },
+    {
+      "id": "weak-english-only",
+      "query": "pnpm astronomy",
+      "relevant": []
+    },
+    {
+      "id": "weak-chinese-only",
+      "query": "数据库 天文",
+      "relevant": []
+    },
+    {
+      "id": "empty-punctuation",
+      "query": "!!! --- ...",
+      "relevant": []
     }
   ]
 }

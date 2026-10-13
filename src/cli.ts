@@ -25,7 +25,7 @@ import {
 } from './service.js';
 import { allowWrite } from './settings.js';
 import type { Intent } from './settings.js';
-import { prepareSetup } from './setup.js';
+import { prepareSetup, setupToolsOnly } from './setup.js';
 import { serve } from './mcp.js';
 import { locationReader } from './locations.js';
 import { startUI } from './ui.js';
@@ -226,13 +226,24 @@ app
   .description('Discover agents, preview setup, then optionally configure and probe them')
   .option('--agents <names>', 'Comma-separated agents: codex,claude,opencode,pi')
   .option('--apply', 'Apply the displayed setup plan; otherwise noninteractive runs only preview')
-  .option('--hooks', 'Include lifecycle hooks (default: tools-only)')
+  .addOption(
+    new Option(
+      '--hooks',
+      'Enable lifecycle hooks (default: preserve existing; new installs tools-only)',
+    ).conflicts('toolsOnly'),
+  )
+  .addOption(
+    new Option('--tools-only', 'Disable lifecycle hooks; use tools/CLI for memory').conflicts(
+      'hooks',
+    ),
+  )
   .addOption(new Option('--opencode-api <version>', 'OpenCode plugin API').choices(['v1', 'v2']))
   .action(
     async (opts: {
       agents?: string;
       apply?: boolean;
       hooks?: boolean;
+      toolsOnly?: boolean;
       opencodeApi?: 'v1' | 'v2';
     }) => {
       const global = options(),
@@ -258,7 +269,7 @@ app
           ...global,
           root: global.project,
           agents,
-          toolsOnly: !opts.hooks,
+          toolsOnly: opts.hooks ? false : opts.toolsOnly ? true : undefined,
           opencodeApi: opts.opencodeApi,
         };
         const plan = planSetup(input);
@@ -780,32 +791,48 @@ app
 app
   .command('setup <agent>')
   .description('Install memory tools, dialogue skill and optional lifecycle hooks')
-  .option('--tools-only', 'Disable Co-memo lifecycle hooks; use tools/CLI for memory')
+  .addOption(
+    new Option(
+      '--tools-only',
+      'Disable Co-memo lifecycle hooks; use tools/CLI for memory',
+    ).conflicts('hooks'),
+  )
+  .addOption(
+    new Option(
+      '--hooks',
+      'Enable lifecycle hooks (default: preserve existing; new installs tools-only)',
+    ).conflicts('toolsOnly'),
+  )
   .addOption(new Option('--opencode-api <version>', 'OpenCode plugin API').choices(['v1', 'v2']))
-  .action((name: string, opts: { toolsOnly?: boolean; opencodeApi?: 'v1' | 'v2' }) => {
-    const agent = Agent.parse(name);
-    ensure(!opts.opencodeApi || agent === 'opencode', '--opencode-api requires setup opencode');
-    print(
-      using((store, path) => {
-        const root = realpathSync(path);
-        const edits = prepareSetup(root, agent, store.home, opts);
-        const connection = store.transaction(() => store.connect(store.project(root, true), agent));
-        applyAdapter(edits);
-        const report = scopedReport(store, root, sync(store));
-        reportExit(report);
-        return {
-          agent,
-          mode: opts.toolsOnly ? 'tools-only' : 'hybrid',
-          storage: 'database',
-          connection,
-          files: edits.map((e) => e.path),
-          transport: agent === 'pi' ? 'cli' : 'mcp-stdio',
-          ...report,
-          next: 'Restart/reload the host and review project/tool trust prompts. Verify memory_context and settings get.',
-        };
-      }),
-    );
-  });
+  .action(
+    (name: string, opts: { toolsOnly?: boolean; hooks?: boolean; opencodeApi?: 'v1' | 'v2' }) => {
+      const agent = Agent.parse(name);
+      ensure(!opts.opencodeApi || agent === 'opencode', '--opencode-api requires setup opencode');
+      print(
+        using((store, path) => {
+          const root = realpathSync(path);
+          const toolsOnly = setupToolsOnly(root, agent, opts.hooks ? false : opts.toolsOnly);
+          const edits = prepareSetup(root, agent, store.home, { ...opts, toolsOnly });
+          const connection = store.transaction(() =>
+            store.connect(store.project(root, true), agent),
+          );
+          applyAdapter(edits);
+          const report = scopedReport(store, root, sync(store));
+          reportExit(report);
+          return {
+            agent,
+            mode: toolsOnly ? 'tools-only' : 'hybrid',
+            storage: 'database',
+            connection,
+            files: edits.map((e) => e.path),
+            transport: agent === 'pi' ? 'cli' : 'mcp-stdio',
+            ...report,
+            next: 'Restart/reload the host and review project/tool trust prompts. Verify memory_context and settings get.',
+          };
+        }),
+      );
+    },
+  );
 app
   .command('serve')
   .option('--co-memo-managed', 'Marks generated MCP launch configurations')

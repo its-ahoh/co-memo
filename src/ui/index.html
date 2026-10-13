@@ -53,6 +53,7 @@
           ><select id="status" aria-label="Filter status">
             <option value="active">Active</option>
             <option value="archived">Archived</option>
+            <option value="conflicts">Conflicts</option>
             <option value="all">All states</option>
           </select>
         </div>
@@ -100,6 +101,28 @@
         <div class="dialog-actions">
           <button type="button" id="cancel">Cancel</button
           ><button class="primary" id="save" type="submit">Save memory</button>
+        </div>
+      </form>
+    </dialog>
+    <dialog id="resolution" aria-labelledby="resolve-title">
+      <form id="resolve-form">
+        <div class="dialog-heading">
+          <h2 id="resolve-title">Resolve conflict</h2>
+          <button type="button" id="resolve-close" aria-label="Close conflict">×</button>
+        </div>
+        <p>
+          Compare the versions below and choose what to keep. This memory stays out of agent context
+          until resolved. Previous versions remain in history.
+        </p>
+        <fieldset id="resolve-options"><legend>Version to keep</legend></fieldset>
+        <label id="merge-label" hidden
+          >Combined content<textarea id="merge-content" rows="6" maxlength="32000"></textarea>
+        </label>
+        <p id="resolve-error" role="alert"></p>
+        <button type="button" id="resolve-reload" hidden>Reload latest versions</button>
+        <div class="dialog-actions">
+          <button type="button" id="resolve-cancel">Cancel</button>
+          <button class="primary" id="resolve-save" type="submit" disabled>Apply resolution</button>
         </div>
       </form>
     </dialog>

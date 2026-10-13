@@ -56,23 +56,23 @@ co-memo init --agents claude,codex --apply
 
 Choose how shared memory enters the agent's context:
 
-| Command                                              | Default behavior                                                                        |
-| ---------------------------------------------------- | --------------------------------------------------------------------------------------- |
-| `co-memo init --agents claude,codex --apply`         | Tools-only: the agent must request memory through tools or CLI.                         |
-| `co-memo init --agents claude,codex --hooks --apply` | Configure lifecycle hooks for automatic context delivery and database maintenance.      |
-| `co-memo setup AGENT`                                | Configure one agent, with hooks enabled by default. Add `--tools-only` to disable them. |
+| Command                                              | Default behavior                                                                   |
+| ---------------------------------------------------- | ---------------------------------------------------------------------------------- |
+| `co-memo init --agents claude,codex --apply`         | New installs use tools-only; existing agent modes are preserved.                   |
+| `co-memo init --agents claude,codex --hooks --apply` | Configure lifecycle hooks for automatic context delivery and database maintenance. |
+| `co-memo setup AGENT`                                | Configure one agent; new installs use tools-only, existing modes are preserved.    |
 
-For MCP agents without hooks, generated instructions request `memory_context` when relevant context is missing. Pi uses the CLI in tools-only mode. Re-running `init` without `--hooks` selects tools-only and removes Co-memo's managed hooks.
+For MCP agents without hooks, generated instructions request `memory_context` when relevant context is missing. Pi uses the CLI in tools-only mode. Both `init` and `setup` preserve each existing agent mode by default; new installs use tools-only. Use `--hooks` to enable or `--tools-only` to disable hooks. These flags are mutually exclusive.
 
 To connect individual agents with hooks, run these from your project:
 
 ```sh
-co-memo setup pi
-co-memo setup claude
-co-memo setup codex
-co-memo setup opencode
+co-memo setup pi --hooks
+co-memo setup claude --hooks
+co-memo setup codex --hooks
+co-memo setup opencode --hooks
 # For OpenCode V2 instead of V1:
-co-memo setup opencode --opencode-api v2
+co-memo setup opencode --hooks --opencode-api v2
 ```
 
 Reload Pi with `/reload` and trust the project. Restart Claude Code and approve its project hooks. Restart Codex, trust the project and review its hooks with `/hooks`. Restart OpenCode to load its plugin. Setup preserves unrelated instructions and settings, installs a dialogue skill, and adds project-local MCP tools for Codex, Claude and OpenCode. Pi uses the CLI/native extension.
@@ -127,7 +127,7 @@ Run `co-memo ui` to start the local server and open your default browser (defaul
 
 The English console offers System, Dark, and Light themes. Your choice is saved in this browser and applied before the page renders. System follows your operating system’s color preference.
 
-The browser UI lists personal memories and registered projects, with search, filters and add/edit/archive/restore/delete actions. All operations use the database directly with version and conflict checks. Archive retains content/history; Restore makes it active again; Delete removes the record, revisions, conflict data and derived caches. Existing backups, legacy Markdown copies and conversations are unaffected. Resolve conflicts with `co-memo conflicts` and `co-memo resolve`.
+The browser UI lists personal memories and registered projects, with search, filters and add/edit/archive/restore/delete actions. All operations use the database directly with version and conflict checks. Archive retains content/history; Restore makes it active again; Delete removes the record, revisions, conflict data and derived caches. Existing backups, legacy Markdown copies and conversations are unaffected. Use the Conflicts filter and Resolve conflict to compare versions and source agents, keep a version, or combine content manually. If the conflict changes while the dialog is open, reload the latest versions and choose again; your merge draft is retained. The CLI commands `co-memo conflicts` and `co-memo resolve` remain available.
 
 Use `co-memo --home /path/to/data ui --port 4319` to select a data directory and port. The server binds only to `127.0.0.1`; press Ctrl+C to stop.
 

@@ -16,7 +16,7 @@ import { tmpdir } from 'node:os';
 import { render } from '../dist/document.js';
 import { Store } from '../dist/store.js';
 import { sync, context } from '../dist/sync.js';
-import { prepareSetup } from '../dist/setup.js';
+import { prepareSetup, setupToolsOnly } from '../dist/setup.js';
 import { applyAdapter } from '../dist/adapters.js';
 import { planSetup, describePlan, applySetup, detectAgents } from '../dist/onboarding.js';
 import { doctor } from '../dist/doctor.js';
@@ -39,6 +39,73 @@ function git(root, ...args) {
     stdio: ['ignore', 'pipe', 'pipe'],
   }).trim();
 }
+
+test('setup and init share defaults, retain each agent mode, and switch only explicitly', async (t) => {
+  const f = fixture(t);
+  const run = (...args) => {
+    const result = spawnSync(
+      process.execPath,
+      [cli, '--home', f.home, '--project', f.project, ...args],
+      { encoding: 'utf8', timeout: 20000 },
+    );
+    assert.equal(result.status, 0, result.stderr);
+    return JSON.parse(result.stdout);
+  };
+  for (const agent of ['claude', 'codex', 'pi', 'opencode']) {
+    assert.equal(run('setup', agent).mode, 'tools-only');
+    assert.equal(setupToolsOnly(f.project, agent), true);
+    assert.equal(run('setup', agent, '--hooks').mode, 'hybrid');
+    assert.equal(run('setup', agent).mode, 'hybrid');
+    assert.equal(setupToolsOnly(f.project, agent), false);
+    assert.equal(run('init', '--agents', agent).plan.mode, 'hybrid');
+    assert.equal(run('init', '--agents', agent, '--tools-only', '--apply').status, 'configured');
+    assert.equal(run('setup', agent).mode, 'tools-only');
+    assert.equal(setupToolsOnly(f.project, agent), true);
+  }
+  run('setup', 'codex', '--hooks');
+  assert.equal(run('init', '--agents', 'pi', '--hooks', '--apply').status, 'configured');
+  assert.equal(run('setup', 'pi').mode, 'hybrid');
+  const input = { ...f, root: f.project, agents: ['codex', 'claude'] };
+  const plan = planSetup(input);
+  assert.equal(plan.mode, 'mixed');
+  assert.deepEqual(
+    describePlan(plan).agents.map((a) => a.mode),
+    ['hybrid', 'tools-only'],
+  );
+  const applied = await applySetup(input, plan);
+  assert.equal(applied.status, 'configured');
+  assert.equal(applied.delivery, 'mixed-see-agent-results');
+  assert.equal(setupToolsOnly(f.project, 'codex'), false);
+  assert.equal(setupToolsOnly(f.project, 'claude'), true);
+  for (const args of [
+    ['setup', 'codex'],
+    ['init', '--agents', 'codex'],
+  ]) {
+    const result = spawnSync(
+      process.execPath,
+      [cli, '--home', f.home, '--project', f.project, ...args, '--hooks', '--tools-only'],
+      { encoding: 'utf8' },
+    );
+    assert.notEqual(result.status, 0);
+    assert.match(result.stderr, /cannot be used|conflict/);
+    assert.equal(setupToolsOnly(f.project, 'codex'), false);
+  }
+});
+
+test('unrelated hooks do not enable Co-memo hooks by default', (t) => {
+  const f = fixture(t);
+  mkdirSync(join(f.project, '.codex'));
+  const hooks = {
+    hooks: { SessionStart: [{ hooks: [{ type: 'command', command: 'echo unrelated' }] }] },
+    description: 'co-memo:managed:SessionStart',
+  };
+  writeFileSync(join(f.project, '.codex/hooks.json'), JSON.stringify(hooks));
+  assert.equal(setupToolsOnly(f.project, 'codex'), true);
+  const plan = planSetup({ ...f, root: f.project, agents: ['codex'] });
+  const edit = plan.agents[0].edits.find((e) => e.path.endsWith('/hooks.json'));
+  assert.equal(plan.mode, 'tools-only');
+  assert.deepEqual(JSON.parse(edit.after).hooks.SessionStart, hooks.hooks.SessionStart);
+});
 
 test('init preview is read-only; apply configures multiple agents and probes; repeated apply is stable', async (t) => {
   const f = fixture(t);

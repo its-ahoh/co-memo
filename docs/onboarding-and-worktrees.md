@@ -15,9 +15,9 @@ co-memo --project /path/to/project init --agents codex,claude
 co-memo --project /path/to/project init --agents codex,claude --apply
 ```
 
-The default is tools-only. Add `--hooks` to include lifecycle hooks; use `--opencode-api v2` if appropriate. `--home` selects the shared store and must precede `init`. Explicit agent selection works even when the CLI is absent, for example when setting up a desktop host.
+New installations default to tools-only; existing modes are preserved per agent. Use `--hooks` or `--tools-only` to explicitly switch all selected agents. Mixed-mode previews and results show each agent’s mode; use `--opencode-api v2` if appropriate. `--home` selects the shared store and must precede `init`. Explicit agent selection works even when the CLI is absent, for example when setting up a desktop host.
 
-The preview shows create/update/unchanged paths and the memory home without printing existing configuration contents or credentials. Every selected agent is validated before the first setup write. The plan is checked again before applying, and managed-file updates use compare-and-replace. Multi-file/multi-agent installation is not a filesystem-wide transaction: an I/O failure may leave a partial setup, which is reported as `needs_attention`; fix the cause and rerun. Existing unmanaged entries are not overwritten.
+The preview shows per-agent modes and create/update/unchanged paths and the memory home without printing existing configuration contents or credentials. Every selected agent is validated before the first setup write. The plan is checked again before applying, and managed-file updates use compare-and-replace. Multi-file/multi-agent installation is not a filesystem-wide transaction: an I/O failure may leave a partial setup, which is reported as `needs_attention`; fix the cause and rerun. Existing unmanaged entries are not overwritten.
 
 After applying, MCP agents receive an initialize/tools/settings probe using this installation's pinned Co-memo command. Pi uses the CLI and receives static checks. Probes do not launch a model or prove host trust. Restart/reload agents and review their project/tool approvals. JSON results distinguish protocol success from `hostVerified: false`.
 

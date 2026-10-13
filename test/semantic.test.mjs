@@ -87,6 +87,22 @@ test('semantic opt-in, empty cache and invalid config never send memory implicit
   assert.throws(() => embeddingConfig(), /Invalid semantic configuration/);
 });
 
+test('hybrid context retains semantic matches but omits weak lexical-only results', async (t) => {
+  const f = await fixture(t);
+  const semantic = f.add('Use bicycles');
+  const weak = f.add('unrelated transport reports');
+  await f.index();
+  const result = await f.query('transport preferences');
+  assert.ok(result.memories.some((m) => m.id === weak.id));
+  assert.ok(result.context.includes(semantic.content));
+  assert.ok(!result.context.includes(weak.content));
+  f.respond(() => null);
+  const fallback = await f.query('transport preferences');
+  assert.equal(fallback.retrieval.reason, 'provider_unavailable');
+  assert.ok(!fallback.context.includes(semantic.content));
+  assert.ok(!fallback.context.includes(weak.content));
+});
+
 test('explicit index caches vectors; hybrid recall finds synonyms and excludes foreign/deleted/conflicted notes', async (t) => {
   const f = await fixture(t);
   const note = f.add('Use bicycles');

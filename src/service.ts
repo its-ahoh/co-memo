@@ -256,6 +256,7 @@ export async function retrieve(store: Store, root: string, query?: string, delet
         16000,
         query,
         memories.filter((m) => !m.deleted),
+        new Map(ranking.matches.map((m) => [m.id, m.version])),
       ),
       settings: effective,
       retrieval: {
