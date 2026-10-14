@@ -55,7 +55,7 @@ function reviewInput(opts: ReviewOptions) {
 
 const app = new Command()
   .name('co-memo')
-  .version('0.8.1')
+  .version('0.8.2')
   .enablePositionalOptions()
   .description('One local memory store for your coding agents')
   .option('--home <directory>', 'Local data directory (or CO_MEMO_HOME)')
