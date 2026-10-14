@@ -85,3 +85,26 @@ test('semantic exemptions require the current version and preserve the context b
     context(f.store, f.project.id, 1200, 'commuting bicycle', [note], matches).length <= 1200,
   );
 });
+
+test('natural-language prompts keep relevant notes and still drop single-term noise', (t) => {
+  for (const [query, relevant, weak] of [
+    [
+      'How should I run database migrations in this repo?',
+      'Database migrations must run inside a transaction',
+      'Database backups are encrypted',
+    ],
+    ['我们应该怎么做数据库迁移？', '数据库迁移必须使用事务', '数据库每天生成备份'],
+    [
+      'Can you remind me which package manager we use for installing dependencies and updating lockfiles here?',
+      'Use pnpm for project dependencies and lockfiles.',
+      'Lockfiles are reviewed weekly.',
+    ],
+  ]) {
+    const f = fixture(t);
+    const good = f.add(relevant),
+      noise = f.add(weak);
+    const injected = context(f.store, f.project.id, 16000, query);
+    assert.ok(injected.includes(good.content), query);
+    assert.ok(!injected.includes(noise.content), query);
+  }
+});

@@ -74,6 +74,7 @@ test('short corrections, negations and substantial overlap still require review'
     ['Build artifacts expire after 7 days', 'Build artifacts expire after 30 days'],
     ['Use SQLite for invoice storage', 'Use SQLite for invoice storage with daily backups'],
     ['Use SQLite for invoice storage', 'Ｕｓｅ ＳＱＬｉｔｅ for invoice storage'],
+    ['API rate limit is 100 requests per minute', 'Rate limit raised to 500 rpm for API v2'],
   ];
   for (const [left, right] of pairs) {
     for (const stored of [false, true]) {

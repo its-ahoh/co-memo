@@ -5,7 +5,7 @@ import { createInterface } from 'node:readline/promises';
 import { detectAgents, planSetup, describePlan, applySetup } from './onboarding.js';
 import { repository } from './worktrees.js';
 import { verifyRoundTrip } from './verification.js';
-import { indexEmbeddings } from './semantic.js';
+import { indexEmbeddings, semanticRanking, hybridSearch } from './semantic.js';
 import { retrieve, projectId, requireProjectId } from './service.js';
 import { doctor } from './doctor.js';
 import { projects } from './projects.js';
@@ -55,7 +55,7 @@ function reviewInput(opts: ReviewOptions) {
 
 const app = new Command()
   .name('co-memo')
-  .version('0.8.1')
+  .version('0.8.2')
   .enablePositionalOptions()
   .description('One local memory store for your coding agents')
   .option('--home <directory>', 'Local data directory (or CO_MEMO_HOME)')
@@ -114,16 +114,9 @@ function using<T>(fn: (store: Store, root: string) => T): T {
     store = new Store(opts.home, opts.agentId);
   try {
     const reading =
-      [
-        'show',
-        'history',
-        'locations',
-        'status',
-        'conflicts',
-        'prepare',
-        'checkpoint',
-        'bridge',
-      ].includes(app.args[0] ?? '') ||
+      ['show', 'history', 'locations', 'status', 'conflicts', 'prepare', 'checkpoint'].includes(
+        app.args[0] ?? '',
+      ) ||
       (app.args[0] === 'settings' && app.args[1] === 'get');
     if (reading) {
       prepareMemoryProject(store, opts.project);
@@ -730,20 +723,39 @@ app
           ? ['session_start', 'before_agent_start', 'agent_end']
           : ['context', 'tool_after', 'idle'];
     ensure(allowed.includes(opts.event), 'Unsupported host event');
-    const result = using((store, root) => {
-      const project = store.project(root);
-      ensure(
-        store
-          .connections()
-          .some((r) => r.projectId === project.id && r.agent === agent && r.root === project.root),
-        'Agent is not connected',
-      );
-      const report = scopedReport(store, root, inspectSync(store));
-      const warning =
-        report.errors.length || report.conflicts.length
-          ? '\nCo-memo needs attention. Run co-memo sync/conflicts; do not silently resolve conflicts.\n'
-          : '';
-      return { ...report, context: context(store, project.id, 16_000, query) + warning };
+    const result = await usingAsync(async (store, root) => {
+      store.ensureProject(root);
+      const connected = () => {
+        const project = store.project(root);
+        ensure(
+          store
+            .connections()
+            .some(
+              (r) => r.projectId === project.id && r.agent === agent && r.root === project.root,
+            ),
+          'Agent is not connected',
+        );
+        return project;
+      };
+      // Same lexical + semantic ranking as memory_context; never await inside a snapshot.
+      const ranking = await semanticRanking(store, store.read(connected).id, query);
+      return store.read(() => {
+        const project = connected();
+        const report = scopedReport(store, root, inspectSync(store));
+        const warning =
+          report.errors.length || report.conflicts.length
+            ? '\nCo-memo needs attention. Run co-memo sync/conflicts; do not silently resolve conflicts.\n'
+            : '';
+        const injected = context(
+          store,
+          project.id,
+          16_000,
+          query,
+          hybridSearch(store, project.id, query, false, ranking),
+          new Map(ranking.matches.map((m) => [m.id, m.version])),
+        );
+        return { ...report, context: injected + warning };
+      });
     });
     if (agent === 'pi' || agent === 'opencode') print(result);
     else if (opts.event !== 'Stop')
