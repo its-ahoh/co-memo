@@ -37,8 +37,10 @@ co-memo init --agents claude,codex --apply
 You can also install the exact release directly from the official npm tarball, including while a new version is unavailable through the package index:
 
 ```sh
-npm install -g https://registry.npmjs.org/@ahoh.tech/co-memo/-/co-memo-0.8.0.tgz
+npm install -g https://registry.npmjs.org/@ahoh.tech/co-memo/-/co-memo-0.8.1.tgz
 ```
+
+Version 0.8.1 improves duplicate detection and context relevance, adds conflict resolution to the console, and preserves existing agent setup modes. New installations default to tools-only.
 
 Version 0.8.0 moves shared memory to direct MCP/CLI database access, adds save-time duplicate review and configured agent provenance, and upgrades the database to schema 8 with `histories` and `source_agent`. Update all installations sharing the store together.
 
@@ -352,7 +354,7 @@ Requires **Node.js 24.12+** and pnpm.
 pnpm install --frozen-lockfile
 pnpm check
 pnpm pack
-npm install -g ./ahoh.tech-co-memo-0.8.0.tgz
+npm install -g ./ahoh.tech-co-memo-0.8.1.tgz
 ```
 
 pnpm is only required for development. Co-memo is distributed under the [MIT license](LICENSE).
