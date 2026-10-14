@@ -195,15 +195,6 @@ export function recall(store: Store, root: string, query?: string, deleted = fal
     sync: scopedReport(store, root, report),
   };
 }
-export function sharedContext(store: Store, root: string, query?: string) {
-  const report = inspectSync(store);
-  return {
-    context: context(store, projectId(store, root), 16_000, query),
-    settings: configuration(store, root).effective,
-    sync: scopedReport(store, root, report),
-  };
-}
-
 export const CheckpointInput = z.object({
   reason: z.enum(['task_completed', 'user_correction', 'project_decision']),
   outcome: z.enum(['saved', 'nothing_to_save', 'skipped']),

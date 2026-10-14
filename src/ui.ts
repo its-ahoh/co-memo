@@ -211,7 +211,10 @@ export async function startUI(home?: string, root = process.cwd(), port = 4318) 
       send(404, { error: 'Not found' });
     } catch (e) {
       const error = errorMessage(e);
-      send(/Version changed|conflict|UNIQUE constraint/i.test(error) ? 409 : 400, { error });
+      // Stale reads and open conflicts only; other messages that mention "conflict" are 400.
+      const stale =
+        /^(Version changed|Conflict changed|Conflict not found)|has a conflict|UNIQUE constraint/;
+      send(stale.test(error) ? 409 : 400, { error });
     }
   });
   server.requestTimeout = 15_000;

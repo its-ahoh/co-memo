@@ -97,6 +97,19 @@ test('UI resolves current, alternative, merged and archive choices with revision
       null,
     );
   }
+  const drifted = store.add('Shade: blue', 'project', project.id, 'fixture').memory;
+  const open = other.conflict(
+    drifted,
+    [],
+    [{ id: randomUUID(), content: 'Shade: red', metadata: drifted.metadata }],
+  );
+  store.change(drifted.id, 1, 'Shade: teal', 'fixture');
+  const stuck = await request(`/api/conflicts/${open.id}/resolve`, {
+    revision: 1,
+    take: 'current',
+  });
+  assert.equal(stuck.status, 400);
+  assert.match(stuck.value.error, /Memory changed since conflict/);
 });
 
 test('UI persists CRUD, uses database storage, protects versions and serves packaged assets', async (t) => {

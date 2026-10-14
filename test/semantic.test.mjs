@@ -1,6 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createServer } from 'node:http';
+import { spawn } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
 import {
   mkdtempSync,
   mkdirSync,
@@ -298,4 +300,40 @@ test('CLI index/list and MCP recall/context use the configured hybrid path', asy
   assert.equal(paused.memories[0].id, note.id);
   assert.equal(paused.retrieval.reason, 'paused');
   assert.equal(f.requests.length, requests);
+});
+
+test('lifecycle hooks inject the same semantic matches as memory_context', async (t) => {
+  const f = await fixture(t);
+  const note = f.add('Cycle to the office');
+  f.store.lock(() => f.store.connect(f.project, 'codex'));
+  await f.index();
+  const cli = fileURLToPath(new URL('../dist/cli.js', import.meta.url));
+  // Async spawn keeps the in-process embedding server responsive.
+  const child = spawn(
+    process.execPath,
+    [
+      cli,
+      '--home',
+      f.home,
+      '--project',
+      f.root,
+      'bridge',
+      '--agent',
+      'codex',
+      '--event',
+      'UserPromptSubmit',
+      '--stdin',
+    ],
+    { env: process.env },
+  );
+  let stdout = '',
+    stderr = '';
+  child.stdout.on('data', (d) => (stdout += d));
+  child.stderr.on('data', (d) => (stderr += d));
+  child.stdin.end(JSON.stringify({ prompt: 'What are my transport preferences?' }));
+  const code = await new Promise((resolve) => child.on('close', resolve));
+  assert.equal(code, 0, stderr);
+  const injected = JSON.parse(stdout).hookSpecificOutput.additionalContext;
+  assert.ok(injected.includes(note.content));
+  assert.ok((await f.query('What are my transport preferences?')).context.includes(note.content));
 });

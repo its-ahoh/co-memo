@@ -21,8 +21,9 @@ function relatedTerms(left: Set<string>, right: Set<string>): boolean {
   let shared = 0;
   for (const term of left) if (right.has(term)) shared++;
   // Keep short labels and corrections conservative (e.g. "Color: blue" / "Color: red").
-  // Longer notes need multiple shared terms covering at least half the shorter note.
-  return shared >= (shorter <= 2 ? 1 : 2) && shared / shorter >= 0.5;
+  // Longer notes need multiple shared terms covering a third of the shorter note, so
+  // changed values ("limit 100" / "limit raised to 500") still reach review.
+  return shared >= (shorter <= 2 ? 1 : 2) && shared / shorter >= 1 / 3;
 }
 
 /** Call with the process lock held, including the subsequent commit. Similarity is not truth. */
