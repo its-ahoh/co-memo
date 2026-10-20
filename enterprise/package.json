@@ -1,0 +1,30 @@
+{
+  "name": "@ahoh.tech/co-memo-enterprise",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=24.12.0"
+  },
+  "packageManager": "pnpm@11.21.0",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "check": "pnpm build && node --test test/*.test.mjs",
+    "start": "node dist/server.js",
+    "admin": "node dist/admin.js",
+    "worker": "node dist/worker-cli.js",
+    "demo": "pnpm build && node test/demo.mjs"
+  },
+  "dependencies": {
+    "pg": "^8.16.3",
+    "zod": "^4.6.5"
+  },
+  "devDependencies": {
+    "@types/node": "^24.13.6",
+    "@types/pg": "^8.15.5",
+    "typescript": "^7.0.2",
+    "ajv": "^8.17.1",
+    "ajv-formats": "^3.0.1",
+    "embedded-postgres": "18.4.0-beta.17"
+  }
+}

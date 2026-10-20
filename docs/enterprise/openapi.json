@@ -3,7 +3,7 @@
   "info": {
     "title": "Co-memo Enterprise M1",
     "version": "0.1.0",
-    "description": "Design contract, not a deployed API. Scoped bearer auth, per-request authorization, atomic revision/history/receipt/outbox. Later milestones are specified in design.md."
+    "description": "M1 Context API contract. Opt-in development implementation in enterprise/; not production-ready. All writes are automatic submissions; explicit-only workspaces reject them. Bodies <=128 KiB. Text excludes NUL and unpaired surrogates. Scoped bearer auth, per-request authorization, atomic revision/history/receipt/outbox. Later milestones are specified in design.md."
   },
   "security": [
     {
@@ -682,7 +682,7 @@
           "metadata": {
             "type": "object",
             "additionalProperties": true,
-            "description": "Serialized UTF-8 JSON <=16 KiB; prohibited prototype keys rejected."
+            "description": "Serialized UTF-8 JSON <=16 KiB; prohibited prototype keys rejected recursively; nesting <=64 levels; NUL and unpaired surrogates rejected."
           }
         }
       },
@@ -703,7 +703,7 @@
           "metadata": {
             "type": "object",
             "additionalProperties": true,
-            "description": "Serialized UTF-8 JSON <=16 KiB; prohibited prototype keys rejected."
+            "description": "Serialized UTF-8 JSON <=16 KiB; prohibited prototype keys rejected recursively; nesting <=64 levels; NUL and unpaired surrogates rejected."
           }
         }
       },
@@ -740,7 +740,7 @@
           "metadata": {
             "type": "object",
             "additionalProperties": true,
-            "description": "Serialized UTF-8 JSON <=16 KiB; prohibited prototype keys rejected."
+            "description": "Serialized UTF-8 JSON <=16 KiB; prohibited prototype keys rejected recursively; nesting <=64 levels; NUL and unpaired surrogates rejected."
           },
           "id": {
             "type": "string",

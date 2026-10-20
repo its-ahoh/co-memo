@@ -1,0 +1,36 @@
+name: Enterprise M1
+on:
+  pull_request:
+    paths:
+      - 'enterprise/**'
+      - 'docs/enterprise/**'
+      - '.github/workflows/enterprise.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'enterprise/**'
+      - 'docs/enterprise/**'
+      - '.github/workflows/enterprise.yml'
+permissions:
+  contents: read
+jobs:
+  postgres:
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+        node: [24, 26]
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        working-directory: enterprise
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.21.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm check
+      - run: pnpm demo
