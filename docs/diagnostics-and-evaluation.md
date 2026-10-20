@@ -15,6 +15,18 @@ Checks return `pass`, `info`, `warn`, or `fail`, with remedies. CLI exit 2 means
 
 The `readiness` field separates configuration inspection, protocol probe results, and `hostMemoryLoaded: "unverified"`. This last state is deliberate: no durable observation of your currently running host is recorded. Ask that host to call `memory_context` and inspect its tool result. `init` also reports `delivery`: `agent-tool-call-required` for tools-only, or `hooks-configured-host-reload-required` when hooks are enabled. Mixed-mode setups report `mixed-see-agent-results`, with the preserved mode listed for each agent.
 
+## Explain context selection
+
+```sh
+co-memo --project /path/to/project context --query 'orchard irrigation' --explain
+```
+
+This opt-in JSON response includes the same `context` as the plain command, `retrieval` mode/fallback reason, and `explanation`. It never saves notes. Each note in the current user/project scope has its ID/version, inclusion status, matching normalized query terms and content character count; explanations do not duplicate note bodies or evidence. The `context` field still contains the selected notes: treat the output as private.
+
+Reasons are `pinned`, `semantic`, or `lexical` for selected notes; `deleted`, `conflict`, `not_retrieved`, `task_mismatch`, `pinned_budget`, or `context_budget` for omissions. `not_retrieved` means the candidate retrieval stage did not return the note (including its result cap); it is not proof of semantic irrelevance. A note exceeding the pinned allocation can still qualify through task matching. The single reported reason describes its final selection outcome.
+
+The budget reports total used/allowed UTF-16 code units, including instructions and wrappers, and the 2,000-character pinned allocation limit. This preserves the current character budget; it is not a model token count. Plain context and hooks do not emit diagnostics. Paused explanations return no note details, and other projects' note IDs/content are excluded.
+
 ## Real host readiness checks
 
 ```sh

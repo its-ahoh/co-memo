@@ -241,3 +241,78 @@ test('schema 2 migration indexes legacy payloads without rewriting history', (t)
     store.close();
   }
 });
+
+test('updates preserve omitted organization metadata, clear evidence and allow explicit clearing', (t) => {
+  const f = fixture(t);
+  const created = f.run([
+    add('Use short orchard reports', { kind: 'preference', module: 'orchard', pinned: true }),
+  ]);
+  const id = created.results[0].receipt.id;
+  const update = {
+    action: 'update',
+    id,
+    version: 1,
+    basis: 'verified_change',
+    kind: 'preference',
+    content: 'Use concise orchard reports',
+  };
+  const requestId = randomUUID();
+  f.run([update], { requestId });
+  let note = f.store.get(id);
+  assert.equal(note.metadata.module, 'orchard');
+  assert.equal(note.metadata.pinned, true);
+  assert.equal(note.metadata.source, null);
+  f.run([update], { requestId });
+  assert.equal(f.store.get(id).version, 2);
+  assert.throws(
+    () => f.run([{ ...update, module: null, pinned: false }], { requestId }),
+    /different candidates/,
+  );
+  assert.throws(() => f.run([{ ...update, version: 2, kind: 'decision' }]), /Only preferences/);
+  assert.equal(f.store.get(id).version, 2);
+  f.run([{ ...update, version: 2, kind: 'decision', module: null, pinned: false }]);
+  note = f.store.get(id);
+  assert.equal(note.metadata.module, null);
+  assert.equal(note.metadata.pinned, false);
+  assert.equal(note.metadata.kind, 'decision');
+  assert.ok(f.store.history(id).some((m) => m.metadata.module === 'orchard' && m.metadata.pinned));
+});
+
+test('pre-change update receipts replay without applying new preservation semantics', async (t) => {
+  const { hash } = await import('../dist/model.js');
+  const { Submission } = await import('../dist/candidates.js');
+  for (const fields of [{}, { pinned: false }, { module: null }]) {
+    const f = fixture(t);
+    const made = f.run([add('Use amber labels')]);
+    const id = made.results[0].receipt.id;
+    const input = {
+      requestId: randomUUID(),
+      intent: 'automatic',
+      candidates: [
+        {
+          action: 'update',
+          id,
+          version: 1,
+          basis: 'verified_change',
+          kind: 'decision',
+          content: 'Use indigo labels',
+          ...fields,
+        },
+      ],
+    };
+    const result = f.run(input.candidates, { requestId: input.requestId });
+    input.requestId = randomUUID();
+    const legacy = Submission.parse(input);
+    const { module, pinned, ...candidate } = legacy.candidates[0];
+    legacy.candidates[0] = { ...candidate, module: module ?? null, pinned: pinned ?? false };
+    f.store.saveSubmission(
+      f.project.id,
+      input.requestId,
+      hash(JSON.stringify(legacy)),
+      result.results,
+    );
+    const replay = f.run(input.candidates, { requestId: input.requestId });
+    assert.equal(replay.results[0].receipt.version, 2);
+    assert.equal(f.store.get(id).version, 2);
+  }
+});

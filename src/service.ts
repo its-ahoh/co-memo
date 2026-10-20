@@ -8,7 +8,7 @@ import type { SyncReport } from './model.js';
 import { Content, ensure, IntentSchema, Version } from './model.js';
 import { SettingsPatch, allowWrite, settings } from './settings.js';
 import type { Intent } from './settings.js';
-import { context, sync, inspectSync } from './sync.js';
+import { contextSelection, sync, inspectSync } from './sync.js';
 
 export { IntentSchema, Version };
 export function projectId(store: Store, root: string): string | null {
@@ -232,7 +232,13 @@ export function checkpoint(store: Store, root: string, input: z.input<typeof Che
 }
 
 /** Read snapshots surround provider I/O; never hold a transaction across an await. */
-export async function retrieve(store: Store, root: string, query?: string, deleted = false) {
+export async function retrieve(
+  store: Store,
+  root: string,
+  query?: string,
+  deleted = false,
+  explain = false,
+) {
   const id = store.ensureProject(root)?.id ?? null;
   const ranking = await semanticRanking(store, id, query, deleted);
   return store.read(() => {
@@ -241,13 +247,14 @@ export async function retrieve(store: Store, root: string, query?: string, delet
     const memories = hybridSearch(store, id, query, deleted, ranking);
     return {
       memories: memories.map((m) => ({ ...m, conflicted: false })),
-      context: context(
+      ...contextSelection(
         store,
         id,
         16000,
         query,
         memories.filter((m) => !m.deleted),
         new Map(ranking.matches.map((m) => [m.id, m.version])),
+        explain,
       ),
       settings: effective,
       retrieval: {

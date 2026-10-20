@@ -27,7 +27,7 @@ Queries send only the query text when a valid cache exists. Empty queries, disab
 
 `memory_recall` and `memory_context` use hybrid retrieval when their MCP process receives these environment variables. Configure the environment of the **MCP server process** using your host's configuration; a shell export does not automatically configure an already-running desktop host, and some hosts filter inherited variables. Restart that server after changing configuration. A response with `retrieval.reason=disabled` means its process did not receive the enable flag. Keys belong in a secure environment, not committed project files or memory text.
 
-Native hook/bridge injection still uses local lexical retrieval, keeping its path free of provider latency. Agents can request semantic context through MCP. Co-memo's memory settings (`paused`, `saveMode`, `defaultScope`) remain separate from provider configuration and host approval.
+Native hook/bridge injection uses the same optional semantic ranking as `memory_context` when its process receives the provider configuration. Provider requests happen outside the database snapshot and can add latency up to the configured implementation timeout (3 seconds); failures fall back to lexical retrieval. Hooks and MCP may inherit different environments, so verify each separately. Co-memo's memory settings (`paused`, `saveMode`, `defaultScope`) remain separate from provider configuration and host approval.
 
 ## Ranking and cache validity
 
