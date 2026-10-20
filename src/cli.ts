@@ -646,10 +646,21 @@ app
   .command('context')
   .description('Print bounded context for this project')
   .option('--query <text>', 'Current task for optional hybrid ranking')
-  .action(async (opts: { query?: string }) => {
-    const result = await usingAsync((store, root) => retrieve(store, root, opts.query));
+  .option('--explain', 'Output JSON with context selection reasons and character budget')
+  .action(async (opts: { query?: string; explain?: boolean }) => {
+    const result = await usingAsync((store, root) =>
+      retrieve(store, root, opts.query, false, opts.explain),
+    );
     reportExit(result.sync);
-    process.stdout.write(result.context);
+    if (opts.explain)
+      console.log(
+        JSON.stringify(
+          { context: result.context, explanation: result.explanation, retrieval: result.retrieval },
+          null,
+          2,
+        ),
+      );
+    else process.stdout.write(result.context);
   });
 app
   .command('prepare')

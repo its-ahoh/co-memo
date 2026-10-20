@@ -33,6 +33,8 @@ export const Candidate = z.discriminatedUnion('action', [
     version: Version,
     basis: z.enum(['user_correction', 'verified_change']),
     ...details,
+    module: details.module.removeDefault().optional(),
+    pinned: details.pinned.removeDefault().optional(),
   }),
   z.strictObject({ action: z.literal('conflict'), id: z.uuid(), version: Version, ...details }),
   z.strictObject({ action: z.literal('skip'), reason: z.string().trim().min(1).max(1000) }),
@@ -89,9 +91,43 @@ export function submitBatch(
   allowWrite(store, projectId, args.intent);
   // Reusing another configured agent's receipt must not masquerade as this agent's write.
   // Preserve the old hash for unbound clients and their existing retries.
+  const hasUpdate = args.candidates.some((candidate) => candidate.action === 'update');
+  const payload = hasUpdate ? { ...args, updateMetadata: 'preserve-omitted-v1' } : args;
   const fingerprint = hash(
-    JSON.stringify(store.sourceAgent === null ? args : { ...args, sourceAgent: store.sourceAgent }),
+    JSON.stringify(
+      store.sourceAgent === null ? payload : { ...payload, sourceAgent: store.sourceAgent },
+    ),
   );
+  // Pre-change receipts used defaulted update metadata. Replay those without reapplying
+  // the write; versioned new hashes distinguish omission from an explicit clear.
+  const legacyArgs = {
+    ...args,
+    candidates: args.candidates.map((candidate) =>
+      candidate.action === 'update'
+        ? {
+            action: candidate.action,
+            id: candidate.id,
+            version: candidate.version,
+            basis: candidate.basis,
+            content: candidate.content,
+            kind: candidate.kind,
+            source: candidate.source,
+            module: candidate.module ?? null,
+            pinned: candidate.pinned ?? false,
+          }
+        : candidate,
+    ),
+  };
+  const legacyFingerprints = [
+    hash(
+      JSON.stringify(
+        store.sourceAgent === null ? legacyArgs : { ...legacyArgs, sourceAgent: store.sourceAgent },
+      ),
+    ),
+    ...(store.sourceAgent === null
+      ? []
+      : [hash(JSON.stringify({ ...legacyArgs, writerAgent: store.sourceAgent }))]),
+  ];
   const before = sync(store);
   // Empty namespace is reserved for personal submissions; project IDs are UUIDs.
   const submissionScope = projectId ?? '';
@@ -100,10 +136,7 @@ export function submitBatch(
   if (previous) {
     // Schema 7 receipts used the old identity key in their fingerprint; retain valid retries.
     ensure(
-      previous.fingerprint === fingerprint ||
-        (store.sourceAgent !== null &&
-          previous.fingerprint ===
-            hash(JSON.stringify({ ...args, writerAgent: store.sourceAgent }))),
+      previous.fingerprint === fingerprint || legacyFingerprints.includes(previous.fingerprint),
       'Request ID was already used with different candidates',
     );
     results = Results.parse(previous.result);
@@ -188,6 +221,12 @@ export function submitBatch(
             conflictRevision: conflict.revision,
           };
         }
+        if (candidate.module === undefined) metadata.module = old.metadata.module;
+        if (candidate.pinned === undefined) metadata.pinned = old.metadata.pinned;
+        ensure(
+          !metadata.pinned || metadata.kind === 'preference',
+          'Only preferences can be pinned; explicitly unpin when changing kind',
+        );
         const memory = store.change(
           old.id,
           old.version,
