@@ -52,6 +52,7 @@ export function contextSelection(
   const included = new Map<string, string>();
   const budgetSkipped = new Set<string>();
   const pinnedSkipped = new Set<string>();
+  const constraintSkipped = new Set<string>();
   const candidates = new Set<string>();
   const conflicts = new Set<string>();
   const terms = contextTerms(query);
@@ -81,9 +82,11 @@ export function contextSelection(
                           ? 'context_budget'
                           : pinnedSkipped.has(memory.id)
                             ? 'pinned_budget'
-                            : !candidates.has(memory.id)
-                              ? 'not_retrieved'
-                              : 'task_mismatch'));
+                            : constraintSkipped.has(memory.id)
+                              ? 'constraint_budget'
+                              : !candidates.has(memory.id)
+                                ? 'not_retrieved'
+                                : 'task_mismatch'));
                   return {
                     id: memory.id,
                     version: memory.version,
@@ -119,21 +122,32 @@ export function contextSelection(
   const retrieved = ranking ?? store.search(projectId, query);
   for (const memory of retrieved) candidates.add(memory.id);
   const ranked = retrieved.filter((m) => semanticMatches.get(m.id) === m.version || matches(m));
-  // Only deliberately pinned preferences bypass task relevance.
-  const preferences: typeof ranked = [];
-  let preferenceSize = 0;
-  for (const memory of store.search(projectId).filter((m) => m.metadata.pinned)) {
-    if (preferenceSize + memory.content.length + 100 > 2000) {
-      pinnedSkipped.add(memory.id);
-      continue;
+  // Pinned preferences and constraints bypass task relevance: rules such as "use pnpm"
+  // apply to every task but rarely share words with it. Each has its own allocation.
+  const always = store.search(projectId);
+  const allocate = (eligible: Memory[], skipped: Set<string>) => {
+    const chosen: Memory[] = [];
+    let size = 0;
+    for (const memory of eligible) {
+      if (size + memory.content.length + 100 > 2000) {
+        skipped.add(memory.id);
+        continue;
+      }
+      chosen.push(memory);
+      size += memory.content.length + 100;
     }
-    preferences.push(memory);
-    preferenceSize += memory.content.length + 100;
-  }
-  const selected = [
-    ...preferences,
-    ...ranked.filter((m) => !preferences.some((p) => p.id === m.id)),
-  ];
+    return chosen;
+  };
+  const preferences = allocate(
+    always.filter((m) => m.metadata.pinned),
+    pinnedSkipped,
+  );
+  const constraints = allocate(
+    always.filter((m) => m.metadata.kind === 'constraint' && !m.metadata.pinned),
+    constraintSkipped,
+  );
+  const standing = [...preferences, ...constraints];
+  const selected = [...standing, ...ranked.filter((m) => !standing.some((p) => p.id === m.id))];
   const footer =
     '\nConflicted, unrelated or over-budget notes are omitted. Use memory_recall / memory_get or CLI list/show/conflicts for more notes.\n';
   if (text.length + footer.length > limit) {
@@ -150,11 +164,13 @@ export function contextSelection(
       memory.id,
       preferences.some((p) => p.id === memory.id)
         ? 'pinned'
-        : semanticMatches.get(memory.id) === memory.version
-          ? 'semantic'
-          : unfiltered
-            ? 'unfiltered'
-            : 'lexical',
+        : constraints.some((c) => c.id === memory.id)
+          ? 'constraint'
+          : semanticMatches.get(memory.id) === memory.version
+            ? 'semantic'
+            : unfiltered
+              ? 'unfiltered'
+              : 'lexical',
     );
     text += line;
   }

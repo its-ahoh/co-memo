@@ -31,6 +31,7 @@ test('explain agrees with rendered context and diagnoses scope, conflict, deleti
   const weak = f.add('Orchard visitors');
   const unrelated = f.add('Mountain telescope');
   const pinned = f.add('Use compact summaries', { kind: 'preference', pinned: true });
+  const rule = f.add('Never edit generated files', { kind: 'constraint' });
   const deleted = f.add('Irrigation deleted');
   f.store.change(deleted.id, 1, null, 'test');
   const blocked = f.add('Irrigation conflict');
@@ -49,6 +50,7 @@ test('explain agrees with rendered context and diagnoses scope, conflict, deleti
   const notes = new Map(result.explanation.notes.map((n) => [n.id, n]));
   assert.equal(notes.get(relevant.id).reason, 'lexical');
   assert.equal(notes.get(pinned.id).reason, 'pinned');
+  assert.equal(notes.get(rule.id).reason, 'constraint');
   assert.equal(notes.get(weak.id).reason, 'task_mismatch');
   assert.equal(notes.get(unrelated.id).reason, 'not_retrieved');
   assert.equal(notes.get(deleted.id).reason, 'deleted');
@@ -63,6 +65,7 @@ test('explain agrees with rendered context and diagnoses scope, conflict, deleti
 test('explain covers pinned allocation, total budget and valid semantic matches', (t) => {
   const f = fixture(t);
   const largePin = f.add('z'.repeat(2001), { kind: 'preference', pinned: true });
+  const largeRule = f.add('y'.repeat(2001), { kind: 'constraint' });
   const long = f.add('Orchard irrigation '.repeat(1500));
   const semantic = f.add('Watering preferences');
   const query = 'orchard irrigation';
@@ -71,6 +74,7 @@ test('explain covers pinned allocation, total budget and valid semantic matches'
   const result = contextSelection(f.store, f.project.id, 16000, query, ranking, current, true);
   const reason = (id) => result.explanation.notes.find((n) => n.id === id).reason;
   assert.equal(reason(largePin.id), 'pinned_budget');
+  assert.equal(reason(largeRule.id), 'constraint_budget');
   assert.equal(reason(long.id), 'context_budget');
   assert.equal(reason(semantic.id), 'semantic');
   const stale = contextSelection(

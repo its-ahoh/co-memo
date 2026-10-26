@@ -2,7 +2,7 @@
 // Compares three arms on the same tasks: no memory, Co-memo, and the rule stated directly
 // in the task (oracle). Spends model quota; see evals/benchmark-design.md.
 import { spawn } from 'node:child_process';
-import { mkdtempSync, realpathSync, rmSync } from 'node:fs';
+import { mkdtempSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { homedir, tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { parseArgs } from 'node:util';
@@ -11,6 +11,7 @@ import { prepareSetup } from '../dist/setup.js';
 import { applyAdapter } from '../dist/adapters.js';
 import { sync } from '../dist/sync.js';
 import { cases, fixtureFor, git, observe, prepareWorkspace } from '../evals/bench/cases.mjs';
+import { render } from '../evals/bench/report.mjs';
 
 const { values: opts } = parseArgs({
   options: {
@@ -21,6 +22,7 @@ const { values: opts } = parseArgs({
     model: { type: 'string' },
     budget: { type: 'string', default: '1' },
     keep: { type: 'boolean', default: false },
+    report: { type: 'string' },
   },
 });
 const reps = Number(opts.reps),
@@ -184,7 +186,11 @@ async function trial(item, arm, rep, root) {
       });
       record.cost += run.cost ?? 0;
       record.durationMs += run.durationMs ?? 0;
-      if (!healthy(run)) return { ...record, error: `teach session failed (exit ${run.status})` };
+      if (!healthy(run))
+        return {
+          ...record,
+          error: `teach session failed (exit ${run.status}): ${run.final.slice(0, 200)}`,
+        };
     }
     const saved = notes(home, dirs[item.exam.project]);
     record.saved = saved.some((n) => item.memory.test(n.content));
@@ -205,7 +211,11 @@ async function trial(item, arm, rep, root) {
   record.cost += run.cost ?? 0;
   record.durationMs += run.durationMs ?? 0;
   record.turns = run.turns;
-  if (!healthy(run)) return { ...record, error: `exam session failed (exit ${run.status})` };
+  if (!healthy(run))
+    return {
+      ...record,
+      error: `exam session failed (exit ${run.status}): ${run.final.slice(0, 200)}`,
+    };
   if (memory) {
     record.memoryCalls = run.memoryCalls;
     // Compare note text, not the rule regex: Co-memo's own instructions can match a regex.
@@ -289,23 +299,19 @@ lines.push(
 process.stderr.write(lines.join('\n') + '\n');
 
 const complete = !queue.length && !errors;
-console.log(
-  JSON.stringify(
-    {
-      agent: 'claude',
-      model: scored.find((r) => r.model)?.model ?? opts.model ?? null,
-      timestamp: new Date().toISOString(),
-      status: complete ? 'complete' : 'incomplete',
-      reps,
-      arms,
-      summary,
-      funnel,
-      limits:
-        'Small synthetic benchmark with hand-written rules chosen to differ from common defaults. Tools-only Co-memo mode, lexical retrieval. Results vary between runs; compare arms, not absolute scores.',
-      results,
-    },
-    null,
-    2,
-  ),
-);
+const output = {
+  agent: 'claude',
+  model: scored.find((r) => r.model)?.model ?? opts.model ?? null,
+  timestamp: new Date().toISOString(),
+  status: complete ? 'complete' : 'incomplete',
+  reps,
+  arms,
+  summary,
+  funnel,
+  limits:
+    'Small synthetic benchmark with hand-written rules chosen to differ from common defaults. Tools-only Co-memo mode, lexical retrieval. Results vary between runs; compare arms, not absolute scores.',
+  results,
+};
+console.log(JSON.stringify(output, null, 2));
+if (opts.report) writeFileSync(opts.report, render([output]));
 if (!complete) process.exitCode = 1;

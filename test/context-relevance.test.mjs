@@ -55,6 +55,19 @@ test('weak-only queries inject no notes except explicitly pinned preferences', (
   }
 });
 
+test('constraints apply to every task, within their own allocation', (t) => {
+  const f = fixture(t);
+  const rule = f.add('Run scripts with the bundled task runner only', { kind: 'constraint' });
+  const fact = f.add('Deployment uses regional containers');
+  const oversized = f.add('y'.repeat(2001), { kind: 'constraint' });
+  for (const query of ['add a discount to the cart total', '给购物车加折扣']) {
+    const injected = context(f.store, f.project.id, 16000, query);
+    assert.ok(injected.includes(rule.content), query);
+    assert.ok(!injected.includes(fact.content), query);
+    assert.ok(!injected.includes(oversized.content), query);
+  }
+});
+
 test('single terms, repeated terms, paths, module labels and no-query reads retain matching notes', (t) => {
   const f = fixture(t);
   const note = f.add('Archive invoices annually', { module: 'storage/sqlite' });
