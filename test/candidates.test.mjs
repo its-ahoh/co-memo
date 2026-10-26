@@ -8,6 +8,7 @@ import { Store } from '../dist/store.js';
 import { submit } from '../dist/candidates.js';
 import { context, sync } from '../dist/sync.js';
 import { recall } from '../dist/service.js';
+import { Metadata } from '../dist/model.js';
 
 const source = {
   agent: 'codex',
@@ -315,4 +316,86 @@ test('pre-change update receipts replay without applying new preservation semant
     assert.equal(replay.results[0].receipt.version, 2);
     assert.equal(f.store.get(id).version, 2);
   }
+});
+
+test('conflict candidates preserve omitted organization metadata through resolution', (t) => {
+  const f = fixture(t);
+  const created = f.run([
+    add('Use short orchard reports', { kind: 'preference', module: 'orchard', pinned: true }),
+  ]);
+  const id = created.results[0].receipt.id;
+  const proposed = {
+    action: 'conflict',
+    id,
+    version: 1,
+    kind: 'preference',
+    content: 'Use detailed orchard reports',
+  };
+  f.run([proposed]);
+  let conflict = f.store.conflicts()[0];
+  f.store.resolve(conflict.id, conflict.revision, conflict.candidates[0].id);
+  let note = f.store.get(id);
+  assert.equal(note.content, 'Use detailed orchard reports');
+  assert.equal(note.metadata.module, 'orchard');
+  assert.equal(note.metadata.pinned, true);
+  f.run([{ ...proposed, version: note.version, module: null, pinned: false }]);
+  conflict = f.store.conflicts()[0];
+  f.store.resolve(conflict.id, conflict.revision, conflict.candidates[0].id);
+  note = f.store.get(id);
+  assert.equal(note.metadata.module, null);
+  assert.equal(note.metadata.pinned, false);
+});
+
+test('content-only updates keep a legacy pinned non-preference note', (t) => {
+  const f = fixture(t);
+  const legacy = f.store.add(
+    'Legacy pinned reminder',
+    'project',
+    f.project.id,
+    'test',
+    'explicit',
+    Metadata.parse({ kind: 'note', pinned: true }),
+  ).memory;
+  const update = {
+    action: 'update',
+    id: legacy.id,
+    version: 1,
+    basis: 'user_correction',
+    kind: 'note',
+    content: 'Legacy pinned reminder, corrected',
+  };
+  f.run([update]);
+  const note = f.store.get(legacy.id);
+  assert.equal(note.content, 'Legacy pinned reminder, corrected');
+  assert.equal(note.metadata.pinned, true);
+  assert.throws(() => f.run([{ ...update, version: 2, kind: 'decision' }]), /Only preferences/);
+});
+
+test('pre-change conflict receipts replay without a second conflict', async (t) => {
+  const { hash } = await import('../dist/model.js');
+  const { Submission } = await import('../dist/candidates.js');
+  const f = fixture(t);
+  const made = f.run([add('Use amber labels')]);
+  const id = made.results[0].receipt.id;
+  const input = {
+    requestId: randomUUID(),
+    intent: 'automatic',
+    candidates: [
+      { action: 'conflict', id, version: 1, kind: 'decision', content: 'Use teal labels' },
+    ],
+  };
+  const result = f.run(input.candidates, { requestId: input.requestId });
+  input.requestId = randomUUID();
+  const legacy = Submission.parse(input);
+  const { module, pinned, ...candidate } = legacy.candidates[0];
+  legacy.candidates[0] = { ...candidate, module: module ?? null, pinned: pinned ?? false };
+  f.store.saveSubmission(
+    f.project.id,
+    input.requestId,
+    hash(JSON.stringify(legacy)),
+    result.results,
+  );
+  const replay = f.run(input.candidates, { requestId: input.requestId });
+  assert.equal(replay.replayed, true);
+  assert.equal(f.store.conflicts().length, 1);
 });

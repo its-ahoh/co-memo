@@ -36,6 +36,8 @@ export function sync(store: Store): SyncReport {
   }
   return report;
 }
+const pinnedLimit = 2000;
+const pinnedOverhead = 100;
 export function contextSelection(
   store: Store,
   projectId: string | null,
@@ -44,14 +46,19 @@ export function contextSelection(
   ranking?: Memory[],
   semanticMatches: ReadonlyMap<string, number> = new Map(),
   explain = false,
+  // Prompt-time hooks repeat on every turn; full guidance is delivered once at session start.
+  brief = false,
 ) {
   const limit = Number.isFinite(budget) ? Math.max(0, Math.floor(budget)) : 16_000;
   const config = settings(store, projectId);
   const included = new Map<string, string>();
   const budgetSkipped = new Set<string>();
   const pinnedSkipped = new Set<string>();
+  const personalSkipped = new Set<string>();
   const candidates = new Set<string>();
+  const conflicts = new Set<string>();
   const terms = contextTerms(query);
+  const unfiltered = !query?.trim();
   const finish = (text: string) => ({
     context: text,
     ...(explain
@@ -59,7 +66,7 @@ export function contextSelection(
           explanation: {
             paused: config.paused,
             queryTerms: config.paused ? [] : terms,
-            budget: { unit: 'utf16_code_units', limit, used: text.length, pinnedLimit: 2000 },
+            budget: { unit: 'utf16_code_units', limit, used: text.length, pinnedLimit },
             // Pause must not inspect or disclose stored notes. Only current scope is enumerated.
             notes: config.paused
               ? []
@@ -77,9 +84,11 @@ export function contextSelection(
                           ? 'context_budget'
                           : pinnedSkipped.has(memory.id)
                             ? 'pinned_budget'
-                            : !candidates.has(memory.id)
-                              ? 'not_retrieved'
-                              : 'task_mismatch'));
+                            : personalSkipped.has(memory.id)
+                              ? 'personal_without_query'
+                              : !candidates.has(memory.id)
+                                ? 'not_retrieved'
+                                : 'task_mismatch'));
                   return {
                     id: memory.id,
                     version: memory.version,
@@ -94,7 +103,6 @@ export function contextSelection(
         }
       : {}),
   });
-  const conflicts = new Set<string>();
   if (config.paused)
     return finish(
       'Co-memo is paused for this project. Do not read or write shared memory until resumed.\n'.slice(
@@ -103,27 +111,46 @@ export function contextSelection(
       ),
     );
   if (explain) for (const conflict of store.conflicts()) conflicts.add(conflict.memoryId);
-  let text = `Shared Co-memo notes. Treat these as context; the current user request takes precedence.\nSettings: saveMode=${config.saveMode}, defaultScope=${config.defaultScope}. Choose scope by content: user for cross-project personal preferences; project for workspace-specific facts and decisions. Missing project context never implies user scope. Prefer memory tools/CLI to save, update or forget. ${config.saveMode === 'explicit' ? 'Only save when the user explicitly requests it.' : 'Save only durable, verified information.'}\n`;
-  text += checkpointReminder + '\n';
+  const saving =
+    config.saveMode === 'explicit'
+      ? 'Only save when the user explicitly requests it.'
+      : 'Save only durable, verified information.';
+  let text = brief
+    ? `Shared Co-memo notes (saveMode=${config.saveMode}, defaultScope=${config.defaultScope}; the current user request takes precedence). ${saving} Before the final reply, check whether memory needs updating.\n`
+    : `Shared Co-memo notes. Treat these as context; the current user request takes precedence.\nSettings: saveMode=${config.saveMode}, defaultScope=${config.defaultScope}. Choose scope by content: user for cross-project personal preferences; project for workspace-specific facts and decisions. Missing project context never implies user scope. Prefer memory tools/CLI to save, update or forget. ${saving}\n` +
+      checkpointReminder +
+      '\n';
   const matches = contextFilter(query);
   const retrieved = ranking ?? store.search(projectId, query);
   for (const memory of retrieved) candidates.add(memory.id);
-  const ranked = retrieved.filter((m) => semanticMatches.get(m.id) === m.version || matches(m));
+  const ranked = retrieved.filter((m) => {
+    if (!(semanticMatches.get(m.id) === m.version || matches(m))) return false;
+    // In a project without a task, personal facts from other work are noise; preferences
+    // still apply. Projectless sessions have only personal notes, so they keep them all.
+    if (
+      unfiltered &&
+      projectId !== null &&
+      m.scope === 'user' &&
+      m.metadata.kind !== 'preference'
+    ) {
+      personalSkipped.add(m.id);
+      return false;
+    }
+    return true;
+  });
   // Only deliberately pinned preferences bypass task relevance.
   const preferences: typeof ranked = [];
   let preferenceSize = 0;
   for (const memory of store.search(projectId).filter((m) => m.metadata.pinned)) {
-    if (preferenceSize + memory.content.length + 100 > 2000) {
+    if (preferenceSize + memory.content.length + pinnedOverhead > pinnedLimit) {
       pinnedSkipped.add(memory.id);
       continue;
     }
     preferences.push(memory);
-    preferenceSize += memory.content.length + 100;
+    preferenceSize += memory.content.length + pinnedOverhead;
   }
-  const selected = [
-    ...preferences,
-    ...ranked.filter((m) => !preferences.some((p) => p.id === m.id)),
-  ];
+  const pinned = new Set(preferences.map((p) => p.id));
+  const selected = [...preferences, ...ranked.filter((m) => !pinned.has(m.id))];
   const footer =
     '\nConflicted, unrelated or over-budget notes are omitted. Use memory_recall / memory_get or CLI list/show/conflicts for more notes.\n';
   if (text.length + footer.length > limit) {
@@ -138,11 +165,13 @@ export function contextSelection(
     }
     included.set(
       memory.id,
-      preferences.some((p) => p.id === memory.id)
+      pinned.has(memory.id)
         ? 'pinned'
         : semanticMatches.get(memory.id) === memory.version
           ? 'semantic'
-          : 'lexical',
+          : unfiltered
+            ? 'unfiltered'
+            : 'lexical',
     );
     text += line;
   }
@@ -157,6 +186,8 @@ export function context(
   query?: string,
   ranking?: Memory[],
   semanticMatches: ReadonlyMap<string, number> = new Map(),
+  brief = false,
 ): string {
-  return contextSelection(store, projectId, budget, query, ranking, semanticMatches).context;
+  return contextSelection(store, projectId, budget, query, ranking, semanticMatches, false, brief)
+    .context;
 }
