@@ -29,7 +29,7 @@ Reads combine personal and current-project memory. Outside a detected project, p
 Requires **Node.js 24.12+**. Automatic agent setup supports macOS and Linux.
 
 ```sh
-npm install -g @ahoh.tech/co-memo
+npm install -g co-memo
 cd /path/to/your/project
 co-memo init --agents claude,codex --apply
 ```
@@ -37,7 +37,7 @@ co-memo init --agents claude,codex --apply
 You can also install the exact release directly from the official npm tarball, including while a new version is unavailable through the package index:
 
 ```sh
-npm install -g https://registry.npmjs.org/@ahoh.tech/co-memo/-/co-memo-0.8.2.tgz
+npm install -g https://registry.npmjs.org/co-memo/-/co-memo-0.8.2.tgz
 ```
 
 Version 0.8.2 fixes context selection so whole-sentence prompts load relevant notes again, gives lifecycle hooks the same optional semantic matches as `memory_context`, sends more changed-value duplicates to review, and stops unrelated console errors from looking like stale conflicts.
@@ -356,7 +356,7 @@ Requires **Node.js 24.12+** and pnpm.
 pnpm install --frozen-lockfile
 pnpm check
 pnpm pack
-npm install -g ./ahoh.tech-co-memo-0.8.2.tgz
+npm install -g ./co-memo-0.8.2.tgz
 ```
 
 pnpm is only required for development. Co-memo is distributed under the [MIT license](LICENSE).
