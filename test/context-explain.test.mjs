@@ -127,18 +127,10 @@ test('paused explanation does not inspect notes; CLI explain preserves plain con
   assert.deepEqual(paused.explanation.queryTerms, []);
 });
 
-test('without a query, personal non-preference notes stay out and reasons say so', (t) => {
+test('without a query, selected notes are labelled unfiltered', (t) => {
   const f = fixture(t);
   const projectNote = f.add('Orchard irrigation schedule');
-  const personalFact = f.store.add('Synthetic hobby fact', 'user', null, 'test').memory;
-  const personalPreference = f.store.add(
-    'Prefer plain answers',
-    'user',
-    null,
-    'test',
-    'explicit',
-    Metadata.parse({ kind: 'preference' }),
-  ).memory;
+  const personal = f.store.add('Synthetic hobby fact', 'user', null, 'test').memory;
   const result = contextSelection(
     f.store,
     f.project.id,
@@ -150,13 +142,8 @@ test('without a query, personal non-preference notes stay out and reasons say so
   );
   const reason = (id) => result.explanation.notes.find((n) => n.id === id).reason;
   assert.equal(reason(projectNote.id), 'unfiltered');
-  assert.equal(reason(personalPreference.id), 'unfiltered');
-  assert.equal(reason(personalFact.id), 'personal_without_query');
-  assert.ok(result.context.includes('Orchard irrigation schedule'));
-  assert.ok(result.context.includes('Prefer plain answers'));
-  assert.ok(!result.context.includes('Synthetic hobby fact'));
-  const asked = context(f.store, f.project.id, 16000, 'synthetic hobby fact');
-  assert.ok(asked.includes('Synthetic hobby fact'));
+  assert.equal(reason(personal.id), 'unfiltered');
+  assert.ok(result.context.includes('Synthetic hobby fact'));
 });
 
 test('brief context keeps notes and drops the repeated guidance', (t) => {
@@ -175,8 +162,9 @@ test('brief context keeps notes and drops the repeated guidance', (t) => {
   ).context;
   assert.ok(brief.includes('Orchard irrigation schedule'));
   assert.ok(full.includes('Choose scope by content'));
-  assert.ok(!brief.includes('Choose scope by content'));
+  assert.ok(!brief.includes('Missing project context never implies user scope. Prefer'));
+  assert.match(brief, /missing project context never implies user scope/);
   assert.match(brief, /saveMode=auto/);
   assert.match(brief, /check whether memory needs updating/);
-  assert.ok(brief.length < full.length - 500);
+  assert.ok(brief.length < full.length - 400);
 });

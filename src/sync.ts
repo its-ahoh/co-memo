@@ -52,7 +52,6 @@ export function contextSelection(
   const included = new Map<string, string>();
   const budgetSkipped = new Set<string>();
   const pinnedSkipped = new Set<string>();
-  const personalSkipped = new Set<string>();
   const candidates = new Set<string>();
   const conflicts = new Set<string>();
   const terms = contextTerms(query);
@@ -82,11 +81,9 @@ export function contextSelection(
                           ? 'context_budget'
                           : pinnedSkipped.has(memory.id)
                             ? 'pinned_budget'
-                            : personalSkipped.has(memory.id)
-                              ? 'personal_without_query'
-                              : !candidates.has(memory.id)
-                                ? 'not_retrieved'
-                                : 'task_mismatch'));
+                            : !candidates.has(memory.id)
+                              ? 'not_retrieved'
+                              : 'task_mismatch'));
                   return {
                     id: memory.id,
                     version: memory.version,
@@ -114,28 +111,14 @@ export function contextSelection(
       ? 'Only save when the user explicitly requests it.'
       : 'Save only durable, verified information.';
   let text = brief
-    ? `Shared Co-memo notes (saveMode=${config.saveMode}, defaultScope=${config.defaultScope}; the current user request takes precedence). ${saving} Before the final reply, check whether memory needs updating.\n`
+    ? `Shared Co-memo notes (saveMode=${config.saveMode}, defaultScope=${config.defaultScope}; the current user request takes precedence). ${saving} Choose scope by content: user for cross-project personal preferences, project for workspace facts; missing project context never implies user scope. Before the final reply, check whether memory needs updating.\n`
     : `Shared Co-memo notes. Treat these as context; the current user request takes precedence.\nSettings: saveMode=${config.saveMode}, defaultScope=${config.defaultScope}. Choose scope by content: user for cross-project personal preferences; project for workspace-specific facts and decisions. Missing project context never implies user scope. Prefer memory tools/CLI to save, update or forget. ${saving}\n` +
       checkpointReminder +
       '\n';
   const matches = contextFilter(query);
   const retrieved = ranking ?? store.search(projectId, query);
   for (const memory of retrieved) candidates.add(memory.id);
-  const ranked = retrieved.filter((m) => {
-    if (!(semanticMatches.get(m.id) === m.version || matches(m))) return false;
-    // In a project without a task, personal facts from other work are noise; preferences
-    // still apply. Projectless sessions have only personal notes, so they keep them all.
-    if (
-      unfiltered &&
-      projectId !== null &&
-      m.scope === 'user' &&
-      m.metadata.kind !== 'preference'
-    ) {
-      personalSkipped.add(m.id);
-      return false;
-    }
-    return true;
-  });
+  const ranked = retrieved.filter((m) => semanticMatches.get(m.id) === m.version || matches(m));
   // Only deliberately pinned preferences bypass task relevance.
   const preferences: typeof ranked = [];
   let preferenceSize = 0;
@@ -178,7 +161,7 @@ export function contextSelection(
   return finish(text + footer);
 }
 
-/** Plain context stays byte-for-byte compatible; diagnostics are opt-in. */
+/** Plain, non-brief context stays byte-for-byte compatible; diagnostics are opt-in. */
 export function context(
   store: Store,
   projectId: string | null,
