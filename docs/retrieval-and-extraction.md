@@ -1,6 +1,6 @@
 # Retrieval and extraction
 
-Co-memo 0.5 implements local full-text retrieval and an evidence-backed candidate submission path. The current coding agent performs extraction. Co-memo does not call an extraction model or inspect transcripts in the background. Semantic embeddings and background capture remain future, optional extensions.
+Co-memo implements local full-text retrieval and an evidence-backed candidate submission path. The current coding agent performs extraction. Co-memo does not call an extraction model or inspect transcripts in the background. Semantic embeddings are optional; background transcript capture is not implemented.
 
 ## Retrieval
 
@@ -8,9 +8,9 @@ Co-memo 0.5 implements local full-text retrieval and an evidence-backed candidat
 
 Project and user scope, deletion and unresolved-conflict filters apply before the result limit. Ordinary recall excludes conflicts; inspect `memory_conflicts` or `conflicts` explicitly. `list --deleted` can inspect tombstones. Without a query, notes are ordered by most recent update. Module labels participate in full-text search; they are not authorization boundaries.
 
-Only preferences explicitly marked `pinned` bypass task matching, under a 2,000-character allocation. The full context, including instructions, is bounded to 16,000 characters. Large notes can be omitted rather than truncated. Old notes default to kind `note`, no evidence/module, and unpinned. Existing user notes are no longer automatically included when unrelated to a task.
+Only preferences explicitly marked `pinned` bypass task matching, under a 2,000-character allocation. The full context, including instructions, is bounded to 16,000 characters. Large notes can be omitted rather than truncated. Old notes default to kind `note`, no evidence/module, and unpinned. Existing user notes are no longer automatically included when unrelated to a task. Claude/Codex prompt-time hooks (`UserPromptSubmit`) and `context --brief` use a short instruction header that keeps the save and scope rules, because the full guidance is delivered at session start; the notes selected are the same.
 
-Automatic context applies a stricter lexical filter than recall: notes must match at least 75% of the distinct normalized query terms, and at least two terms for multi-term queries. Single-term queries still need just that term; no-query reads keep their existing behavior. Module labels count as matches. Use a short, focused query for context; verbose requests or synonyms can miss relevant notes, which remain available through broader recall. Pinned preferences and current-version semantic matches above the configured similarity threshold bypass this lexical filter. Provider fallback applies the lexical filter again. Recall, list/search, and save-time duplicate review retain their own behavior.
+Automatic context applies a stricter lexical filter than recall: notes must match at least 75% of the distinct normalized query terms, and at least two terms for multi-term queries. For whole prompts with at least four meaningful terms, an alternative overlap check accepts at least three shared terms, rising with the smaller term set up to six. Question/pronoun filler words are excluded. Single-term queries still need just that term; no-query reads keep their existing behavior. Module labels count as matches. Use a short, focused query for context; verbose requests or synonyms can miss relevant notes, which remain available through broader recall. Pinned preferences and current-version semantic matches above the configured similarity threshold bypass this lexical filter. Provider fallback applies the lexical filter again. Recall, list/search, and save-time duplicate review retain their own behavior.
 
 ## Candidate submission
 
@@ -44,7 +44,7 @@ Replace identifiers and evidence with real values; generate a fresh UUID per log
 Actions:
 
 - `add`: new fact, optional scope follows effective defaultScope. Exact duplicates return their existing ID and metadata, including tombstones. Deleted duplicates are not revived or reported as successful new saves.
-- `update`: same fact with new content/evidence; requires `id`, expected `version` and `basis` (`user_correction` or `verified_change`). Records the previous ID/version in `metadata.supersedes`. Supply module/pinned explicitly to preserve them; otherwise they reset to null/false. No semantic match or contradiction is inferred by the server.
+- `update`: same fact with new content/evidence; requires `id`, expected `version` and `basis` (`user_correction` or `verified_change`). Records the previous ID/version in `metadata.supersedes`. Omitted `module` and `pinned` preserve their current values. Explicit `module: null` clears the module; `pinned: false` unpins. Changing a pinned note to another kind requires explicit unpinning; an existing pin on an unchanged kind is kept. `conflict` candidates follow the same rule for omitted `module`/`pinned`, so resolving with the candidate keeps them. Omitted source still clears obsolete evidence; `kind` remains required. No semantic match or contradiction is inferred by the server.
 - `conflict`: uncertain contradiction; requires the old ID/version and proposed content/evidence. Keeps the old central version, stores the candidate with its own ID, and excludes that memory from recall until explicitly resolved. Resolve using that candidate ID, `current`, or a user-directed merge.
 - `skip`: unsupported or temporary information, with a reason; no memory is written.
 
@@ -74,7 +74,7 @@ Choose skip for equivalent facts, update with the existing ID/version and correc
 
 The review uses local lexical retrieval, not embeddings or a model; paraphrases without shared terms can be missed and similar wording can mean opposite things. No automatic semantic merging is performed. The same pipeline covers submit, add/remember, Markdown import and console creation. Prepare is optional; successful saves include verification. No save/checkpoint call is needed when there is nothing durable to save.
 
-Stored search results and batch peers use the same body-text overlap check. After search-term normalization and deduplication, at least half of the shorter note's terms must overlap, with at least two shared terms for notes containing three or more terms each. If either note has only one or two terms, one shared term remains enough so short labels and corrections still receive review. Module metadata alone does not trigger review. This conservative heuristic reduces incidental keyword matches; it does not establish semantic similarity. Exact duplicates, batch target checks, scope isolation, and whole-batch review/commit behavior remain unchanged.
+Stored search results and batch peers use the same body-text overlap check. After search-term normalization and deduplication, at least one third of the shorter note's terms must overlap, with at least two shared terms for notes containing three or more terms each. If either note has only one or two terms, one shared term remains enough so short labels and corrections still receive review. Module metadata alone does not trigger review. This conservative heuristic reduces incidental keyword matches; it does not establish semantic similarity. Exact duplicates, batch target checks, scope isolation, and whole-batch review/commit behavior remain unchanged.
 
 ### Batch and concurrent review
 

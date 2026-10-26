@@ -24,12 +24,16 @@ const filler = new Set(
     ' ',
   ),
 );
+export function contextTerms(query?: string): string[] {
+  return [...new Set(searchTerms((query ?? '').slice(0, 16000)))]
+    .slice(0, 64)
+    .filter((term) => !filler.has(term));
+}
+
 /** Context is narrower than explicit recall: one incidental term should not fill the prompt. */
 export function contextFilter(query?: string): (memory: Memory) => boolean {
   if (!query?.trim()) return () => true;
-  const terms = [...new Set(searchTerms(query.slice(0, 16000)))]
-    .slice(0, 64)
-    .filter((term) => !filler.has(term));
+  const terms = contextTerms(query);
   return (memory) => {
     if (!terms.length) return false;
     const indexed = new Set(searchTerms(memory.content + ' ' + (memory.metadata.module ?? '')));
