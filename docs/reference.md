@@ -29,7 +29,7 @@ co-memo --home /path/to/data --project /path/to/project COMMAND
 | `ui [--port NUMBER] [--no-open]`                              | Start the loopback memory console; open a browser by default; port 0 selects an available port                 |
 | `locations ID`                                                | Inspect the central database location and scoped agent connections                                             |
 | `watch`                                                       | Check maintenance/conflicts every two seconds; SIGINT/SIGTERM stops cleanly                                    |
-| `context [--query TEXT]`                                      | Bounded user/project context; excludes conflicting notes                                                       |
+| `context [--query TEXT] [--explain] [--brief]`                | Bounded user/project context; excludes conflicting notes. `--brief` shortens the repeated guidance header      |
 | `conflicts`                                                   | Personal and current-project conflicts with preserved proposals                                                |
 | `resolve ID --revision N --take current`                      | Keep central version                                                                                           |
 | `resolve ID --revision N --take REPLICA_OR_CANDIDATE_ID`      | Choose a replica proposal or a submitted candidate                                                             |

@@ -238,6 +238,7 @@ export async function retrieve(
   query?: string,
   deleted = false,
   explain = false,
+  brief = false,
 ) {
   const id = store.ensureProject(root)?.id ?? null;
   const ranking = await semanticRanking(store, id, query, deleted);
@@ -255,6 +256,7 @@ export async function retrieve(
         memories.filter((m) => !m.deleted),
         new Map(ranking.matches.map((m) => [m.id, m.version])),
         explain,
+        brief,
       ),
       settings: effective,
       retrieval: {

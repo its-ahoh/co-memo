@@ -647,9 +647,10 @@ app
   .description('Print bounded context for this project')
   .option('--query <text>', 'Current task for optional hybrid ranking')
   .option('--explain', 'Output JSON with context selection reasons and character budget')
-  .action(async (opts: { query?: string; explain?: boolean }) => {
+  .option('--brief', 'Short guidance for repeated prompt-time hooks; notes are unchanged')
+  .action(async (opts: { query?: string; explain?: boolean; brief?: boolean }) => {
     const result = await usingAsync((store, root) =>
-      retrieve(store, root, opts.query, false, opts.explain),
+      retrieve(store, root, opts.query, false, opts.explain, opts.brief),
     );
     reportExit(result.sync);
     if (opts.explain)
@@ -764,6 +765,8 @@ app
           query,
           hybridSearch(store, project.id, query, false, ranking),
           new Map(ranking.matches.map((m) => [m.id, m.version])),
+          // Claude/Codex SessionStart delivers the full guidance; each prompt only refreshes notes.
+          opts.event === 'UserPromptSubmit',
         );
         return { ...report, context: injected + warning };
       });

@@ -571,6 +571,19 @@ test('context budget includes guidance and bridge reads task query from host std
   const injected = JSON.parse(result.stdout).hookSpecificOutput.additionalContext;
   assert.ok(injected.includes('SQLite migrations require transactions'));
   assert.ok(!injected.includes('Unrelated violet'));
+  // Prompt-time context is brief; the full guidance arrives once at session start.
+  assert.ok(!injected.includes('Choose scope by content'));
+  const started = spawnSync(
+    process.execPath,
+    [cli, ...f.argv, 'bridge', '--agent', 'codex', '--event', 'SessionStart', '--stdin'],
+    { encoding: 'utf8', input: '{}', timeout: 20000 },
+  );
+  assert.equal(started.status, 0, started.stderr);
+  assert.ok(
+    JSON.parse(started.stdout).hookSpecificOutput.additionalContext.includes(
+      'Choose scope by content',
+    ),
+  );
   const malformed = spawnSync(
     process.execPath,
     [cli, ...f.argv, 'bridge', '--agent', 'codex', '--event', 'UserPromptSubmit', '--stdin'],
