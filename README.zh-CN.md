@@ -29,7 +29,7 @@ Co-memo 会根据已登记的工作区、Git 根目录或 worktree，以及常�
 要求 **Node.js 24.12+**。自动配置 Agent 支持 macOS 和 Linux。
 
 ```sh
-npm install -g @ahoh.tech/co-memo
+npm install -g co-memo
 cd /path/to/your/project
 co-memo init --agents claude,codex --apply
 ```
@@ -37,7 +37,7 @@ co-memo init --agents claude,codex --apply
 也可以直接安装指定版本的官方 npm 压缩包，例如包索引尚未提供某个新版本时：
 
 ```sh
-npm install -g https://registry.npmjs.org/@ahoh.tech/co-memo/-/co-memo-0.8.2.tgz
+npm install -g https://registry.npmjs.org/co-memo/-/co-memo-0.8.2.tgz
 ```
 
 0.8.2 修复上下文筛选：整句提问能再次加载相关记忆；生命周期 hooks 与 `memory_context` 使用相同的可选语义匹配；更多改值类疑似重复会进入审核；管理页面中无关错误不再被当作冲突已变更。
@@ -356,7 +356,7 @@ Agent 发现和引导配置可用 `co-memo init`。预览、worktree 关联规�
 pnpm install --frozen-lockfile
 pnpm check
 pnpm pack
-npm install -g ./ahoh.tech-co-memo-0.8.2.tgz
+npm install -g ./co-memo-0.8.2.tgz
 ```
 
 pnpm 仅用于开发。Co-memo 使用 [MIT 许可证](LICENSE)。

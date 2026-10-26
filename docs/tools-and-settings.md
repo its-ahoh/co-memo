@@ -5,7 +5,7 @@
 With Node.js 24.12+:
 
 ```sh
-npm install -g @ahoh.tech/co-memo
+npm install -g co-memo
 ```
 
 No source checkout or pnpm is required. Prefer a persistent installation over `npx`: generated agent configuration pins the installed CLI path.

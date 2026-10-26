@@ -42,6 +42,9 @@ export function dataHome(): string {
       join(process.env.XDG_DATA_HOME || join(homedir(), '.local/share'), 'co-memo'),
   );
 }
+// Usually a stale MCP/hook entry pinned to an older install after an upgrade.
+const newerDatabase =
+  'Database is from a newer Co-memo version; this command runs an older Co-memo. Upgrade it, or rerun setup from the newer installation in this project.';
 export class Store {
   readonly db: DatabaseSync;
   readonly home: string;
@@ -68,11 +71,11 @@ export class Store {
     this.mutex.exec('PRAGMA busy_timeout=5000;');
     try {
       const currentVersion = Number(this.db.prepare('PRAGMA user_version').get()?.user_version);
-      ensure(currentVersion <= 8, 'Database is from a newer Co-memo version');
+      ensure(currentVersion <= 8, newerDatabase);
       if (currentVersion < 8)
         this.lock(() => {
           const version = this.db.prepare('PRAGMA user_version').get();
-          ensure(Number(version?.user_version) <= 8, 'Database is from a newer Co-memo version');
+          ensure(Number(version?.user_version) <= 8, newerDatabase);
           if (Number(version?.user_version) === 8) return;
           this.transaction(() => {
             if (

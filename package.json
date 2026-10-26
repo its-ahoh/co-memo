@@ -1,5 +1,5 @@
 {
-  "name": "@ahoh.tech/co-memo",
+  "name": "co-memo",
   "version": "0.8.2",
   "description": "Local shared memory for coding agents",
   "license": "MIT",
