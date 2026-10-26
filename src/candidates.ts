@@ -110,38 +110,34 @@ export function submitBatch(
   );
   // Pre-change receipts used defaulted update/conflict metadata. Replay those without reapplying
   // the write; versioned new hashes distinguish omission from an explicit clear.
-  const legacyFingerprints = () => {
-    const legacyArgs = {
-      ...args,
-      candidates: args.candidates.map((candidate) =>
-        candidate.action === 'update' || candidate.action === 'conflict'
-          ? {
-              action: candidate.action,
-              id: candidate.id,
-              version: candidate.version,
-              ...(candidate.action === 'update' ? { basis: candidate.basis } : {}),
-              content: candidate.content,
-              kind: candidate.kind,
-              source: candidate.source,
-              module: candidate.module ?? null,
-              pinned: candidate.pinned ?? false,
-            }
-          : candidate,
-      ),
-    };
-    return [
-      hash(
-        JSON.stringify(
-          store.sourceAgent === null
-            ? legacyArgs
-            : { ...legacyArgs, sourceAgent: store.sourceAgent },
-        ),
-      ),
-      ...(store.sourceAgent === null
-        ? []
-        : [hash(JSON.stringify({ ...legacyArgs, writerAgent: store.sourceAgent }))]),
-    ];
+  const legacyArgs = {
+    ...args,
+    candidates: args.candidates.map((candidate) =>
+      candidate.action === 'update' || candidate.action === 'conflict'
+        ? {
+            action: candidate.action,
+            id: candidate.id,
+            version: candidate.version,
+            ...(candidate.action === 'update' ? { basis: candidate.basis } : {}),
+            content: candidate.content,
+            kind: candidate.kind,
+            source: candidate.source,
+            module: candidate.module ?? null,
+            pinned: candidate.pinned ?? false,
+          }
+        : candidate,
+    ),
   };
+  const legacyFingerprints = [
+    hash(
+      JSON.stringify(
+        store.sourceAgent === null ? legacyArgs : { ...legacyArgs, sourceAgent: store.sourceAgent },
+      ),
+    ),
+    ...(store.sourceAgent === null
+      ? []
+      : [hash(JSON.stringify({ ...legacyArgs, writerAgent: store.sourceAgent }))]),
+  ];
   const before = sync(store);
   // Empty namespace is reserved for personal submissions; project IDs are UUIDs.
   const submissionScope = projectId ?? '';
@@ -150,7 +146,7 @@ export function submitBatch(
   if (previous) {
     // Schema 7 receipts used the old identity key in their fingerprint; retain valid retries.
     ensure(
-      previous.fingerprint === fingerprint || legacyFingerprints().includes(previous.fingerprint),
+      previous.fingerprint === fingerprint || legacyFingerprints.includes(previous.fingerprint),
       'Request ID was already used with different candidates',
     );
     results = Results.parse(previous.result);

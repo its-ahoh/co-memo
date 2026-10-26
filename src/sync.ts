@@ -36,8 +36,6 @@ export function sync(store: Store): SyncReport {
   }
   return report;
 }
-const pinnedLimit = 2000;
-const pinnedOverhead = 100;
 export function contextSelection(
   store: Store,
   projectId: string | null,
@@ -66,7 +64,7 @@ export function contextSelection(
           explanation: {
             paused: config.paused,
             queryTerms: config.paused ? [] : terms,
-            budget: { unit: 'utf16_code_units', limit, used: text.length, pinnedLimit },
+            budget: { unit: 'utf16_code_units', limit, used: text.length, pinnedLimit: 2000 },
             // Pause must not inspect or disclose stored notes. Only current scope is enumerated.
             notes: config.paused
               ? []
@@ -142,15 +140,17 @@ export function contextSelection(
   const preferences: typeof ranked = [];
   let preferenceSize = 0;
   for (const memory of store.search(projectId).filter((m) => m.metadata.pinned)) {
-    if (preferenceSize + memory.content.length + pinnedOverhead > pinnedLimit) {
+    if (preferenceSize + memory.content.length + 100 > 2000) {
       pinnedSkipped.add(memory.id);
       continue;
     }
     preferences.push(memory);
-    preferenceSize += memory.content.length + pinnedOverhead;
+    preferenceSize += memory.content.length + 100;
   }
-  const pinned = new Set(preferences.map((p) => p.id));
-  const selected = [...preferences, ...ranked.filter((m) => !pinned.has(m.id))];
+  const selected = [
+    ...preferences,
+    ...ranked.filter((m) => !preferences.some((p) => p.id === m.id)),
+  ];
   const footer =
     '\nConflicted, unrelated or over-budget notes are omitted. Use memory_recall / memory_get or CLI list/show/conflicts for more notes.\n';
   if (text.length + footer.length > limit) {
@@ -165,7 +165,7 @@ export function contextSelection(
     }
     included.set(
       memory.id,
-      pinned.has(memory.id)
+      preferences.some((p) => p.id === memory.id)
         ? 'pinned'
         : semanticMatches.get(memory.id) === memory.version
           ? 'semantic'
