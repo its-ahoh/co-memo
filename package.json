@@ -36,6 +36,7 @@
     "test:package": "pnpm build && node scripts/test-package.mjs",
     "test:hooks": "pnpm build && node scripts/verify-claude-hooks.mjs",
     "eval:autonomous": "pnpm build && node scripts/eval-autonomous.mjs",
+    "bench": "pnpm build && node scripts/bench-agent.mjs",
     "eval:scale": "pnpm build && node scripts/eval-quality.mjs --distractors 1000 --check"
   },
   "dependencies": {

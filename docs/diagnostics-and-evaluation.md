@@ -120,6 +120,17 @@ This opt-in evaluation runs seven isolated Claude sessions using the installed C
 
 The evaluator checks actual successful tool calls, `automatic` intent, central-store contents, user/project scope, and same-ID version advancement for a correction. Non-save cases must not even attempt a write: a policy-rejected attempted save does not count as good extraction. A launch/quota/model failure stops the run as incomplete. Regex-based content checks are deliberately narrow and the output includes synthetic saved text for manual review. Passing these seven examples is not a general accuracy estimate, evidence of factual verification, or proof across all models and long conversations.
 
+## Agent benchmark
+
+```sh
+pnpm bench > evals/results/bench-claude-YYYY-MM-DD.json
+pnpm bench --reps 1 --cases pnpm-only --keep   # quick look at one case
+```
+
+This opt-in benchmark asks whether Co-memo makes a real Claude session follow rules it was told earlier. Each case teaches a rule in one read-only session, then gives a fresh session an ordinary coding task that never mentions the rule. Three arms run the same tasks: `none` (no memory), `comemo` (tools-only Co-memo; the agent decides what to save and recall) and `oracle` (the rule is stated in the task). Two harm cases check that another project's rule or a one-off request is not carried over.
+
+Checks inspect files, diffs, shell commands, commits and the final reply; the model never grades itself. `test/bench-cases.test.mjs` verifies every check against one rule-following and one rule-breaking outcome without calling a model. For the Co-memo arm, the report also shows whether the rule was saved, whether a memory tool returned it during the task, and whether it was followed. The user's own instructions, hooks, plugins and Claude's native auto-memory are excluded from every arm. It spends model quota and is not part of CI. Results vary between runs; compare arms rather than reading absolute scores. Design notes are in `evals/benchmark-design.md`.
+
 ## Larger retrieval regression
 
 Dataset version 3 also checks automatic context separately from broad recall. Focused English, Chinese, mixed-language, path and module queries must retain the expected notes; weak-only and punctuation queries must inject no task notes. Pinned preferences must remain present. The report includes injected character counts and the CI gate rejects missing or unexpected context notes and budget violations in these synthetic cases. These cases measure a regression contract, not general semantic accuracy.
