@@ -37,8 +37,10 @@ co-memo init --agents claude,codex --apply
 也可以直接安装指定版本的官方 npm 压缩包，例如包索引尚未提供某个新版本时：
 
 ```sh
-npm install -g https://registry.npmjs.org/co-memo/-/co-memo-0.8.2.tgz
+npm install -g https://registry.npmjs.org/co-memo/-/co-memo-0.8.3.tgz
 ```
+
+0.8.3 起，保存为 `constraint` 的项目规则即使与任务没有共同词，也会始终进入上下文；它们与置顶偏好共用 2000 字符额度，个人（user 范围）规则仍需与任务匹配。`co-memo context --explain` 可查看每条记忆被加入或排除的原因；更新记忆时默认保留原有 module 与置顶标记。
 
 0.8.2 修复上下文筛选：整句提问能再次加载相关记忆；生命周期 hooks 与 `memory_context` 使用相同的可选语义匹配；更多改值类疑似重复会进入审核；管理页面中无关错误不再被当作冲突已变更。
 
@@ -356,7 +358,7 @@ Agent 发现和引导配置可用 `co-memo init`。预览、worktree 关联规�
 pnpm install --frozen-lockfile
 pnpm check
 pnpm pack
-npm install -g ./co-memo-0.8.2.tgz
+npm install -g ./co-memo-0.8.3.tgz
 ```
 
 pnpm 仅用于开发。Co-memo 使用 [MIT 许可证](LICENSE)。
