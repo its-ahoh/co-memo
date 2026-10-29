@@ -29,9 +29,18 @@ const outcomes = {
       files: { 'src/checkout.js': `// failure\nconsole.error('charge failed');\n` },
     },
   },
+  // Wrapped messages and helper-built errors: the check runs the code instead of reading lines.
   'chinese-errors': {
-    pass: { append: { 'src/cart.js': `throw new TypeError('items 必须是数组');\n` } },
-    fail: { append: { 'src/cart.js': `throw new TypeError('items must be an array');\n` } },
+    pass: {
+      files: {
+        'src/cart.js': `import { add } from './legacy/money.js';\nconst invalid = (m) => new RangeError(m);\nexport function total(items) {\n  if (!Array.isArray(items))\n    throw new TypeError(\n      'items 必须是数组',\n    );\n  for (const item of items)\n    if (!(item.price >= 0) || !Number.isInteger(item.qty) || item.qty < 1) throw invalid('价格或数量无效');\n  let sum = 0;\n  for (const item of items) sum = add(sum, item.price * item.qty);\n  return sum;\n}\n`,
+      },
+    },
+    fail: {
+      files: {
+        'src/cart.js': `import { add } from './legacy/money.js';\nconst invalid = (m) => new RangeError(m);\nexport function total(items) {\n  if (!Array.isArray(items))\n    throw new TypeError(\n      'items 必须是数组',\n    );\n  for (const item of items)\n    if (!(item.price >= 0) || !Number.isInteger(item.qty) || item.qty < 1) throw invalid('invalid price or qty');\n  let sum = 0;\n  for (const item of items) sum = add(sum, item.price * item.qty);\n  return sum;\n}\n`,
+      },
+    },
   },
   'legacy-frozen': {
     pass: {

@@ -41,6 +41,22 @@ const memoryTools = [
   'memory_update',
   'memory_submit',
 ].map((t) => `mcp__co-memo__${t}`);
+const readTools = ['memory_context', 'memory_recall', 'memory_get'].map(
+  (t) => `mcp__co-memo__${t}`,
+);
+const escapes = { b: '\b', f: '\f', n: '\n', r: '\r', t: '\t' };
+// Tool results arrive JSON-encoded, sometimes twice. Undo every escape layer, then drop
+// quotes and whitespace, so a note's newline matches an escaped \n in a result.
+function flat(text) {
+  let previous;
+  do {
+    previous = text;
+    text = text.replace(/\\(?:u([0-9a-fA-F]{4})|(.))/g, (_, hex, c) =>
+      hex ? String.fromCharCode(parseInt(hex, 16)) : (escapes[c] ?? c),
+    );
+  } while (text !== previous);
+  return text.replace(/["\s]/g, '');
+}
 // Keep the user's own instructions, plugins, hooks and Claude's native auto-memory out of
 // every arm, so Co-memo is the only memory that differs between arms.
 const settings = JSON.stringify({
@@ -131,7 +147,7 @@ function parse(stdout, status) {
         if (names.get(block.tool_use_id)?.startsWith('mcp__co-memo__')) {
           const text =
             typeof block.content === 'string' ? block.content : JSON.stringify(block.content);
-          out.memoryResults.push(text);
+          out.memoryResults.push({ name: names.get(block.tool_use_id), text });
           const call = out.memoryCalls.find((c) => c.id === block.tool_use_id);
           if (call) call.result = text.slice(0, 8000);
         }
@@ -219,9 +235,10 @@ async function trial(item, arm, rep, root) {
   if (memory) {
     record.memoryCalls = run.memoryCalls;
     // Compare note text, not the rule regex: Co-memo's own instructions can match a regex.
-    const flat = (text) => text.replace(/[\\"\s]/g, '');
+    // Only reads count: a write response such as needs_review can echo an existing note.
+    const reads = run.memoryResults.filter((r) => readTools.includes(r.name));
     record.retrieved = lesson.some((n) =>
-      run.memoryResults.some((r) => flat(r).includes(flat(n.content))),
+      reads.some((r) => flat(r.text).includes(flat(n.content))),
     );
   }
   const verdict = item.check(observe(examDir, fixture, run));

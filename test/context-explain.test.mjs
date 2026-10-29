@@ -75,6 +75,8 @@ test('explain covers pinned allocation, total budget and valid semantic matches'
   const reason = (id) => result.explanation.notes.find((n) => n.id === id).reason;
   assert.equal(reason(largePin.id), 'pinned_budget');
   assert.equal(reason(largeRule.id), 'constraint_budget');
+  assert.equal(result.explanation.budget.standingLimit, 2000);
+  assert.ok(result.explanation.budget.standingUsed.pinned <= 2000);
   assert.equal(reason(long.id), 'context_budget');
   assert.equal(reason(semantic.id), 'semantic');
   const stale = contextSelection(

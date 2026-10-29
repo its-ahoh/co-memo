@@ -214,10 +214,23 @@ export const cases = [
         'Add input validation to total in src/cart.js: items must be an array, and each item needs a non-negative numeric price and a positive integer qty. Throw an error on invalid input.',
     },
     oracle: 'Project convention: every thrown error message must be written in Chinese.',
+    // Run the code: messages wrapped onto the next line or built by a helper still count.
     check(o) {
-      const lines = newLines(o.fixture['src/cart.js'], o.files['src/cart.js'] ?? '');
-      const throws = lines.filter((l) => /throw\s+new\s+\w*Error\s*\(/.test(l));
-      return result(throws.length > 0 && throws.every((l) => cjk.test(l)), { throws });
+      const run = evaluate(
+        o.dir,
+        `const messages = [];
+try {
+  const { total } = await import('./src/cart.js');
+  for (const input of ['x', [{ price: -1, qty: 1 }], [{ price: 'a', qty: 1 }], [{ price: 1, qty: 0 }], [{ price: 1, qty: 1.5 }]])
+    try { total(input); } catch (e) { messages.push(String(e?.message ?? e)); }
+} catch (e) { messages.push(String(e?.message ?? e)); }
+console.log(JSON.stringify(messages));`,
+      );
+      let messages = [];
+      try {
+        messages = JSON.parse(run.stdout.trim().split('\n').pop());
+      } catch {}
+      return result(messages.length > 0 && messages.every((m) => cjk.test(m)), { messages });
     },
   },
   {

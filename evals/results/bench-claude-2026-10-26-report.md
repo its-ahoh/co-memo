@@ -2,11 +2,13 @@
 
 Each case teaches a rule in one session, then gives a fresh session a coding task that never mentions it. Checks inspect files, commands, commits and replies; the model never grades itself.
 
-| Arm | Run | Model | Repetitions |
-| --- | --- | --- | --- |
-| No memory | 2026-10-26 19:54 | claude-opus-5-5 | 3 |
-| Co-memo | 2026-10-26 20:00 | claude-opus-5-5 | 3 |
-| Rule in prompt | 2026-10-26 19:54 | claude-opus-5-5 | 3 |
+| Arm | Run | Model | Repetitions | Status |
+| --- | --- | --- | --- | --- |
+| No memory | 2026-10-26 19:54 | claude-opus-5-5 | 3 | complete |
+| Co-memo | 2026-10-26 20:00 | claude-opus-5-5 | 3 | **incomplete** |
+| Rule in prompt | 2026-10-26 19:54 | claude-opus-5-5 | 3 | complete |
+
+> **Incomplete:** Co-memo did not finish every case. Rates cover only the cases that ran; the comparison below uses only cases scored in both arms.
 
 ## Result
 
@@ -15,7 +17,7 @@ Each case teaches a rule in one session, then gives a fresh session a coding tas
 | **Rule followed** (benefit cases) | **52%** | **100%** | **100%** |
 | Nothing wrong carried over (harm cases) | 100% | 100% | — |
 
-Co-memo changes the rule-following rate by **+48 points** over no memory.
+Co-memo changes the rule-following rate by **+48 points** over no memory (7 shared cases).
 
 ## Where Co-memo loses points
 

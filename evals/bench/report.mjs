@@ -37,14 +37,21 @@ export function render(runs) {
       'grades itself.',
     '',
   );
-  row('Arm', 'Run', 'Model', 'Repetitions');
-  rule(4);
+  row('Arm', 'Run', 'Model', 'Repetitions', 'Status');
+  rule(5);
   for (const [arm, run] of sources)
     row(
       label[arm],
       run.timestamp?.slice(0, 16).replace('T', ' ') ?? '—',
       run.model ?? '—',
       run.reps,
+      run.status === 'complete' ? 'complete' : `**${run.status ?? 'unknown'}**`,
+    );
+  const partial = sources.filter(([, run]) => run.status !== 'complete').map(([arm]) => label[arm]);
+  if (partial.length)
+    lines.push(
+      '',
+      `> **Incomplete:** ${partial.join(', ')} did not finish every case. Rates cover only the cases that ran; the comparison below uses only cases scored in both arms.`,
     );
   lines.push('', '## Result', '');
   row('', ...arms.map((a) => label[a]));
@@ -52,11 +59,21 @@ export function render(runs) {
   row('**Rule followed** (benefit cases)', ...arms.map((a) => `**${pct(rate(benefit(a)))}**`));
   row('Nothing wrong carried over (harm cases)', ...arms.map((a) => pct(rate(harm(a)))));
   if (arms.includes('none') && arms.includes('comemo')) {
-    const gain = rate(benefit('comemo')) - rate(benefit('none'));
-    lines.push(
-      '',
-      `Co-memo changes the rule-following rate by **${gain >= 0 ? '+' : ''}${Math.round(gain * 100)} points** over no memory.`,
-    );
+    // Compare like with like: a partial run must not be scored against a full baseline.
+    const shared = new Set(benefit('comemo').map((r) => r.case));
+    const baseline = benefit('none').filter((r) => shared.has(r.case));
+    const both = new Set(baseline.map((r) => r.case));
+    const withMemory = rate(benefit('comemo').filter((r) => both.has(r.case)));
+    const without = rate(baseline);
+    if (withMemory === null || without === null)
+      lines.push('', 'No benefit cases were scored in both arms, so there is no comparison.');
+    else {
+      const gain = withMemory - without;
+      lines.push(
+        '',
+        `Co-memo changes the rule-following rate by **${gain >= 0 ? '+' : ''}${Math.round(gain * 100)} points** over no memory (${both.size} shared case${both.size === 1 ? '' : 's'}).`,
+      );
+    }
   }
   if (memory.length) {
     lines.push('', '## Where Co-memo loses points', '');

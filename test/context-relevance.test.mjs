@@ -68,6 +68,38 @@ test('constraints apply to every task, within their own allocation', (t) => {
   }
 });
 
+test('user-scope and module constraints must match the task unless pinned', (t) => {
+  const f = fixture(t);
+  const personal = f.store.add(
+    'Indent with tabs in every file',
+    'user',
+    null,
+    'fixture',
+    'explicit',
+    Metadata.parse({ kind: 'constraint' }),
+  ).memory;
+  const scoped = f.add('Never edit migrations by hand', {
+    kind: 'constraint',
+    module: 'storage/sqlite',
+  });
+  const query = 'add a discount to the cart total';
+  const injected = context(f.store, f.project.id, 16000, query);
+  assert.ok(!injected.includes(personal.content));
+  assert.ok(!injected.includes(scoped.content));
+  assert.ok(
+    context(f.store, f.project.id, 16000, 'storage/sqlite migrations').includes(scoped.content),
+  );
+});
+
+test('pinned notes and constraints share one standing allocation', (t) => {
+  const f = fixture(t);
+  const pinned = f.add('p'.repeat(1500), { kind: 'preference', pinned: true });
+  const rule = f.add('c'.repeat(500), { kind: 'constraint' });
+  const injected = context(f.store, f.project.id, 16000, 'add a discount to the cart total');
+  assert.ok(injected.includes(pinned.content));
+  assert.ok(!injected.includes(rule.content));
+});
+
 test('single terms, repeated terms, paths, module labels and no-query reads retain matching notes', (t) => {
   const f = fixture(t);
   const note = f.add('Archive invoices annually', { module: 'storage/sqlite' });

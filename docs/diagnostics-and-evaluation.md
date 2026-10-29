@@ -25,7 +25,7 @@ This opt-in JSON response includes the same `context` as the plain command, `ret
 
 Reasons are `pinned`, `constraint`, `semantic`, `lexical`, or `unfiltered` (no task query, so no matching happened) for selected notes; `deleted`, `conflict`, `not_retrieved`, `task_mismatch`, `pinned_budget`, `constraint_budget`, or `context_budget` for omissions. `not_retrieved` means the candidate retrieval stage did not return the note (including its result cap); it is not proof of semantic irrelevance. A note exceeding the pinned or constraint allocation can still qualify through task matching. The single reported reason describes its final selection outcome.
 
-The budget reports total used/allowed UTF-16 code units, including instructions and wrappers, and the 2,000-character pinned allocation limit. This preserves the current character budget; it is not a model token count. Plain context and hooks do not emit diagnostics. Paused explanations return no note details, and other projects' note IDs/content are excluded.
+The budget reports total used/allowed UTF-16 code units, including instructions and wrappers, the 2,000-character standing allocation shared by pinned notes and constraints (`standingLimit`; `pinnedLimit` is kept for older readers) and how much of it each used (`standingUsed`). This preserves the current character budget; it is not a model token count. Plain context and hooks do not emit diagnostics. Paused explanations return no note details, and other projects' note IDs/content are excluded.
 
 ## Real host readiness checks
 

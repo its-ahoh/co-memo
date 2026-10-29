@@ -57,6 +57,8 @@ export function contextSelection(
   const conflicts = new Set<string>();
   const terms = contextTerms(query);
   const unfiltered = !query?.trim();
+  const standingLimit = 2000;
+  let standingUsed = { pinned: 0, constraint: 0 };
   const finish = (text: string) => ({
     context: text,
     ...(explain
@@ -64,7 +66,15 @@ export function contextSelection(
           explanation: {
             paused: config.paused,
             queryTerms: config.paused ? [] : terms,
-            budget: { unit: 'utf16_code_units', limit, used: text.length, pinnedLimit: 2000 },
+            budget: {
+              unit: 'utf16_code_units',
+              limit,
+              used: text.length,
+              // Pinned notes and constraints share one standing allocation, pinned first.
+              pinnedLimit: standingLimit,
+              standingLimit,
+              standingUsed,
+            },
             // Pause must not inspect or disclose stored notes. Only current scope is enumerated.
             notes: config.paused
               ? []
@@ -122,19 +132,22 @@ export function contextSelection(
   const retrieved = ranking ?? store.search(projectId, query);
   for (const memory of retrieved) candidates.add(memory.id);
   const ranked = retrieved.filter((m) => semanticMatches.get(m.id) === m.version || matches(m));
-  // Pinned preferences and constraints bypass task relevance: rules such as "use pnpm"
-  // apply to every task but rarely share words with it. Each has its own allocation.
+  // Pinned preferences and project-wide constraints bypass task relevance: rules such as
+  // "use pnpm" apply to every task but rarely share words with it. They share one 2,000
+  // character standing allocation, pinned first, so ranked notes keep the rest of the budget.
+  // User-scope constraints would follow the user into every project, and module constraints
+  // apply only to their module, so both must match the task unless deliberately pinned.
   const always = store.search(projectId);
+  let allocated = 0;
   const allocate = (eligible: Memory[], skipped: Set<string>) => {
     const chosen: Memory[] = [];
-    let size = 0;
     for (const memory of eligible) {
-      if (size + memory.content.length + 100 > 2000) {
+      if (allocated + memory.content.length + 100 > standingLimit) {
         skipped.add(memory.id);
         continue;
       }
       chosen.push(memory);
-      size += memory.content.length + 100;
+      allocated += memory.content.length + 100;
     }
     return chosen;
   };
@@ -143,9 +156,17 @@ export function contextSelection(
     pinnedSkipped,
   );
   const constraints = allocate(
-    always.filter((m) => m.metadata.kind === 'constraint' && !m.metadata.pinned),
+    always.filter(
+      (m) =>
+        m.metadata.kind === 'constraint' &&
+        !m.metadata.pinned &&
+        m.scope === 'project' &&
+        !m.metadata.module,
+    ),
     constraintSkipped,
   );
+  const size = (list: Memory[]) => list.reduce((n, m) => n + m.content.length + 100, 0);
+  standingUsed = { pinned: size(preferences), constraint: size(constraints) };
   const standing = [...preferences, ...constraints];
   const selected = [...standing, ...ranked.filter((m) => !standing.some((p) => p.id === m.id))];
   const footer =
