@@ -135,8 +135,8 @@ export function contextSelection(
   // Pinned preferences and project-wide constraints bypass task relevance: rules such as
   // "use pnpm" apply to every task but rarely share words with it. They share one 2,000
   // character standing allocation, pinned first, so ranked notes keep the rest of the budget.
-  // User-scope constraints would follow the user into every project, and module constraints
-  // apply only to their module, so both must match the task unless deliberately pinned.
+  // User-scope constraints would follow the user into every project, so they must match the
+  // task unless deliberately pinned.
   const always = store.search(projectId);
   let allocated = 0;
   const allocate = (eligible: Memory[], skipped: Set<string>) => {
@@ -155,14 +155,23 @@ export function contextSelection(
     always.filter((m) => m.metadata.pinned),
     pinnedSkipped,
   );
+  // A module constraint such as "never edit src/legacy" can bite a task that never names the
+  // module, so it stays eligible. Under pressure the allocation goes first to project-wide
+  // constraints, then to those whose module the task mentions, then to the rest.
+  const priority = (m: Memory) =>
+    !m.metadata.module
+      ? 0
+      : searchTerms(m.metadata.module).some((term) => terms.includes(term))
+        ? 1
+        : 2;
   const constraints = allocate(
-    always.filter(
-      (m) =>
-        m.metadata.kind === 'constraint' &&
-        !m.metadata.pinned &&
-        m.scope === 'project' &&
-        !m.metadata.module,
-    ),
+    always
+      .filter(
+        (m) => m.metadata.kind === 'constraint' && !m.metadata.pinned && m.scope === 'project',
+      )
+      .map((m, index) => ({ m, index }))
+      .sort((a, b) => priority(a.m) - priority(b.m) || a.index - b.index)
+      .map(({ m }) => m),
     constraintSkipped,
   );
   const size = (list: Memory[]) => list.reduce((n, m) => n + m.content.length + 100, 0);

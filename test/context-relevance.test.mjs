@@ -68,7 +68,7 @@ test('constraints apply to every task, within their own allocation', (t) => {
   }
 });
 
-test('user-scope and module constraints must match the task unless pinned', (t) => {
+test('user-scope constraints must match the task unless pinned', (t) => {
   const f = fixture(t);
   const personal = f.store.add(
     'Indent with tabs in every file',
@@ -78,17 +78,29 @@ test('user-scope and module constraints must match the task unless pinned', (t) 
     'explicit',
     Metadata.parse({ kind: 'constraint' }),
   ).memory;
-  const scoped = f.add('Never edit migrations by hand', {
-    kind: 'constraint',
-    module: 'storage/sqlite',
-  });
-  const query = 'add a discount to the cart total';
-  const injected = context(f.store, f.project.id, 16000, query);
+  const injected = context(f.store, f.project.id, 16000, 'add a discount to the cart total');
   assert.ok(!injected.includes(personal.content));
-  assert.ok(!injected.includes(scoped.content));
-  assert.ok(
-    context(f.store, f.project.id, 16000, 'storage/sqlite migrations').includes(scoped.content),
-  );
+});
+
+test('module constraints apply to tasks that never name the module', (t) => {
+  const f = fixture(t);
+  const legacy = f.add('Do not edit files under the frozen directory; wrap them instead', {
+    kind: 'constraint',
+    module: 'src/legacy',
+  });
+  const injected = context(f.store, f.project.id, 16000, '金额计算 精度 total price');
+  assert.ok(injected.includes(legacy.content));
+});
+
+test('constraints whose module the task names win the allocation over other modules', (t) => {
+  const f = fixture(t);
+  const wide = f.add('w'.repeat(700), { kind: 'constraint' });
+  const other = f.add('o'.repeat(700), { kind: 'constraint', module: 'frontend' });
+  const named = f.add('n'.repeat(700), { kind: 'constraint', module: 'storage/sqlite' });
+  const injected = context(f.store, f.project.id, 16000, 'storage sqlite migrations');
+  assert.ok(injected.includes(wide.content));
+  assert.ok(injected.includes(named.content));
+  assert.ok(!injected.includes(other.content));
 });
 
 test('pinned notes and constraints share one standing allocation', (t) => {
