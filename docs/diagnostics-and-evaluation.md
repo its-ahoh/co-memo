@@ -23,9 +23,9 @@ co-memo --project /path/to/project context --query 'orchard irrigation' --explai
 
 This opt-in JSON response includes the same `context` as the plain command, `retrieval` mode/fallback reason, and `explanation`. It never saves notes. Each note in the current user/project scope has its ID/version, inclusion status, matching normalized query terms and content character count; explanations do not duplicate note bodies or evidence. The `context` field still contains the selected notes: treat the output as private.
 
-Reasons are `pinned`, `semantic`, `lexical`, or `unfiltered` (no task query, so no matching happened) for selected notes; `deleted`, `conflict`, `not_retrieved`, `task_mismatch`, `pinned_budget`, or `context_budget` for omissions. `not_retrieved` means the candidate retrieval stage did not return the note (including its result cap); it is not proof of semantic irrelevance. A note exceeding the pinned allocation can still qualify through task matching. The single reported reason describes its final selection outcome.
+Reasons are `pinned`, `constraint`, `semantic`, `lexical`, or `unfiltered` (no task query, so no matching happened) for selected notes; `deleted`, `conflict`, `not_retrieved`, `task_mismatch`, `pinned_budget`, `constraint_budget`, or `context_budget` for omissions. `not_retrieved` means the candidate retrieval stage did not return the note (including its result cap); it is not proof of semantic irrelevance. A note exceeding the pinned or constraint allocation can still qualify through task matching. The single reported reason describes its final selection outcome.
 
-The budget reports total used/allowed UTF-16 code units, including instructions and wrappers, and the 2,000-character pinned allocation limit. This preserves the current character budget; it is not a model token count. Plain context and hooks do not emit diagnostics. Paused explanations return no note details, and other projects' note IDs/content are excluded.
+The budget reports total used/allowed UTF-16 code units, including instructions and wrappers, the 2,000-character standing allocation shared by pinned notes and constraints (`standingLimit`; `pinnedLimit` is kept for older readers) and how much of it each used (`standingUsed`). This preserves the current character budget; it is not a model token count. Plain context and hooks do not emit diagnostics. Paused explanations return no note details, and other projects' note IDs/content are excluded.
 
 ## Real host readiness checks
 
@@ -119,6 +119,17 @@ pnpm eval:autonomous
 This opt-in evaluation runs seven isolated Claude sessions using the installed CLI and existing authentication, with a per-invocation budget flag of USD 1. It is not part of CI. Prompts describe ordinary project decisions/preferences/corrections or temporary/speculative requests; none explicitly requests memory saving. Generated Co-memo instructions and its MCP tools remain available, while built-in tools, hooks and slash commands are disabled. Only local settings are loaded. No target answer or grading rubric is sent to the model.
 
 The evaluator checks actual successful tool calls, `automatic` intent, central-store contents, user/project scope, and same-ID version advancement for a correction. Non-save cases must not even attempt a write: a policy-rejected attempted save does not count as good extraction. A launch/quota/model failure stops the run as incomplete. Regex-based content checks are deliberately narrow and the output includes synthetic saved text for manual review. Passing these seven examples is not a general accuracy estimate, evidence of factual verification, or proof across all models and long conversations.
+
+## Agent benchmark
+
+```sh
+pnpm bench > evals/results/bench-claude-YYYY-MM-DD.json
+pnpm bench --reps 1 --cases pnpm-only --keep   # quick look at one case
+```
+
+This opt-in benchmark asks whether Co-memo makes a real Claude session follow rules it was told earlier. Each case teaches a rule in one read-only session, then gives a fresh session an ordinary coding task that never mentions the rule. Three arms run the same tasks: `none` (no memory), `comemo` (tools-only Co-memo; the agent decides what to save and recall) and `oracle` (the rule is stated in the task). Two harm cases check that another project's rule or a one-off request is not carried over.
+
+Checks inspect files, diffs, shell commands, commits and the final reply; the model never grades itself. `test/bench-cases.test.mjs` verifies every check against one rule-following and one rule-breaking outcome without calling a model. For the Co-memo arm, the report also shows whether the rule was saved, whether a memory tool returned it during the task, and whether it was followed. The user's own instructions, hooks, plugins and Claude's native auto-memory are excluded from every arm. It spends model quota and is not part of CI. Results vary between runs; compare arms rather than reading absolute scores. How to run it, options and how to read the report: [`evals/bench/README.md`](../evals/bench/README.md). Design notes are in `evals/benchmark-design.md`.
 
 ## Larger retrieval regression
 

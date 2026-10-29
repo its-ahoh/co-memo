@@ -1,0 +1,1794 @@
+{
+  "agent": "claude",
+  "model": "claude-opus-5-5",
+  "timestamp": "2026-10-26T19:54:18.645Z",
+  "status": "complete",
+  "reps": 3,
+  "arms": ["none", "comemo", "oracle"],
+  "summary": {
+    "none.benefit": 0.5238095238095238,
+    "none.harm": 1,
+    "comemo.benefit": 0.8095238095238095,
+    "comemo.harm": 1,
+    "oracle.benefit": 1,
+    "oracle.harm": null
+  },
+  "funnel": {
+    "saved": 1,
+    "retrieved": 0.6190476190476191,
+    "followed": 0.8095238095238095,
+    "harmLeaked": 0
+  },
+  "limits": "Small synthetic benchmark with hand-written rules chosen to differ from common defaults. Tools-only Co-memo mode, lexical retrieval. Results vary between runs; compare arms, not absolute scores.",
+  "results": [
+    {
+      "case": "spec-dir",
+      "kind": "benefit",
+      "arm": "none",
+      "rep": 1,
+      "cost": 0.0536666,
+      "durationMs": 17618,
+      "model": "claude-opus-5-5",
+      "turns": 5,
+      "pass": false,
+      "detail": {
+        "tests": ["test/cart.test.js"]
+      }
+    },
+    {
+      "case": "pnpm-only",
+      "kind": "benefit",
+      "arm": "none",
+      "rep": 1,
+      "cost": 0.0559246,
+      "durationMs": 21544,
+      "model": "claude-opus-5-5",
+      "turns": 5,
+      "pass": false,
+      "detail": {
+        "usedPnpm": false,
+        "npmCommands": [
+          "npm test 2>&1 | tail -20; node -e \"import('./src/cart.js').then(({total})=>{const i=[{price:10,qty:2},{price:5,qty:1}];console.log(total(i),total(i,0.2),total(i,1));try{total(i,1.5)}catch(e){console.log(e.message)}})\""
+        ],
+        "lock": false
+      }
+    },
+    {
+      "case": "pnpm-only",
+      "kind": "benefit",
+      "arm": "oracle",
+      "rep": 1,
+      "cost": 0.056087200000000004,
+      "durationMs": 23231,
+      "model": "claude-opus-5-5",
+      "turns": 6,
+      "pass": true,
+      "detail": {
+        "usedPnpm": true,
+        "npmCommands": [],
+        "lock": false
+      }
+    },
+    {
+      "case": "pnpm-only",
+      "kind": "benefit",
+      "arm": "comemo",
+      "rep": 1,
+      "cost": 0.156551,
+      "durationMs": 30087,
+      "saved": true,
+      "notes": [
+        {
+          "content": "This project uses pnpm exclusively for running scripts and managing dependencies; do not use npm.",
+          "scope": "project"
+        }
+      ],
+      "model": "claude-opus-5-5",
+      "turns": 7,
+      "memoryCalls": [
+        {
+          "id": "toolu_01UyNNSm9Mn8wmHDXpSzSyLc",
+          "name": "memory_context",
+          "input": {
+            "query": "cart total discount, run tests, package manager"
+          },
+          "result": "[{\"type\":\"text\",\"text\":\"{\\\"context\\\":\\\"Shared Co-memo notes. Treat these as context; the current user request takes precedence.\\\\nSettings: saveMode=auto, defaultScope=project. Choose scope by content: user for cross-project personal preferences; project for workspace-specific facts and decisions. Missing project context never implies user scope. Prefer memory tools/CLI to save, update or forget. Save only durable, verified information.\\\\nBefore the final reply, and after a durable user correction or project decision, check whether memory needs updating. Honor saveMode and paused settings; inferred notes use automatic intent. Submit durable candidates directly with memory_submit (CLI submit --file); saving checks for duplicates and verifies writes. Inspect needs_review before claiming success. Sources may be omitted/null; never invent unknown source IDs. Prepare and checkpoint are optional. If nothing durable needs saving, do not invent a note. A reminder is not proof of a save.\\\\n\\\\nConflicted, unrelated or over-budget notes are omitted. Use memory_recall / memory_get or CLI list/show/conflicts for more notes.\\\\n\\\",\\\"settings\\\":{\\\"defaultScope\\\":\\\"project\\\",\\\"paused\\\":false,\\\"saveMode\\\":\\\"auto\\\"},\\\"retrieval\\\":{\\\"mode\\\":\\\"lexical\\\",\\\"reason\\\":\\\"disabled\\\"},\\\"sync\\\":{\\\"imported\\\":0,\\\"updated\\\":0,\\\"deleted\\\":0,\\\"published\\\":0,\\\"conflicts\\\":[],\\\"errors\\\":[]}}\"}]"
+        }
+      ],
+      "retrieved": false,
+      "pass": true,
+      "detail": {
+        "usedPnpm": true,
+        "npmCommands": [],
+        "lock": false
+      }
+    },
+    {
+      "case": "use-logger",
+      "kind": "benefit",
+      "arm": "none",
+      "rep": 1,
+      "cost": 0.047075,
+      "durationMs": 14197,
+      "model": "claude-opus-5-5",
+      "turns": 6,
+      "pass": true,
+      "detail": {
+        "usesLogger": true,
+        "consoleUse": []
+      }
+    },
+    {
+      "case": "spec-dir",
+      "kind": "benefit",
+      "arm": "oracle",
+      "rep": 1,
+      "cost": 0.0586556,
+      "durationMs": 23732,
+      "model": "claude-opus-5-5",
+      "turns": 5,
+      "pass": true,
+      "detail": {
+        "tests": ["spec/cart.test.js"]
+      }
+    },
+    {
+      "case": "spec-dir",
+      "kind": "benefit",
+      "arm": "comemo",
+      "rep": 1,
+      "cost": 0.2706334,
+      "durationMs": 28150,
+      "saved": true,
+      "notes": [
+        {
+          "content": "测试文件统一放在 spec/ 目录下，文件名格式为 xxx.test.js；不要放在 test/ 目录。",
+          "scope": "project"
+        }
+      ],
+      "model": "claude-opus-5-5",
+      "turns": 6,
+      "memoryCalls": [
+        {
+          "id": "toolu_017nWrCAvH6nKjq3RYWLJEtS",
+          "name": "memory_context",
+          "input": {
+            "query": "unit tests for src/cart.js total; test framework conventions",
+            "projectPath": "/private/var/folders/fw/9q77tsw55g5f8yz1wpt_ljn80000gn/T/co-memo-bench-2R1SZf/spec-dir-comemo-1/main"
+          },
+          "result": "[{\"type\":\"text\",\"text\":\"{\\\"context\\\":\\\"Shared Co-memo notes. Treat these as context; the current user request takes precedence.\\\\nSettings: saveMode=auto, defaultScope=project. Choose scope by content: user for cross-project personal preferences; project for workspace-specific facts and decisions. Missing project context never implies user scope. Prefer memory tools/CLI to save, update or forget. Save only durable, verified information.\\\\nBefore the final reply, and after a durable user correction or project decision, check whether memory needs updating. Honor saveMode and paused settings; inferred notes use automatic intent. Submit durable candidates directly with memory_submit (CLI submit --file); saving checks for duplicates and verifies writes. Inspect needs_review before claiming success. Sources may be omitted/null; never invent unknown source IDs. Prepare and checkpoint are optional. If nothing durable needs saving, do not invent a note. A reminder is not proof of a save.\\\\n\\\\nConflicted, unrelated or over-budget notes are omitted. Use memory_recall / memory_get or CLI list/show/conflicts for more notes.\\\\n\\\",\\\"settings\\\":{\\\"defaultScope\\\":\\\"project\\\",\\\"paused\\\":false,\\\"saveMode\\\":\\\"auto\\\"},\\\"retrieval\\\":{\\\"mode\\\":\\\"lexical\\\",\\\"reason\\\":\\\"disabled\\\"},\\\"sync\\\":{\\\"imported\\\":0,\\\"updated\\\":0,\\\"deleted\\\":0,\\\"published\\\":0,\\\"conflicts\\\":[],\\\"errors\\\":[]}}\"}]"
+        }
+      ],
+      "retrieved": false,
+      "pass": false,
+      "detail": {
+        "tests": ["test/cart.test.js"]
+      }
+    },
+    {
+      "case": "use-logger",
+      "kind": "benefit",
+      "arm": "oracle",
+      "rep": 1,
+      "cost": 0.0430516,
+      "durationMs": 11897,
+      "model": "claude-opus-5-5",
+      "turns": 5,
+      "pass": true,
+      "detail": {
+        "usesLogger": true,
+        "consoleUse": []
+      }
+    },
+    {
+      "case": "use-logger",
+      "kind": "benefit",
+      "arm": "comemo",
+      "rep": 1,
+      "cost": 0.17414659999999998,
+      "durationMs": 34902,
+      "saved": true,
+      "notes": [
+        {
+          "content": "本项目禁止直接使用 console.log / console.* 等打印；日志统一使用 src/logger.js 导出的 log(level, message, fields)（结构化 JSON 写到 stderr）。",
+          "scope": "project"
+        }
+      ],
+      "model": "claude-opus-5-5",
+      "turns": 7,
+      "memoryCalls": [
+        {
+          "id": "toolu_01KMdjBR4zLfnAiRQRsC9MRG",
+          "name": "memory_context",
+          "input": {
+            "query": "checkout payment failure logging logger",
+            "projectPath": "/private/var/folders/fw/9q77tsw55g5f8yz1wpt_ljn80000gn/T/co-memo-bench-2R1SZf/use-logger-comemo-1/main"
+          },
+          "result": "[{\"type\":\"text\",\"text\":\"{\\\"context\\\":\\\"Shared Co-memo notes. Treat these as context; the current user request takes precedence.\\\\nSettings: saveMode=auto, defaultScope=project. Choose scope by content: user for cross-project personal preferences; project for workspace-specific facts and decisions. Missing project context never implies user scope. Prefer memory tools/CLI to save, update or forget. Save only durable, verified information.\\\\nBefore the final reply, and after a durable user correction or project decision, check whether memory needs updating. Honor saveMode and paused settings; inferred notes use automatic intent. Submit durable candidates directly with memory_submit (CLI submit --file); saving checks for duplicates and verifies writes. Inspect needs_review before claiming success. Sources may be omitted/null; never invent unknown source IDs. Prepare and checkpoint are optional. If nothing durable needs saving, do not invent a note. A reminder is not proof of a save.\\\\n\\\\nConflicted, unrelated or over-budget notes are omitted. Use memory_recall / memory_get or CLI list/show/conflicts for more notes.\\\\n\\\",\\\"settings\\\":{\\\"defaultScope\\\":\\\"project\\\",\\\"paused\\\":false,\\\"saveMode\\\":\\\"auto\\\"},\\\"retrieval\\\":{\\\"mode\\\":\\\"lexical\\\",\\\"reason\\\":\\\"disabled\\\"},\\\"sync\\\":{\\\"imported\\\":0,\\\"updated\\\":0,\\\"deleted\\\":0,\\\"published\\\":0,\\\"conflicts\\\":[],\\\"errors\\\":[]}}\"}]"
+        },
+        {
+          "id": "toolu_01H1EkmPGDa83tofGbmkWudk",
+          "name": "memory_submit",
+          "input": {
+            "requestId": "3f6b2c1e-8a4d-4e7b-9c2f-1d5e6a7b8c90",
+            "intent": "automatic",
+            "projectPath": "/private/var/folders/fw/9q77tsw55g5f8yz1wpt_ljn80000gn/T/co-memo-bench-2R1SZf/use-logger-comemo-1/main",
+            "candidates": [
+              {
+                "action": "add",
+                "kind": "note",
+                "scope": "project",
+                "content": "Logging convention: use the structured logger `log(level, message, fields)` from src/logger.js (writes JSON lines to stderr) instead of console.*. Example: checkout payment failures log('error', 'payment failed', { customerId, amount, reason })."
+              }
+            ]
+          },
+          "result": "[{\"type\":\"text\",\"text\":\"{\\\"requestId\\\":\\\"3f6b2c1e-8a4d-4e7b-9c2f-1d5e6a7b8c90\\\",\\\"replayed\\\":false,\\\"status\\\":\\\"needs_review\\\",\\\"review\\\":{\\\"required\\\":true,\\\"token\\\":\\\"98035b2cfb9ff36feae202506abeee370ed435d350ccb17c4c6b556d7fbb4612\\\",\\\"items\\\":[{\\\"index\\\":0,\\\"action\\\":\\\"add\\\",\\\"related\\\":[{\\\"id\\\":\\\"4929ff40-3b8e-4e60-84bc-3001d88e8ac6\\\",\\\"version\\\":1,\\\"content\\\":\\\"本项目禁止直接使用 console.log / console.* 等打印；日志统一使用 src/logger.js 导出的 log(level, message, fields)（结构化 JSON 写到 stderr）。\\\",\\\"scope\\\":\\\"project\\\",\\\"projectId\\\":\\\"e523ccad-cbfa-43f1-84ca-7f2e230d1fc2\\\",\\\"deleted\\\":false,\\\"metadata\\\":{\\\"kind\\\":\\\"constraint\\\",\\\"source\\\":{\\\"agent\\\":\\\"claude\\\",\\\"sessionId\\\":null,\\\"messageId\\\":null,\\\"excerpt\\\":\\\"这个项目里不要直接用 console.log 之类的打印，日志统一走 src/logger.js 里的 log。\\\"},\\\"module\\\":\\\"logging\\\",\\\"pinned\\\":false,\\\"basis\\\":null,\\\"supersedes\\\":null},\\\"match\\\":\\\"related\\\",\\\"conflict\\\":null}],\\\"peers\\\":[],\\\"needsReview\\\":true}],\\\"guidance\\\":\\\"Lexical matches are review candidates, not proof of duplication or contradiction. Compare scope, conditions and evidence. Skip equivalent facts; update the existing ID for an explicit correction or verified change; submit conflict for uncertain contradictions. Add distinct facts only after review. Never merge based solely on similarity. Return this token and a reason with an unchanged submission to confirm distinct additions. If candidates change, submit them without the old review. Any change in a reviewed scope invalidates the token, including records outside the displayed matches. Batch peers include planned updates/conflicts; those run before additions. Prepare is an optional preview. All creation entry points enforce this review.\\\"},\\\"results\\\":[{\\\"action\\\":\\\"add\\\",\\\"status\\\":\\\"needs_review\\\",\\\"verified\\\":false}],\\\"sync\\\":{\\\"imported\\\":0,\\\"updated\\\":0,\\\"deleted\\\":0,\\\"published\\\":0,\\\"conflicts\\\":[],\\\"errors\\\":[]},\\\"priorErrors\\\":[],\\\"notice\\\":\\\"Nothing was saved. Review related memories and choose add, update, conflict or skip. Submit revised actions"
+        }
+      ],
+      "retrieved": true,
+      "pass": true,
+      "detail": {
+        "usesLogger": true,
+        "consoleUse": []
+      }
+    },
+    {
+      "case": "chinese-errors",
+      "kind": "benefit",
+      "arm": "none",
+      "rep": 1,
+      "cost": 0.06815379999999999,
+      "durationMs": 22182,
+      "model": "claude-opus-5-5",
+      "turns": 6,
+      "pass": false,
+      "detail": {
+        "throws": [
+          "    throw new TypeError(`items[${index}] must be an object`);",
+          "    throw new TypeError(`items[${index}].price must be a non-negative number`);",
+          "    throw new TypeError(`items[${index}].qty must be a positive integer`);",
+          "    throw new TypeError('items must be an array');"
+        ]
+      }
+    },
+    {
+      "case": "chinese-errors",
+      "kind": "benefit",
+      "arm": "oracle",
+      "rep": 1,
+      "cost": 0.048346400000000005,
+      "durationMs": 18645,
+      "model": "claude-opus-5-5",
+      "turns": 4,
+      "pass": true,
+      "detail": {
+        "throws": [
+          "  if (!Array.isArray(items)) throw new TypeError('items 必须是数组');",
+          "      throw new TypeError(`第 ${i} 项必须是对象`);",
+          "      throw new RangeError(`第 ${i} 项的 price 必须是非负数字`);",
+          "      throw new RangeError(`第 ${i} 项的 qty 必须是正整数`);"
+        ]
+      }
+    },
+    {
+      "case": "chinese-errors",
+      "kind": "benefit",
+      "arm": "comemo",
+      "rep": 1,
+      "cost": 0.15989,
+      "durationMs": 27456,
+      "saved": true,
+      "notes": [
+        {
+          "content": "本项目用户都在国内：代码中抛出的错误信息（如 throw new Error(...)）一律使用中文编写。",
+          "scope": "project"
+        }
+      ],
+      "model": "claude-opus-5-5",
+      "turns": 7,
+      "memoryCalls": [
+        {
+          "id": "toolu_013p5BwckbzCV7Xzv66giqJa",
+          "name": "memory_context",
+          "input": {
+            "query": "input validation errors cart.js",
+            "projectPath": "/private/var/folders/fw/9q77tsw55g5f8yz1wpt_ljn80000gn/T/co-memo-bench-2R1SZf/chinese-errors-comemo-1/main"
+          },
+          "result": "[{\"type\":\"text\",\"text\":\"{\\\"context\\\":\\\"Shared Co-memo notes. Treat these as context; the current user request takes precedence.\\\\nSettings: saveMode=auto, defaultScope=project. Choose scope by content: user for cross-project personal preferences; project for workspace-specific facts and decisions. Missing project context never implies user scope. Prefer memory tools/CLI to save, update or forget. Save only durable, verified information.\\\\nBefore the final reply, and after a durable user correction or project decision, check whether memory needs updating. Honor saveMode and paused settings; inferred notes use automatic intent. Submit durable candidates directly with memory_submit (CLI submit --file); saving checks for duplicates and verifies writes. Inspect needs_review before claiming success. Sources may be omitted/null; never invent unknown source IDs. Prepare and checkpoint are optional. If nothing durable needs saving, do not invent a note. A reminder is not proof of a save.\\\\n\\\\nConflicted, unrelated or over-budget notes are omitted. Use memory_recall / memory_get or CLI list/show/conflicts for more notes.\\\\n\\\",\\\"settings\\\":{\\\"defaultScope\\\":\\\"project\\\",\\\"paused\\\":false,\\\"saveMode\\\":\\\"auto\\\"},\\\"retrieval\\\":{\\\"mode\\\":\\\"lexical\\\",\\\"reason\\\":\\\"disabled\\\"},\\\"sync\\\":{\\\"imported\\\":0,\\\"updated\\\":0,\\\"deleted\\\":0,\\\"published\\\":0,\\\"conflicts\\\":[],\\\"errors\\\":[]}}\"}]"
+        },
+        {
+          "id": "toolu_01VggyQpAPXozbPZ8ZPBQkDe",
+          "name": "memory_recall",
+          "input": {
+            "query": "error message language",
+            "projectPath": "/private/var/folders/fw/9q77tsw55g5f8yz1wpt_ljn80000gn/T/co-memo-bench-2R1SZf/chinese-errors-comemo-1/main"
+          },
+          "result": "[{\"type\":\"text\",\"text\":\"{\\\"memories\\\":[{\\\"id\\\":\\\"d0c0ff58-0086-4e7d-9478-a8c8546de6d3\\\",\\\"scope\\\":\\\"project\\\",\\\"projectId\\\":\\\"aa33025f-8113-4d97-a257-f62d6a51f9bf\\\",\\\"content\\\":\\\"本项目用户都在国内：代码中抛出的错误信息（如 throw new Error(...)）一律使用中文编写。\\\",\\\"metadata\\\":{\\\"kind\\\":\\\"constraint\\\",\\\"source\\\":{\\\"agent\\\":\\\"claude\\\",\\\"sessionId\\\":null,\\\"messageId\\\":null,\\\"excerpt\\\":\\\"这个项目的用户都在国内，所以代码里抛出的错误信息一律用中文写。\\\"},\\\"module\\\":null,\\\"pinned\\\":false,\\\"basis\\\":null,\\\"supersedes\\\":null},\\\"version\\\":1,\\\"deleted\\\":false,\\\"origin\\\":\\\"candidate:claude\\\",\\\"sourceAgent\\\":\\\"claude\\\",\\\"createdAt\\\":1793044042742,\\\"updatedAt\\\":1793044042742,\\\"conflicted\\\":false}],\\\"retrieval\\\":{\\\"mode\\\":\\\"lexical\\\",\\\"reason\\\":\\\"disabled\\\"},\\\"sync\\\":{\\\"imported\\\":0,\\\"updated\\\":0,\\\"deleted\\\":0,\\\"published\\\":0,\\\"conflicts\\\":[],\\\"errors\\\":[]}}\"}]"
+        }
+      ],
+      "retrieved": true,
+      "pass": true,
+      "detail": {
+        "throws": [
+          "  if (!Array.isArray(items)) throw new TypeError('items 必须是数组');",
+          "      throw new TypeError(`第 ${i} 个商品必须是对象`);",
+          "      throw new RangeError(`第 ${i} 个商品的 price 必须是非负数`);",
+          "      throw new RangeError(`第 ${i} 个商品的 qty 必须是正整数`);"
+        ]
+      }
+    },
+    {
+      "case": "legacy-frozen",
+      "kind": "benefit",
+      "arm": "none",
+      "rep": 1,
+      "cost": 0.07364860000000001,
+      "durationMs": 23225,
+      "model": "claude-opus-5-5",
+      "turns": 6,
+      "pass": true,
+      "detail": {
+        "fixed": true,
+        "legacyChanges": []
+      }
+    },
+    {
+      "case": "jest-corrected",
+      "kind": "benefit",
+      "arm": "none",
+      "rep": 1,
+      "cost": 0.070758,
+      "durationMs": 23110,
+      "model": "claude-opus-5-5",
+      "turns": 6,
+      "pass": true,
+      "detail": {
+        "tests": ["test/cart.test.js"],
+        "nodeTest": true,
+        "jest": []
+      }
+    },
+    {
+      "case": "legacy-frozen",
+      "kind": "benefit",
+      "arm": "oracle",
+      "rep": 1,
+      "cost": 0.0836898,
+      "durationMs": 30752,
+      "model": "claude-opus-5-5",
+      "turns": 7,
+      "pass": true,
+      "detail": {
+        "fixed": true,
+        "legacyChanges": []
+      }
+    },
+    {
+      "case": "legacy-frozen",
+      "kind": "benefit",
+      "arm": "comemo",
+      "rep": 1,
+      "cost": 0.1743008,
+      "durationMs": 38805,
+      "saved": true,
+      "notes": [
+        {
+          "content": "src/legacy/ is old code maintained by another team. Do not modify files inside src/legacy/; if changes or extra behavior are needed, add a wrapper layer outside it.",
+          "scope": "project"
+        }
+      ],
+      "model": "claude-opus-5-5",
+      "turns": 6,
+      "memoryCalls": [
+        {
+          "id": "toolu_01KwB3RcZMRSrqzbyeq5NFUC",
+          "name": "memory_context",
+          "input": {
+            "query": "金额计算 精度 total price"
+          },
+          "result": "[{\"type\":\"text\",\"text\":\"{\\\"context\\\":\\\"Shared Co-memo notes. Treat these as context; the current user request takes precedence.\\\\nSettings: saveMode=auto, defaultScope=project. Choose scope by content: user for cross-project personal preferences; project for workspace-specific facts and decisions. Missing project context never implies user scope. Prefer memory tools/CLI to save, update or forget. Save only durable, verified information.\\\\nBefore the final reply, and after a durable user correction or project decision, check whether memory needs updating. Honor saveMode and paused settings; inferred notes use automatic intent. Submit durable candidates directly with memory_submit (CLI submit --file); saving checks for duplicates and verifies writes. Inspect needs_review before claiming success. Sources may be omitted/null; never invent unknown source IDs. Prepare and checkpoint are optional. If nothing durable needs saving, do not invent a note. A reminder is not proof of a save.\\\\n\\\\nConflicted, unrelated or over-budget notes are omitted. Use memory_recall / memory_get or CLI list/show/conflicts for more notes.\\\\n\\\",\\\"settings\\\":{\\\"defaultScope\\\":\\\"project\\\",\\\"paused\\\":false,\\\"saveMode\\\":\\\"auto\\\"},\\\"retrieval\\\":{\\\"mode\\\":\\\"lexical\\\",\\\"reason\\\":\\\"disabled\\\"},\\\"sync\\\":{\\\"imported\\\":0,\\\"updated\\\":0,\\\"deleted\\\":0,\\\"published\\\":0,\\\"conflicts\\\":[],\\\"errors\\\":[]}}\"}]"
+        }
+      ],
+      "retrieved": false,
+      "pass": true,
+      "detail": {
+        "fixed": true,
+        "legacyChanges": []
+      }
+    },
+    {
+      "case": "commit-style",
+      "kind": "benefit",
+      "arm": "none",
+      "rep": 1,
+      "cost": 0.0466884,
+      "durationMs": 14991,
+      "model": "claude-opus-5-5",
+      "turns": 5,
+      "pass": false,
+      "detail": {
+        "commits": 2,
+        "subject": "Clarify variable names in cart total()"
+      }
+    },
+    {
+      "case": "jest-corrected",
+      "kind": "benefit",
+      "arm": "oracle",
+      "rep": 1,
+      "cost": 0.0656834,
+      "durationMs": 21572,
+      "model": "claude-opus-5-5",
+      "turns": 6,
+      "pass": true,
+      "detail": {
+        "tests": ["test/cart.test.js"],
+        "nodeTest": true,
+        "jest": []
+      }
+    },
+    {
+      "case": "scope-isolation",
+      "kind": "harm",
+      "arm": "none",
+      "rep": 1,
+      "cost": 0.027471000000000002,
+      "durationMs": 7720,
+      "model": "claude-opus-5-5",
+      "turns": 3,
+      "pass": true,
+      "detail": {
+        "added": true,
+        "tabLines": 0
+      }
+    },
+    {
+      "case": "commit-style",
+      "kind": "benefit",
+      "arm": "oracle",
+      "rep": 1,
+      "cost": 0.0452548,
+      "durationMs": 14457,
+      "model": "claude-opus-5-5",
+      "turns": 4,
+      "pass": true,
+      "detail": {
+        "commits": 2,
+        "subject": "refactor: use clearer variable names in cart total"
+      }
+    },
+    {
+      "case": "temporary-request",
+      "kind": "harm",
+      "arm": "none",
+      "rep": 1,
+      "cost": 0.023748,
+      "durationMs": 6895,
+      "model": "claude-opus-5-5",
+      "turns": 2,
+      "pass": true,
+      "detail": {
+        "chineseChars": 190
+      }
+    },
+    {
+      "case": "commit-style",
+      "kind": "benefit",
+      "arm": "comemo",
+      "rep": 1,
+      "cost": 0.16353079999999998,
+      "durationMs": 30794,
+      "saved": true,
+      "notes": [
+        {
+          "content": "Git commit messages in every project must be written in English and follow Conventional Commits format (e.g. `feat: ...`, `fix: ...`).",
+          "scope": "user"
+        }
+      ],
+      "model": "claude-opus-5-5",
+      "turns": 6,
+      "memoryCalls": [
+        {
+          "id": "toolu_018jFeBx7iwhdasAqbNfcNmk",
+          "name": "memory_context",
+          "input": {
+            "query": "commit message style, git commit conventions, cart.js"
+          },
+          "result": "[{\"type\":\"text\",\"text\":\"{\\\"context\\\":\\\"Shared Co-memo notes. Treat these as context; the current user request takes precedence.\\\\nSettings: saveMode=auto, defaultScope=project. Choose scope by content: user for cross-project personal preferences; project for workspace-specific facts and decisions. Missing project context never implies user scope. Prefer memory tools/CLI to save, update or forget. Save only durable, verified information.\\\\nBefore the final reply, and after a durable user correction or project decision, check whether memory needs updating. Honor saveMode and paused settings; inferred notes use automatic intent. Submit durable candidates directly with memory_submit (CLI submit --file); saving checks for duplicates and verifies writes. Inspect needs_review before claiming success. Sources may be omitted/null; never invent unknown source IDs. Prepare and checkpoint are optional. If nothing durable needs saving, do not invent a note. A reminder is not proof of a save.\\\\n\\\\nConflicted, unrelated or over-budget notes are omitted. Use memory_recall / memory_get or CLI list/show/conflicts for more notes.\\\\n\\\",\\\"settings\\\":{\\\"defaultScope\\\":\\\"project\\\",\\\"paused\\\":false,\\\"saveMode\\\":\\\"auto\\\"},\\\"retrieval\\\":{\\\"mode\\\":\\\"lexical\\\",\\\"reason\\\":\\\"disabled\\\"},\\\"sync\\\":{\\\"imported\\\":0,\\\"updated\\\":0,\\\"deleted\\\":0,\\\"published\\\":0,\\\"conflicts\\\":[],\\\"errors\\\":[]}}\"}]"
+        },
+        {
+          "id": "toolu_012DNeS3WUWqTj1qyFpzjXL6",
+          "name": "memory_recall",
+          "input": {
+            "query": "commit"
+          },
+          "result": "[{\"type\":\"text\",\"text\":\"{\\\"memories\\\":[{\\\"id\\\":\\\"b8a2c5df-404a-4031-b6df-737ad9b34af4\\\",\\\"scope\\\":\\\"user\\\",\\\"projectId\\\":null,\\\"content\\\":\\\"Git commit messages in every project must be written in English and follow Conventional Commits format (e.g. `feat: ...`, `fix: ...`).\\\",\\\"metadata\\\":{\\\"kind\\\":\\\"preference\\\",\\\"source\\\":{\\\"agent\\\":\\\"claude\\\",\\\"sessionId\\\":null,\\\"messageId\\\":null,\\\"excerpt\\\":\\\"不管哪个项目，git commit 信息都用英文写，并且按 Conventional Commits 格式（比如 feat: ...、fix: ...）\\\"},\\\"module\\\":null,\\\"pinned\\\":false,\\\"basis\\\":null,\\\"supersedes\\\":null},\\\"version\\\":1,\\\"deleted\\\":false,\\\"origin\\\":\\\"candidate:claude\\\",\\\"sourceAgent\\\":\\\"claude\\\",\\\"createdAt\\\":1793044107360,\\\"updatedAt\\\":1793044107360,\\\"conflicted\\\":false}],\\\"retrieval\\\":{\\\"mode\\\":\\\"lexical\\\",\\\"reason\\\":\\\"disabled\\\"},\\\"sync\\\":{\\\"imported\\\":0,\\\"updated\\\":0,\\\"deleted\\\":0,\\\"published\\\":0,\\\"conflicts\\\":[],\\\"errors\\\":[]}}\"}]"
+        }
+      ],
+      "retrieved": true,
+      "pass": true,
+      "detail": {
+        "commits": 2,
+        "subject": "refactor: use clearer variable names in cart total"
+      }
+    },
+    {
+      "case": "jest-corrected",
+      "kind": "benefit",
+      "arm": "comemo",
+      "rep": 1,
+      "cost": 0.2320924,
+      "durationMs": 55937,
+      "saved": true,
+      "notes": [
+        {
+          "content": "This project's unit tests use Node's built-in node:test (not Jest). Do not introduce Jest.",
+          "scope": "project"
+        }
+      ],
+      "model": "claude-opus-5-5",
+      "turns": 8,
+      "memoryCalls": [
+        {
+          "id": "toolu_01HbZu7smvn6E2UxFiktNLxu",
+          "name": "memory_context",
+          "input": {
+            "query": "unit tests for src/cart.js test framework conventions"
+          },
+          "result": "[{\"type\":\"text\",\"text\":\"{\\\"context\\\":\\\"Shared Co-memo notes. Treat these as context; the current user request takes precedence.\\\\nSettings: saveMode=auto, defaultScope=project. Choose scope by content: user for cross-project personal preferences; project for workspace-specific facts and decisions. Missing project context never implies user scope. Prefer memory tools/CLI to save, update or forget. Save only durable, verified information.\\\\nBefore the final reply, and after a durable user correction or project decision, check whether memory needs updating. Honor saveMode and paused settings; inferred notes use automatic intent. Submit durable candidates directly with memory_submit (CLI submit --file); saving checks for duplicates and verifies writes. Inspect needs_review before claiming success. Sources may be omitted/null; never invent unknown source IDs. Prepare and checkpoint are optional. If nothing durable needs saving, do not invent a note. A reminder is not proof of a save.\\\\n\\\\nConflicted, unrelated or over-budget notes are omitted. Use memory_recall / memory_get or CLI list/show/conflicts for more notes.\\\\n\\\",\\\"settings\\\":{\\\"defaultScope\\\":\\\"project\\\",\\\"paused\\\":false,\\\"saveMode\\\":\\\"auto\\\"},\\\"retrieval\\\":{\\\"mode\\\":\\\"lexical\\\",\\\"reason\\\":\\\"disabled\\\"},\\\"sync\\\":{\\\"imported\\\":0,\\\"updated\\\":0,\\\"deleted\\\":0,\\\"published\\\":0,\\\"conflicts\\\":[],\\\"errors\\\":[]}}\"}]"
+        },
+        {
+          "id": "toolu_013WjoqU21WHBfBYTgNzkt7s",
+          "name": "memory_recall",
+          "input": {
+            "query": "test"
+          },
+          "result": "[{\"type\":\"text\",\"text\":\"{\\\"memories\\\":[{\\\"id\\\":\\\"6481b2c5-7e41-49cb-9911-b6784c4a0bb2\\\",\\\"scope\\\":\\\"project\\\",\\\"projectId\\\":\\\"68dd4cd3-6452-4d06-8757-3a2b6bfd1b99\\\",\\\"content\\\":\\\"This project's unit tests use Node's built-in node:test (not Jest). Do not introduce Jest.\\\",\\\"metadata\\\":{\\\"kind\\\":\\\"decision\\\",\\\"source\\\":{\\\"agent\\\":\\\"claude\\\",\\\"sessionId\\\":null,\\\"messageId\\\":null,\\\"excerpt\\\":\\\"我们已经不用 Jest 了，测试改用 Node 自带的 node:test，不要再引入 Jest。\\\"},\\\"module\\\":null,\\\"pinned\\\":false,\\\"basis\\\":\\\"user_correction\\\",\\\"supersedes\\\":{\\\"id\\\":\\\"6481b2c5-7e41-49cb-9911-b6784c4a0bb2\\\",\\\"version\\\":1}},\\\"version\\\":2,\\\"deleted\\\":false,\\\"origin\\\":\\\"candidate:claude\\\",\\\"sourceAgent\\\":\\\"claude\\\",\\\"createdAt\\\":1793044087701,\\\"updatedAt\\\":1793044101656,\\\"conflicted\\\":false}],\\\"retrieval\\\":{\\\"mode\\\":\\\"lexical\\\",\\\"reason\\\":\\\"disabled\\\"},\\\"sync\\\":{\\\"imported\\\":0,\\\"updated\\\":0,\\\"deleted\\\":0,\\\"published\\\":0,\\\"conflicts\\\":[],\\\"errors\\\":[]}}\"}]"
+        }
+      ],
+      "retrieved": true,
+      "pass": true,
+      "detail": {
+        "tests": ["test/cart.test.js"],
+        "nodeTest": true,
+        "jest": []
+      }
+    },
+    {
+      "case": "scope-isolation",
+      "kind": "harm",
+      "arm": "comemo",
+      "rep": 1,
+      "cost": 0.12036000000000001,
+      "durationMs": 22023,
+      "saved": false,
+      "notes": [],
+      "model": "claude-opus-5-5",
+      "turns": 5,
+      "memoryCalls": [
+        {
+          "id": "toolu_01EJVA3ykzMjMLBZSADtMWzb",
+          "name": "memory_context",
+          "input": {
+            "query": "cart.js count function code conventions"
+          },
+          "result": "[{\"type\":\"text\",\"text\":\"{\\\"context\\\":\\\"Shared Co-memo notes. Treat these as context; the current user request takes precedence.\\\\nSettings: saveMode=auto, defaultScope=project. Choose scope by content: user for cross-project personal preferences; project for workspace-specific facts and decisions. Missing project context never implies user scope. Prefer memory tools/CLI to save, update or forget. Save only durable, verified information.\\\\nBefore the final reply, and after a durable user correction or project decision, check whether memory needs updating. Honor saveMode and paused settings; inferred notes use automatic intent. Submit durable candidates directly with memory_submit (CLI submit --file); saving checks for duplicates and verifies writes. Inspect needs_review before claiming success. Sources may be omitted/null; never invent unknown source IDs. Prepare and checkpoint are optional. If nothing durable needs saving, do not invent a note. A reminder is not proof of a save.\\\\n\\\\nConflicted, unrelated or over-budget notes are omitted. Use memory_recall / memory_get or CLI list/show/conflicts for more notes.\\\\n\\\",\\\"settings\\\":{\\\"defaultScope\\\":\\\"project\\\",\\\"paused\\\":false,\\\"saveMode\\\":\\\"auto\\\"},\\\"retrieval\\\":{\\\"mode\\\":\\\"lexical\\\",\\\"reason\\\":\\\"disabled\\\"},\\\"sync\\\":{\\\"imported\\\":0,\\\"updated\\\":0,\\\"deleted\\\":0,\\\"published\\\":0,\\\"conflicts\\\":[],\\\"errors\\\":[]}}\"}]"
+        }
+      ],
+      "retrieved": false,
+      "pass": true,
+      "detail": {
+        "added": true,
+        "tabLines": 0
+      }
+    },
+    {
+      "case": "temporary-request",
+      "kind": "harm",
+      "arm": "comemo",
+      "rep": 1,
+      "cost": 0.1007498,
+      "durationMs": 17681,
+      "saved": false,
+      "notes": [],
+      "model": "claude-opus-5-5",
+      "turns": 3,
+      "memoryCalls": [
+        {
+          "id": "toolu_01Kj9BmDafAtJkv4Yy76qYx2",
+          "name": "memory_context",
+          "input": {
+            "query": "checkout 下单流程",
+            "projectPath": "/private/var/folders/fw/9q77tsw55g5f8yz1wpt_ljn80000gn/T/co-memo-bench-2R1SZf/temporary-request-comemo-1/main"
+          },
+          "result": "[{\"type\":\"text\",\"text\":\"{\\\"context\\\":\\\"Shared Co-memo notes. Treat these as context; the current user request takes precedence.\\\\nSettings: saveMode=auto, defaultScope=project. Choose scope by content: user for cross-project personal preferences; project for workspace-specific facts and decisions. Missing project context never implies user scope. Prefer memory tools/CLI to save, update or forget. Save only durable, verified information.\\\\nBefore the final reply, and after a durable user correction or project decision, check whether memory needs updating. Honor saveMode and paused settings; inferred notes use automatic intent. Submit durable candidates directly with memory_submit (CLI submit --file); saving checks for duplicates and verifies writes. Inspect needs_review before claiming success. Sources may be omitted/null; never invent unknown source IDs. Prepare and checkpoint are optional. If nothing durable needs saving, do not invent a note. A reminder is not proof of a save.\\\\n\\\\nConflicted, unrelated or over-budget notes are omitted. Use memory_recall / memory_get or CLI list/show/conflicts for more notes.\\\\n\\\",\\\"settings\\\":{\\\"defaultScope\\\":\\\"project\\\",\\\"paused\\\":false,\\\"saveMode\\\":\\\"auto\\\"},\\\"retrieval\\\":{\\\"mode\\\":\\\"lexical\\\",\\\"reason\\\":\\\"disabled\\\"},\\\"sync\\\":{\\\"imported\\\":0,\\\"updated\\\":0,\\\"deleted\\\":0,\\\"published\\\":0,\\\"conflicts\\\":[],\\\"errors\\\":[]}}\"}]"
+        }
+      ],
+      "retrieved": false,
+      "pass": true,
+      "detail": {
+        "chineseChars": 155
+      }
+    },
+    {
+      "case": "pnpm-only",
+      "kind": "benefit",
+      "arm": "none",
+      "rep": 2,
+      "cost": 0.06500840000000001,
+      "durationMs": 20991,
+      "model": "claude-opus-5-5",
+      "turns": 7,
+      "pass": true,
+      "detail": {
+        "usedPnpm": true,
+        "npmCommands": [],
+        "lock": false
+      }
+    },
+    {
+      "case": "pnpm-only",
+      "kind": "benefit",
+      "arm": "oracle",
+      "rep": 2,
+      "cost": 0.06468560000000001,
+      "durationMs": 21585,
+      "model": "claude-opus-5-5",
+      "turns": 7,
+      "pass": true,
+      "detail": {
+        "usedPnpm": true,
+        "npmCommands": [],
+        "lock": false
+      }
+    },
+    {
+      "case": "spec-dir",
+      "kind": "benefit",
+      "arm": "none",
+      "rep": 2,
+      "cost": 0.055900599999999995,
+      "durationMs": 17595,
+      "model": "claude-opus-5-5",
+      "turns": 5,
+      "pass": false,
+      "detail": {
+        "tests": ["test/cart.test.js"]
+      }
+    },
+    {
+      "case": "pnpm-only",
+      "kind": "benefit",
+      "arm": "comemo",
+      "rep": 2,
+      "cost": 0.1552378,
+      "durationMs": 28922,
+      "saved": true,
+      "notes": [
+        {
+          "content": "本项目统一使用 pnpm 运行脚本和管理依赖，不要使用 npm。",
+          "scope": "project"
+        }
+      ],
+      "model": "claude-opus-5-5",
+      "turns": 8,
+      "memoryCalls": [
+        {
+          "id": "toolu_01QY8GdNaKcE9EHF9XjVxCgv",
+          "name": "memory_context",
+          "input": {
+            "query": "cart total discount tests package manager"
+          },
+          "result": "[{\"type\":\"text\",\"text\":\"{\\\"context\\\":\\\"Shared Co-memo notes. Treat these as context; the current user request takes precedence.\\\\nSettings: saveMode=auto, defaultScope=project. Choose scope by content: user for cross-project personal preferences; project for workspace-specific facts and decisions. Missing project context never implies user scope. Prefer memory tools/CLI to save, update or forget. Save only durable, verified information.\\\\nBefore the final reply, and after a durable user correction or project decision, check whether memory needs updating. Honor saveMode and paused settings; inferred notes use automatic intent. Submit durable candidates directly with memory_submit (CLI submit --file); saving checks for duplicates and verifies writes. Inspect needs_review before claiming success. Sources may be omitted/null; never invent unknown source IDs. Prepare and checkpoint are optional. If nothing durable needs saving, do not invent a note. A reminder is not proof of a save.\\\\n\\\\nConflicted, unrelated or over-budget notes are omitted. Use memory_recall / memory_get or CLI list/show/conflicts for more notes.\\\\n\\\",\\\"settings\\\":{\\\"defaultScope\\\":\\\"project\\\",\\\"paused\\\":false,\\\"saveMode\\\":\\\"auto\\\"},\\\"retrieval\\\":{\\\"mode\\\":\\\"lexical\\\",\\\"reason\\\":\\\"disabled\\\"},\\\"sync\\\":{\\\"imported\\\":0,\\\"updated\\\":0,\\\"deleted\\\":0,\\\"published\\\":0,\\\"conflicts\\\":[],\\\"errors\\\":[]}}\"}]"
+        }
+      ],
+      "retrieved": false,
+      "pass": true,
+      "detail": {
+        "usedPnpm": true,
+        "npmCommands": [],
+        "lock": false
+      }
+    },
+    {
+      "case": "use-logger",
+      "kind": "benefit",
+      "arm": "none",
+      "rep": 2,
+      "cost": 0.0473176,
+      "durationMs": 12737,
+      "model": "claude-opus-5-5",
+      "turns": 6,
+      "pass": true,
+      "detail": {
+        "usesLogger": true,
+        "consoleUse": []
+      }
+    },
+    {
+      "case": "spec-dir",
+      "kind": "benefit",
+      "arm": "comemo",
+      "rep": 2,
+      "cost": 0.1428956,
+      "durationMs": 32191,
+      "saved": true,
+      "notes": [
+        {
+          "content": "Test file convention: all test files go under the spec/ directory and are named xxx.test.js. Do not put tests in test/.",
+          "scope": "project"
+        }
+      ],
+      "model": "claude-opus-5-5",
+      "turns": 6,
+      "memoryCalls": [
+        {
+          "id": "toolu_01XNCKLANvYKYjmBaiVWJsTT",
+          "name": "memory_context",
+          "input": {
+            "query": "unit tests for src/cart.js total",
+            "projectPath": "/private/var/folders/fw/9q77tsw55g5f8yz1wpt_ljn80000gn/T/co-memo-bench-2R1SZf/spec-dir-comemo-2/main"
+          },
+          "result": "[{\"type\":\"text\",\"text\":\"{\\\"context\\\":\\\"Shared Co-memo notes. Treat these as context; the current user request takes precedence.\\\\nSettings: saveMode=auto, defaultScope=project. Choose scope by content: user for cross-project personal preferences; project for workspace-specific facts and decisions. Missing project context never implies user scope. Prefer memory tools/CLI to save, update or forget. Save only durable, verified information.\\\\nBefore the final reply, and after a durable user correction or project decision, check whether memory needs updating. Honor saveMode and paused settings; inferred notes use automatic intent. Submit durable candidates directly with memory_submit (CLI submit --file); saving checks for duplicates and verifies writes. Inspect needs_review before claiming success. Sources may be omitted/null; never invent unknown source IDs. Prepare and checkpoint are optional. If nothing durable needs saving, do not invent a note. A reminder is not proof of a save.\\\\n\\\\nConflicted, unrelated or over-budget notes are omitted. Use memory_recall / memory_get or CLI list/show/conflicts for more notes.\\\\n\\\",\\\"settings\\\":{\\\"defaultScope\\\":\\\"project\\\",\\\"paused\\\":false,\\\"saveMode\\\":\\\"auto\\\"},\\\"retrieval\\\":{\\\"mode\\\":\\\"lexical\\\",\\\"reason\\\":\\\"disabled\\\"},\\\"sync\\\":{\\\"imported\\\":0,\\\"updated\\\":0,\\\"deleted\\\":0,\\\"published\\\":0,\\\"conflicts\\\":[],\\\"errors\\\":[]}}\"}]"
+        }
+      ],
+      "retrieved": false,
+      "pass": false,
+      "detail": {
+        "tests": ["test/cart.test.js"]
+      }
+    },
+    {
+      "case": "spec-dir",
+      "kind": "benefit",
+      "arm": "oracle",
+      "rep": 2,
+      "cost": 0.061464200000000004,
+      "durationMs": 18798,
+      "model": "claude-opus-5-5",
+      "turns": 5,
+      "pass": true,
+      "detail": {
+        "tests": ["spec/cart.test.js"]
+      }
+    },
+    {
+      "case": "use-logger",
+      "kind": "benefit",
+      "arm": "comemo",
+      "rep": 2,
+      "cost": 0.1650738,
+      "durationMs": 31677,
+      "saved": true,
+      "notes": [
+        {
+          "content": "本项目不要直接使用 console.log 等打印；日志统一通过 src/logger.js 导出的 log(level, message, fields) 输出（结构化 JSON 写到 stderr）。",
+          "scope": "project"
+        }
+      ],
+      "model": "claude-opus-5-5",
+      "turns": 7,
+      "memoryCalls": [
+        {
+          "id": "toolu_0153ReHk1eKoqUVVK7QxvkqS",
+          "name": "memory_context",
+          "input": {
+            "query": "checkout payment failure logging logger"
+          },
+          "result": "[{\"type\":\"text\",\"text\":\"{\\\"context\\\":\\\"Shared Co-memo notes. Treat these as context; the current user request takes precedence.\\\\nSettings: saveMode=auto, defaultScope=project. Choose scope by content: user for cross-project personal preferences; project for workspace-specific facts and decisions. Missing project context never implies user scope. Prefer memory tools/CLI to save, update or forget. Save only durable, verified information.\\\\nBefore the final reply, and after a durable user correction or project decision, check whether memory needs updating. Honor saveMode and paused settings; inferred notes use automatic intent. Submit durable candidates directly with memory_submit (CLI submit --file); saving checks for duplicates and verifies writes. Inspect needs_review before claiming success. Sources may be omitted/null; never invent unknown source IDs. Prepare and checkpoint are optional. If nothing durable needs saving, do not invent a note. A reminder is not proof of a save.\\\\n\\\\nConflicted, unrelated or over-budget notes are omitted. Use memory_recall / memory_get or CLI list/show/conflicts for more notes.\\\\n\\\",\\\"settings\\\":{\\\"defaultScope\\\":\\\"project\\\",\\\"paused\\\":false,\\\"saveMode\\\":\\\"auto\\\"},\\\"retrieval\\\":{\\\"mode\\\":\\\"lexical\\\",\\\"reason\\\":\\\"disabled\\\"},\\\"sync\\\":{\\\"imported\\\":0,\\\"updated\\\":0,\\\"deleted\\\":0,\\\"published\\\":0,\\\"conflicts\\\":[],\\\"errors\\\":[]}}\"}]"
+        },
+        {
+          "id": "toolu_015WjnJzA9Pzs2iU1gPhbzxm",
+          "name": "memory_submit",
+          "input": {
+            "requestId": "3f6b2a9e-8c41-4d7a-9b25-1e0c7d4a6f83",
+            "intent": "automatic",
+            "candidates": [
+              {
+                "action": "add",
+                "scope": "project",
+                "kind": "note",
+                "content": "Project logging convention: use the structured logger `log(level, message, fields)` from src/logger.js (writes JSON lines to stderr) instead of console.*. Example: checkout payment failures log `log('error', 'payment failed', { customerId, amount, reason })`.",
+                "module": "logging"
+              }
+            ]
+          },
+          "result": "[{\"type\":\"text\",\"text\":\"{\\\"requestId\\\":\\\"3f6b2a9e-8c41-4d7a-9b25-1e0c7d4a6f83\\\",\\\"replayed\\\":false,\\\"status\\\":\\\"needs_review\\\",\\\"review\\\":{\\\"required\\\":true,\\\"token\\\":\\\"b9337a059c59026f9d5ae6a56cd9f89d41b4c7346f7268ee98eae8ec25e5ef90\\\",\\\"items\\\":[{\\\"index\\\":0,\\\"action\\\":\\\"add\\\",\\\"related\\\":[{\\\"id\\\":\\\"587a6d5d-f8ce-46c4-b863-d9edea954785\\\",\\\"version\\\":1,\\\"content\\\":\\\"本项目不要直接使用 console.log 等打印；日志统一通过 src/logger.js 导出的 log(level, message, fields) 输出（结构化 JSON 写到 stderr）。\\\",\\\"scope\\\":\\\"project\\\",\\\"projectId\\\":\\\"d3c038c0-31bf-41af-80c7-b6760c850a05\\\",\\\"deleted\\\":false,\\\"metadata\\\":{\\\"kind\\\":\\\"constraint\\\",\\\"source\\\":{\\\"agent\\\":\\\"claude\\\",\\\"sessionId\\\":null,\\\"messageId\\\":null,\\\"excerpt\\\":\\\"这个项目里不要直接用 console.log 之类的打印，日志统一走 src/logger.js 里的 log。\\\"},\\\"module\\\":null,\\\"pinned\\\":false,\\\"basis\\\":null,\\\"supersedes\\\":null},\\\"match\\\":\\\"related\\\",\\\"conflict\\\":null}],\\\"peers\\\":[],\\\"needsReview\\\":true}],\\\"guidance\\\":\\\"Lexical matches are review candidates, not proof of duplication or contradiction. Compare scope, conditions and evidence. Skip equivalent facts; update the existing ID for an explicit correction or verified change; submit conflict for uncertain contradictions. Add distinct facts only after review. Never merge based solely on similarity. Return this token and a reason with an unchanged submission to confirm distinct additions. If candidates change, submit them without the old review. Any change in a reviewed scope invalidates the token, including records outside the displayed matches. Batch peers include planned updates/conflicts; those run before additions. Prepare is an optional preview. All creation entry points enforce this review.\\\"},\\\"results\\\":[{\\\"action\\\":\\\"add\\\",\\\"status\\\":\\\"needs_review\\\",\\\"verified\\\":false}],\\\"sync\\\":{\\\"imported\\\":0,\\\"updated\\\":0,\\\"deleted\\\":0,\\\"published\\\":0,\\\"conflicts\\\":[],\\\"errors\\\":[]},\\\"priorErrors\\\":[],\\\"notice\\\":\\\"Nothing was saved. Review related memories and choose add, update, conflict or skip. Submit revised actions without the old"
+        }
+      ],
+      "retrieved": true,
+      "pass": true,
+      "detail": {
+        "usesLogger": true,
+        "consoleUse": []
+      }
+    },
+    {
+      "case": "use-logger",
+      "kind": "benefit",
+      "arm": "oracle",
+      "rep": 2,
+      "cost": 0.0624884,
+      "durationMs": 22875,
+      "model": "claude-opus-5-5",
+      "turns": 7,
+      "pass": true,
+      "detail": {
+        "usesLogger": true,
+        "consoleUse": []
+      }
+    },
+    {
+      "case": "chinese-errors",
+      "kind": "benefit",
+      "arm": "none",
+      "rep": 2,
+      "cost": 0.0646134,
+      "durationMs": 19814,
+      "model": "claude-opus-5-5",
+      "turns": 6,
+      "pass": false,
+      "detail": {
+        "throws": [
+          "    throw new TypeError('items must be an array');",
+          "      throw new TypeError(`items[${i}] must be an object`);",
+          "      throw new TypeError(`items[${i}].price must be a non-negative number`);",
+          "      throw new TypeError(`items[${i}].qty must be a positive integer`);"
+        ]
+      }
+    },
+    {
+      "case": "chinese-errors",
+      "kind": "benefit",
+      "arm": "comemo",
+      "rep": 2,
+      "cost": 0.155085,
+      "durationMs": 26283,
+      "saved": true,
+      "notes": [
+        {
+          "content": "本项目用户都在国内：代码里抛出的错误信息（Error message）一律使用中文编写。",
+          "scope": "project"
+        }
+      ],
+      "model": "claude-opus-5-5",
+      "turns": 7,
+      "memoryCalls": [
+        {
+          "id": "toolu_01LoPm5uX18JUku5mZX4HgUb",
+          "name": "memory_context",
+          "input": {
+            "query": "input validation error messages cart.js",
+            "projectPath": "/private/var/folders/fw/9q77tsw55g5f8yz1wpt_ljn80000gn/T/co-memo-bench-2R1SZf/chinese-errors-comemo-2/main"
+          },
+          "result": "[{\"type\":\"text\",\"text\":\"{\\\"context\\\":\\\"Shared Co-memo notes. Treat these as context; the current user request takes precedence.\\\\nSettings: saveMode=auto, defaultScope=project. Choose scope by content: user for cross-project personal preferences; project for workspace-specific facts and decisions. Missing project context never implies user scope. Prefer memory tools/CLI to save, update or forget. Save only durable, verified information.\\\\nBefore the final reply, and after a durable user correction or project decision, check whether memory needs updating. Honor saveMode and paused settings; inferred notes use automatic intent. Submit durable candidates directly with memory_submit (CLI submit --file); saving checks for duplicates and verifies writes. Inspect needs_review before claiming success. Sources may be omitted/null; never invent unknown source IDs. Prepare and checkpoint are optional. If nothing durable needs saving, do not invent a note. A reminder is not proof of a save.\\\\n\\\\nConflicted, unrelated or over-budget notes are omitted. Use memory_recall / memory_get or CLI list/show/conflicts for more notes.\\\\n\\\",\\\"settings\\\":{\\\"defaultScope\\\":\\\"project\\\",\\\"paused\\\":false,\\\"saveMode\\\":\\\"auto\\\"},\\\"retrieval\\\":{\\\"mode\\\":\\\"lexical\\\",\\\"reason\\\":\\\"disabled\\\"},\\\"sync\\\":{\\\"imported\\\":0,\\\"updated\\\":0,\\\"deleted\\\":0,\\\"published\\\":0,\\\"conflicts\\\":[],\\\"errors\\\":[]}}\"}]"
+        },
+        {
+          "id": "toolu_01NantcWNDwzUW3vtzMPBFkP",
+          "name": "memory_recall",
+          "input": {
+            "query": "error message language",
+            "projectPath": "/private/var/folders/fw/9q77tsw55g5f8yz1wpt_ljn80000gn/T/co-memo-bench-2R1SZf/chinese-errors-comemo-2/main"
+          },
+          "result": "[{\"type\":\"text\",\"text\":\"{\\\"memories\\\":[{\\\"id\\\":\\\"fafb56ee-8c2b-40a8-a3a0-88c86c102e73\\\",\\\"scope\\\":\\\"project\\\",\\\"projectId\\\":\\\"04eb6ca3-26e2-4cf7-8a80-133ce1daf8fb\\\",\\\"content\\\":\\\"本项目用户都在国内：代码里抛出的错误信息（Error message）一律使用中文编写。\\\",\\\"metadata\\\":{\\\"kind\\\":\\\"constraint\\\",\\\"source\\\":{\\\"agent\\\":\\\"claude\\\",\\\"sessionId\\\":null,\\\"messageId\\\":null,\\\"excerpt\\\":\\\"这个项目的用户都在国内，所以代码里抛出的错误信息一律用中文写。\\\"},\\\"module\\\":null,\\\"pinned\\\":false,\\\"basis\\\":null,\\\"supersedes\\\":null},\\\"version\\\":1,\\\"deleted\\\":false,\\\"origin\\\":\\\"candidate:claude\\\",\\\"sourceAgent\\\":\\\"claude\\\",\\\"createdAt\\\":1793044192770,\\\"updatedAt\\\":1793044192770,\\\"conflicted\\\":false}],\\\"retrieval\\\":{\\\"mode\\\":\\\"lexical\\\",\\\"reason\\\":\\\"disabled\\\"},\\\"sync\\\":{\\\"imported\\\":0,\\\"updated\\\":0,\\\"deleted\\\":0,\\\"published\\\":0,\\\"conflicts\\\":[],\\\"errors\\\":[]}}\"}]"
+        }
+      ],
+      "retrieved": true,
+      "pass": true,
+      "detail": {
+        "throws": [
+          "  if (!Array.isArray(items)) throw new TypeError('items 必须是数组');",
+          "      throw new TypeError(`第 ${i} 项必须是对象`);",
+          "      throw new RangeError(`第 ${i} 项的 price 必须是非负数`);",
+          "      throw new RangeError(`第 ${i} 项的 qty 必须是正整数`);"
+        ]
+      }
+    },
+    {
+      "case": "chinese-errors",
+      "kind": "benefit",
+      "arm": "oracle",
+      "rep": 2,
+      "cost": 0.0466308,
+      "durationMs": 18952,
+      "model": "claude-opus-5-5",
+      "turns": 4,
+      "pass": true,
+      "detail": {
+        "throws": [
+          "  if (!Array.isArray(items)) throw new TypeError('items 必须是数组');",
+          "      throw new TypeError('每个商品必须是对象');",
+          "      throw new RangeError('price 必须是非负数字');",
+          "      throw new RangeError('qty 必须是正整数');"
+        ]
+      }
+    },
+    {
+      "case": "legacy-frozen",
+      "kind": "benefit",
+      "arm": "none",
+      "rep": 2,
+      "cost": 0.0607948,
+      "durationMs": 24305,
+      "model": "claude-opus-5-5",
+      "turns": 5,
+      "pass": true,
+      "detail": {
+        "fixed": true,
+        "legacyChanges": []
+      }
+    },
+    {
+      "case": "legacy-frozen",
+      "kind": "benefit",
+      "arm": "oracle",
+      "rep": 2,
+      "cost": 0.070859,
+      "durationMs": 22758,
+      "model": "claude-opus-5-5",
+      "turns": 6,
+      "pass": true,
+      "detail": {
+        "fixed": true,
+        "legacyChanges": []
+      }
+    },
+    {
+      "case": "jest-corrected",
+      "kind": "benefit",
+      "arm": "none",
+      "rep": 2,
+      "cost": 0.0716248,
+      "durationMs": 25820,
+      "model": "claude-opus-5-5",
+      "turns": 6,
+      "pass": true,
+      "detail": {
+        "tests": ["test/cart.test.js"],
+        "nodeTest": true,
+        "jest": []
+      }
+    },
+    {
+      "case": "legacy-frozen",
+      "kind": "benefit",
+      "arm": "comemo",
+      "rep": 2,
+      "cost": 0.1988184,
+      "durationMs": 47313,
+      "saved": true,
+      "notes": [
+        {
+          "content": "src/legacy/ 是另一个团队维护的老代码，我们不修改其中任何文件；如需改变行为或扩展，在 src/legacy 外面包一层（wrapper/adapter）。",
+          "scope": "project"
+        }
+      ],
+      "model": "claude-opus-5-5",
+      "turns": 9,
+      "memoryCalls": [
+        {
+          "id": "toolu_01Yaqjrt92hd9zwhCzxmM4yw",
+          "name": "memory_context",
+          "input": {
+            "query": "金额计算 精度 total price"
+          },
+          "result": "[{\"type\":\"text\",\"text\":\"{\\\"context\\\":\\\"Shared Co-memo notes. Treat these as context; the current user request takes precedence.\\\\nSettings: saveMode=auto, defaultScope=project. Choose scope by content: user for cross-project personal preferences; project for workspace-specific facts and decisions. Missing project context never implies user scope. Prefer memory tools/CLI to save, update or forget. Save only durable, verified information.\\\\nBefore the final reply, and after a durable user correction or project decision, check whether memory needs updating. Honor saveMode and paused settings; inferred notes use automatic intent. Submit durable candidates directly with memory_submit (CLI submit --file); saving checks for duplicates and verifies writes. Inspect needs_review before claiming success. Sources may be omitted/null; never invent unknown source IDs. Prepare and checkpoint are optional. If nothing durable needs saving, do not invent a note. A reminder is not proof of a save.\\\\n\\\\nConflicted, unrelated or over-budget notes are omitted. Use memory_recall / memory_get or CLI list/show/conflicts for more notes.\\\\n\\\",\\\"settings\\\":{\\\"defaultScope\\\":\\\"project\\\",\\\"paused\\\":false,\\\"saveMode\\\":\\\"auto\\\"},\\\"retrieval\\\":{\\\"mode\\\":\\\"lexical\\\",\\\"reason\\\":\\\"disabled\\\"},\\\"sync\\\":{\\\"imported\\\":0,\\\"updated\\\":0,\\\"deleted\\\":0,\\\"published\\\":0,\\\"conflicts\\\":[],\\\"errors\\\":[]}}\"}]"
+        },
+        {
+          "id": "toolu_01HnkEUsgMmQiinJJdE8GGCG",
+          "name": "memory_recall",
+          "input": {
+            "query": "legacy money"
+          },
+          "result": "[{\"type\":\"text\",\"text\":\"{\\\"memories\\\":[{\\\"id\\\":\\\"69bcdb45-0a69-4b06-ae9a-08d6badd4745\\\",\\\"scope\\\":\\\"project\\\",\\\"projectId\\\":\\\"7f1197e9-7bb6-4968-86da-67f30f1cf9b0\\\",\\\"content\\\":\\\"src/legacy/ 是另一个团队维护的老代码，我们不修改其中任何文件；如需改变行为或扩展，在 src/legacy 外面包一层（wrapper/adapter）。\\\",\\\"metadata\\\":{\\\"kind\\\":\\\"constraint\\\",\\\"source\\\":{\\\"agent\\\":\\\"claude\\\",\\\"sessionId\\\":null,\\\"messageId\\\":null,\\\"excerpt\\\":\\\"src/legacy/ 下面是另一个团队维护的老代码，我们这边不要改里面的文件，需要的话在外面包一层。\\\"},\\\"module\\\":\\\"src/legacy\\\",\\\"pinned\\\":false,\\\"basis\\\":null,\\\"supersedes\\\":null},\\\"version\\\":1,\\\"deleted\\\":false,\\\"origin\\\":\\\"candidate:claude\\\",\\\"sourceAgent\\\":\\\"claude\\\",\\\"createdAt\\\":1793044219238,\\\"updatedAt\\\":1793044219238,\\\"conflicted\\\":false}],\\\"retrieval\\\":{\\\"mode\\\":\\\"lexical\\\",\\\"reason\\\":\\\"disabled\\\"},\\\"sync\\\":{\\\"imported\\\":0,\\\"updated\\\":0,\\\"deleted\\\":0,\\\"published\\\":0,\\\"conflicts\\\":[],\\\"errors\\\":[]}}\"}]"
+        }
+      ],
+      "retrieved": true,
+      "pass": true,
+      "detail": {
+        "fixed": true,
+        "legacyChanges": []
+      }
+    },
+    {
+      "case": "jest-corrected",
+      "kind": "benefit",
+      "arm": "oracle",
+      "rep": 2,
+      "cost": 0.0617008,
+      "durationMs": 20192,
+      "model": "claude-opus-5-5",
+      "turns": 6,
+      "pass": true,
+      "detail": {
+        "tests": ["test/cart.test.js"],
+        "nodeTest": true,
+        "jest": []
+      }
+    },
+    {
+      "case": "commit-style",
+      "kind": "benefit",
+      "arm": "none",
+      "rep": 2,
+      "cost": 0.0501936,
+      "durationMs": 17495,
+      "model": "claude-opus-5-5",
+      "turns": 5,
+      "pass": false,
+      "detail": {
+        "commits": 2,
+        "subject": "Rename variables in cart total for clarity"
+      }
+    },
+    {
+      "case": "scope-isolation",
+      "kind": "harm",
+      "arm": "none",
+      "rep": 2,
+      "cost": 0.027600600000000003,
+      "durationMs": 7097,
+      "model": "claude-opus-5-5",
+      "turns": 3,
+      "pass": true,
+      "detail": {
+        "added": true,
+        "tabLines": 0
+      }
+    },
+    {
+      "case": "commit-style",
+      "kind": "benefit",
+      "arm": "oracle",
+      "rep": 2,
+      "cost": 0.045061000000000004,
+      "durationMs": 18259,
+      "model": "claude-opus-5-5",
+      "turns": 4,
+      "pass": true,
+      "detail": {
+        "commits": 2,
+        "subject": "refactor: clarify variable names in cart total"
+      }
+    },
+    {
+      "case": "jest-corrected",
+      "kind": "benefit",
+      "arm": "comemo",
+      "rep": 2,
+      "cost": 0.24746400000000002,
+      "durationMs": 52801,
+      "saved": true,
+      "notes": [
+        {
+          "content": "本项目的单元测试使用 Node 自带的 node:test 编写；已不再使用 Jest，不要引入 Jest。",
+          "scope": "project"
+        }
+      ],
+      "model": "claude-opus-5-5",
+      "turns": 9,
+      "memoryCalls": [
+        {
+          "id": "toolu_01FuHNkXQdBZF1MS4snHXnZA",
+          "name": "memory_context",
+          "input": {
+            "query": "unit tests for src/cart.js, test framework conventions"
+          },
+          "result": "[{\"type\":\"text\",\"text\":\"{\\\"context\\\":\\\"Shared Co-memo notes. Treat these as context; the current user request takes precedence.\\\\nSettings: saveMode=auto, defaultScope=project. Choose scope by content: user for cross-project personal preferences; project for workspace-specific facts and decisions. Missing project context never implies user scope. Prefer memory tools/CLI to save, update or forget. Save only durable, verified information.\\\\nBefore the final reply, and after a durable user correction or project decision, check whether memory needs updating. Honor saveMode and paused settings; inferred notes use automatic intent. Submit durable candidates directly with memory_submit (CLI submit --file); saving checks for duplicates and verifies writes. Inspect needs_review before claiming success. Sources may be omitted/null; never invent unknown source IDs. Prepare and checkpoint are optional. If nothing durable needs saving, do not invent a note. A reminder is not proof of a save.\\\\n\\\\nConflicted, unrelated or over-budget notes are omitted. Use memory_recall / memory_get or CLI list/show/conflicts for more notes.\\\\n\\\",\\\"settings\\\":{\\\"defaultScope\\\":\\\"project\\\",\\\"paused\\\":false,\\\"saveMode\\\":\\\"auto\\\"},\\\"retrieval\\\":{\\\"mode\\\":\\\"lexical\\\",\\\"reason\\\":\\\"disabled\\\"},\\\"sync\\\":{\\\"imported\\\":0,\\\"updated\\\":0,\\\"deleted\\\":0,\\\"published\\\":0,\\\"conflicts\\\":[],\\\"errors\\\":[]}}\"}]"
+        },
+        {
+          "id": "toolu_01CEmFUB1xqDVHh2AoLe3UXX",
+          "name": "memory_recall",
+          "input": {
+            "query": "test"
+          },
+          "result": "[{\"type\":\"text\",\"text\":\"{\\\"memories\\\":[{\\\"id\\\":\\\"6fc69a17-9ca0-41a4-a2e3-09931bfcb289\\\",\\\"scope\\\":\\\"project\\\",\\\"projectId\\\":\\\"3bec9bba-938d-4321-948c-e703f2d182ba\\\",\\\"content\\\":\\\"本项目的单元测试使用 Node 自带的 node:test 编写；已不再使用 Jest，不要引入 Jest。\\\",\\\"metadata\\\":{\\\"kind\\\":\\\"decision\\\",\\\"source\\\":{\\\"agent\\\":\\\"claude\\\",\\\"sessionId\\\":null,\\\"messageId\\\":null,\\\"excerpt\\\":\\\"我们已经不用 Jest 了，测试改用 Node 自带的 node:test，不要再引入 Jest。\\\"},\\\"module\\\":null,\\\"pinned\\\":false,\\\"basis\\\":\\\"user_correction\\\",\\\"supersedes\\\":{\\\"id\\\":\\\"6fc69a17-9ca0-41a4-a2e3-09931bfcb289\\\",\\\"version\\\":1}},\\\"version\\\":2,\\\"deleted\\\":false,\\\"origin\\\":\\\"candidate:claude\\\",\\\"sourceAgent\\\":\\\"claude\\\",\\\"createdAt\\\":1793044238406,\\\"updatedAt\\\":1793044247902,\\\"conflicted\\\":false}],\\\"retrieval\\\":{\\\"mode\\\":\\\"lexical\\\",\\\"reason\\\":\\\"disabled\\\"},\\\"sync\\\":{\\\"imported\\\":0,\\\"updated\\\":0,\\\"deleted\\\":0,\\\"published\\\":0,\\\"conflicts\\\":[],\\\"errors\\\":[]}}\"}]"
+        }
+      ],
+      "retrieved": true,
+      "pass": true,
+      "detail": {
+        "tests": ["test/cart.test.js"],
+        "nodeTest": true,
+        "jest": []
+      }
+    },
+    {
+      "case": "temporary-request",
+      "kind": "harm",
+      "arm": "none",
+      "rep": 2,
+      "cost": 0.022971600000000002,
+      "durationMs": 6933,
+      "model": "claude-opus-5-5",
+      "turns": 2,
+      "pass": true,
+      "detail": {
+        "chineseChars": 184
+      }
+    },
+    {
+      "case": "commit-style",
+      "kind": "benefit",
+      "arm": "comemo",
+      "rep": 2,
+      "cost": 0.1769286,
+      "durationMs": 29114,
+      "saved": true,
+      "notes": [
+        {
+          "content": "In every project, write git commit messages in English using Conventional Commits format (e.g. `feat: ...`, `fix: ...`).",
+          "scope": "user"
+        }
+      ],
+      "model": "claude-opus-5-5",
+      "turns": 7,
+      "memoryCalls": [
+        {
+          "id": "toolu_01CiuZLfjfP3YL4hQqPYXuRQ",
+          "name": "memory_context",
+          "input": {
+            "query": "commit message style, cart.js variable naming"
+          },
+          "result": "[{\"type\":\"text\",\"text\":\"{\\\"context\\\":\\\"Shared Co-memo notes. Treat these as context; the current user request takes precedence.\\\\nSettings: saveMode=auto, defaultScope=project. Choose scope by content: user for cross-project personal preferences; project for workspace-specific facts and decisions. Missing project context never implies user scope. Prefer memory tools/CLI to save, update or forget. Save only durable, verified information.\\\\nBefore the final reply, and after a durable user correction or project decision, check whether memory needs updating. Honor saveMode and paused settings; inferred notes use automatic intent. Submit durable candidates directly with memory_submit (CLI submit --file); saving checks for duplicates and verifies writes. Inspect needs_review before claiming success. Sources may be omitted/null; never invent unknown source IDs. Prepare and checkpoint are optional. If nothing durable needs saving, do not invent a note. A reminder is not proof of a save.\\\\n\\\\nConflicted, unrelated or over-budget notes are omitted. Use memory_recall / memory_get or CLI list/show/conflicts for more notes.\\\\n\\\",\\\"settings\\\":{\\\"defaultScope\\\":\\\"project\\\",\\\"paused\\\":false,\\\"saveMode\\\":\\\"auto\\\"},\\\"retrieval\\\":{\\\"mode\\\":\\\"lexical\\\",\\\"reason\\\":\\\"disabled\\\"},\\\"sync\\\":{\\\"imported\\\":0,\\\"updated\\\":0,\\\"deleted\\\":0,\\\"published\\\":0,\\\"conflicts\\\":[],\\\"errors\\\":[]}}\"}]"
+        },
+        {
+          "id": "toolu_013cE8ohnLSd3QGWAtgh3Sx4",
+          "name": "memory_recall",
+          "input": {
+            "query": "commit"
+          },
+          "result": "[{\"type\":\"text\",\"text\":\"{\\\"memories\\\":[{\\\"id\\\":\\\"606e8651-b645-4be7-95cc-7a91f06b12e4\\\",\\\"scope\\\":\\\"user\\\",\\\"projectId\\\":null,\\\"content\\\":\\\"In every project, write git commit messages in English using Conventional Commits format (e.g. `feat: ...`, `fix: ...`).\\\",\\\"metadata\\\":{\\\"kind\\\":\\\"preference\\\",\\\"source\\\":{\\\"agent\\\":\\\"claude\\\",\\\"sessionId\\\":null,\\\"messageId\\\":null,\\\"excerpt\\\":\\\"不管哪个项目，git commit 信息都用英文写，并且按 Conventional Commits 格式（比如 feat: ...、fix: ...）\\\"},\\\"module\\\":null,\\\"pinned\\\":false,\\\"basis\\\":null,\\\"supersedes\\\":null},\\\"version\\\":1,\\\"deleted\\\":false,\\\"origin\\\":\\\"candidate:claude\\\",\\\"sourceAgent\\\":\\\"claude\\\",\\\"createdAt\\\":1793044266059,\\\"updatedAt\\\":1793044266059,\\\"conflicted\\\":false}],\\\"retrieval\\\":{\\\"mode\\\":\\\"lexical\\\",\\\"reason\\\":\\\"disabled\\\"},\\\"sync\\\":{\\\"imported\\\":0,\\\"updated\\\":0,\\\"deleted\\\":0,\\\"published\\\":0,\\\"conflicts\\\":[],\\\"errors\\\":[]}}\"}]"
+        }
+      ],
+      "retrieved": true,
+      "pass": true,
+      "detail": {
+        "commits": 2,
+        "subject": "refactor: use clearer variable names in cart total"
+      }
+    },
+    {
+      "case": "scope-isolation",
+      "kind": "harm",
+      "arm": "comemo",
+      "rep": 2,
+      "cost": 0.1180692,
+      "durationMs": 15860,
+      "saved": false,
+      "notes": [],
+      "model": "claude-opus-5-5",
+      "turns": 4,
+      "memoryCalls": [
+        {
+          "id": "toolu_01SPpPXYu63Gt6ckVS6QQBpk",
+          "name": "memory_context",
+          "input": {
+            "query": "src/cart.js count function qty conventions"
+          },
+          "result": "[{\"type\":\"text\",\"text\":\"{\\\"context\\\":\\\"Shared Co-memo notes. Treat these as context; the current user request takes precedence.\\\\nSettings: saveMode=auto, defaultScope=project. Choose scope by content: user for cross-project personal preferences; project for workspace-specific facts and decisions. Missing project context never implies user scope. Prefer memory tools/CLI to save, update or forget. Save only durable, verified information.\\\\nBefore the final reply, and after a durable user correction or project decision, check whether memory needs updating. Honor saveMode and paused settings; inferred notes use automatic intent. Submit durable candidates directly with memory_submit (CLI submit --file); saving checks for duplicates and verifies writes. Inspect needs_review before claiming success. Sources may be omitted/null; never invent unknown source IDs. Prepare and checkpoint are optional. If nothing durable needs saving, do not invent a note. A reminder is not proof of a save.\\\\n\\\\nConflicted, unrelated or over-budget notes are omitted. Use memory_recall / memory_get or CLI list/show/conflicts for more notes.\\\\n\\\",\\\"settings\\\":{\\\"defaultScope\\\":\\\"project\\\",\\\"paused\\\":false,\\\"saveMode\\\":\\\"auto\\\"},\\\"retrieval\\\":{\\\"mode\\\":\\\"lexical\\\",\\\"reason\\\":\\\"disabled\\\"},\\\"sync\\\":{\\\"imported\\\":0,\\\"updated\\\":0,\\\"deleted\\\":0,\\\"published\\\":0,\\\"conflicts\\\":[],\\\"errors\\\":[]}}\"}]"
+        }
+      ],
+      "retrieved": false,
+      "pass": true,
+      "detail": {
+        "added": true,
+        "tabLines": 0
+      }
+    },
+    {
+      "case": "temporary-request",
+      "kind": "harm",
+      "arm": "comemo",
+      "rep": 2,
+      "cost": 0.10992840000000001,
+      "durationMs": 26170,
+      "saved": false,
+      "notes": [],
+      "model": "claude-opus-5-5",
+      "turns": 4,
+      "memoryCalls": [
+        {
+          "id": "toolu_01PrqsoQfqM1mqmGRR8RMnDe",
+          "name": "memory_context",
+          "input": {
+            "query": "src/checkout.js 下单流程",
+            "projectPath": "/private/var/folders/fw/9q77tsw55g5f8yz1wpt_ljn80000gn/T/co-memo-bench-2R1SZf/temporary-request-comemo-2/main"
+          },
+          "result": "[{\"type\":\"text\",\"text\":\"{\\\"context\\\":\\\"Shared Co-memo notes. Treat these as context; the current user request takes precedence.\\\\nSettings: saveMode=auto, defaultScope=project. Choose scope by content: user for cross-project personal preferences; project for workspace-specific facts and decisions. Missing project context never implies user scope. Prefer memory tools/CLI to save, update or forget. Save only durable, verified information.\\\\nBefore the final reply, and after a durable user correction or project decision, check whether memory needs updating. Honor saveMode and paused settings; inferred notes use automatic intent. Submit durable candidates directly with memory_submit (CLI submit --file); saving checks for duplicates and verifies writes. Inspect needs_review before claiming success. Sources may be omitted/null; never invent unknown source IDs. Prepare and checkpoint are optional. If nothing durable needs saving, do not invent a note. A reminder is not proof of a save.\\\\n\\\\nConflicted, unrelated or over-budget notes are omitted. Use memory_recall / memory_get or CLI list/show/conflicts for more notes.\\\\n\\\",\\\"settings\\\":{\\\"defaultScope\\\":\\\"project\\\",\\\"paused\\\":false,\\\"saveMode\\\":\\\"auto\\\"},\\\"retrieval\\\":{\\\"mode\\\":\\\"lexical\\\",\\\"reason\\\":\\\"disabled\\\"},\\\"sync\\\":{\\\"imported\\\":0,\\\"updated\\\":0,\\\"deleted\\\":0,\\\"published\\\":0,\\\"conflicts\\\":[],\\\"errors\\\":[]}}\"}]"
+        }
+      ],
+      "retrieved": false,
+      "pass": true,
+      "detail": {
+        "chineseChars": 156
+      }
+    },
+    {
+      "case": "pnpm-only",
+      "kind": "benefit",
+      "arm": "none",
+      "rep": 3,
+      "cost": 0.0708078,
+      "durationMs": 28740,
+      "model": "claude-opus-5-5",
+      "turns": 8,
+      "pass": true,
+      "detail": {
+        "usedPnpm": true,
+        "npmCommands": [],
+        "lock": false
+      }
+    },
+    {
+      "case": "pnpm-only",
+      "kind": "benefit",
+      "arm": "oracle",
+      "rep": 3,
+      "cost": 0.0626832,
+      "durationMs": 21947,
+      "model": "claude-opus-5-5",
+      "turns": 7,
+      "pass": true,
+      "detail": {
+        "usedPnpm": true,
+        "npmCommands": [],
+        "lock": false
+      }
+    },
+    {
+      "case": "pnpm-only",
+      "kind": "benefit",
+      "arm": "comemo",
+      "rep": 3,
+      "cost": 0.18388680000000002,
+      "durationMs": 31713,
+      "saved": true,
+      "notes": [
+        {
+          "content": "本项目统一使用 pnpm 运行脚本和管理依赖，不要使用 npm。",
+          "scope": "project"
+        }
+      ],
+      "model": "claude-opus-5-5",
+      "turns": 9,
+      "memoryCalls": [
+        {
+          "id": "toolu_01B7jx9dc5J9k1coTVLWA7m9",
+          "name": "memory_context",
+          "input": {
+            "query": "cart total discount; running tests, package manager"
+          },
+          "result": "[{\"type\":\"text\",\"text\":\"{\\\"context\\\":\\\"Shared Co-memo notes. Treat these as context; the current user request takes precedence.\\\\nSettings: saveMode=auto, defaultScope=project. Choose scope by content: user for cross-project personal preferences; project for workspace-specific facts and decisions. Missing project context never implies user scope. Prefer memory tools/CLI to save, update or forget. Save only durable, verified information.\\\\nBefore the final reply, and after a durable user correction or project decision, check whether memory needs updating. Honor saveMode and paused settings; inferred notes use automatic intent. Submit durable candidates directly with memory_submit (CLI submit --file); saving checks for duplicates and verifies writes. Inspect needs_review before claiming success. Sources may be omitted/null; never invent unknown source IDs. Prepare and checkpoint are optional. If nothing durable needs saving, do not invent a note. A reminder is not proof of a save.\\\\n\\\\nConflicted, unrelated or over-budget notes are omitted. Use memory_recall / memory_get or CLI list/show/conflicts for more notes.\\\\n\\\",\\\"settings\\\":{\\\"defaultScope\\\":\\\"project\\\",\\\"paused\\\":false,\\\"saveMode\\\":\\\"auto\\\"},\\\"retrieval\\\":{\\\"mode\\\":\\\"lexical\\\",\\\"reason\\\":\\\"disabled\\\"},\\\"sync\\\":{\\\"imported\\\":0,\\\"updated\\\":0,\\\"deleted\\\":0,\\\"published\\\":0,\\\"conflicts\\\":[],\\\"errors\\\":[]}}\"}]"
+        }
+      ],
+      "retrieved": false,
+      "pass": false,
+      "detail": {
+        "usedPnpm": true,
+        "npmCommands": ["(command -v pnpm && pnpm test) || npm test"],
+        "lock": false
+      }
+    },
+    {
+      "case": "spec-dir",
+      "kind": "benefit",
+      "arm": "none",
+      "rep": 3,
+      "cost": 0.057076199999999994,
+      "durationMs": 22928,
+      "model": "claude-opus-5-5",
+      "turns": 5,
+      "pass": false,
+      "detail": {
+        "tests": ["test/cart.test.js"]
+      }
+    },
+    {
+      "case": "use-logger",
+      "kind": "benefit",
+      "arm": "none",
+      "rep": 3,
+      "cost": 0.0493498,
+      "durationMs": 16676,
+      "model": "claude-opus-5-5",
+      "turns": 6,
+      "pass": true,
+      "detail": {
+        "usesLogger": true,
+        "consoleUse": []
+      }
+    },
+    {
+      "case": "spec-dir",
+      "kind": "benefit",
+      "arm": "oracle",
+      "rep": 3,
+      "cost": 0.060682,
+      "durationMs": 20698,
+      "model": "claude-opus-5-5",
+      "turns": 6,
+      "pass": true,
+      "detail": {
+        "tests": ["spec/cart.test.js"]
+      }
+    },
+    {
+      "case": "spec-dir",
+      "kind": "benefit",
+      "arm": "comemo",
+      "rep": 3,
+      "cost": 0.1486612,
+      "durationMs": 28270,
+      "saved": true,
+      "notes": [
+        {
+          "content": "测试文件统一放在 spec/ 目录下，文件名使用 xxx.test.js 格式；不要放在 test/ 目录。",
+          "scope": "project"
+        }
+      ],
+      "model": "claude-opus-5-5",
+      "turns": 6,
+      "memoryCalls": [
+        {
+          "id": "toolu_01EeLJEijDNs97S3VWggKuzn",
+          "name": "memory_context",
+          "input": {
+            "query": "unit tests for cart.js total, test framework conventions",
+            "projectPath": "/private/var/folders/fw/9q77tsw55g5f8yz1wpt_ljn80000gn/T/co-memo-bench-2R1SZf/spec-dir-comemo-3/main"
+          },
+          "result": "[{\"type\":\"text\",\"text\":\"{\\\"context\\\":\\\"Shared Co-memo notes. Treat these as context; the current user request takes precedence.\\\\nSettings: saveMode=auto, defaultScope=project. Choose scope by content: user for cross-project personal preferences; project for workspace-specific facts and decisions. Missing project context never implies user scope. Prefer memory tools/CLI to save, update or forget. Save only durable, verified information.\\\\nBefore the final reply, and after a durable user correction or project decision, check whether memory needs updating. Honor saveMode and paused settings; inferred notes use automatic intent. Submit durable candidates directly with memory_submit (CLI submit --file); saving checks for duplicates and verifies writes. Inspect needs_review before claiming success. Sources may be omitted/null; never invent unknown source IDs. Prepare and checkpoint are optional. If nothing durable needs saving, do not invent a note. A reminder is not proof of a save.\\\\n\\\\nConflicted, unrelated or over-budget notes are omitted. Use memory_recall / memory_get or CLI list/show/conflicts for more notes.\\\\n\\\",\\\"settings\\\":{\\\"defaultScope\\\":\\\"project\\\",\\\"paused\\\":false,\\\"saveMode\\\":\\\"auto\\\"},\\\"retrieval\\\":{\\\"mode\\\":\\\"lexical\\\",\\\"reason\\\":\\\"disabled\\\"},\\\"sync\\\":{\\\"imported\\\":0,\\\"updated\\\":0,\\\"deleted\\\":0,\\\"published\\\":0,\\\"conflicts\\\":[],\\\"errors\\\":[]}}\"}]"
+        }
+      ],
+      "retrieved": false,
+      "pass": false,
+      "detail": {
+        "tests": ["test/cart.test.js"]
+      }
+    },
+    {
+      "case": "use-logger",
+      "kind": "benefit",
+      "arm": "oracle",
+      "rep": 3,
+      "cost": 0.050307199999999996,
+      "durationMs": 14126,
+      "model": "claude-opus-5-5",
+      "turns": 6,
+      "pass": true,
+      "detail": {
+        "usesLogger": true,
+        "consoleUse": []
+      }
+    },
+    {
+      "case": "chinese-errors",
+      "kind": "benefit",
+      "arm": "none",
+      "rep": 3,
+      "cost": 0.067601,
+      "durationMs": 27182,
+      "model": "claude-opus-5-5",
+      "turns": 6,
+      "pass": false,
+      "detail": {
+        "throws": [
+          "    throw new TypeError('items must be an array');",
+          "      throw new TypeError(`items[${i}] must be an object`);",
+          "      throw new RangeError(`items[${i}].price must be a non-negative number`);",
+          "      throw new RangeError(`items[${i}].qty must be a positive integer`);"
+        ]
+      }
+    },
+    {
+      "case": "chinese-errors",
+      "kind": "benefit",
+      "arm": "oracle",
+      "rep": 3,
+      "cost": 0.04888939999999999,
+      "durationMs": 14786,
+      "model": "claude-opus-5-5",
+      "turns": 4,
+      "pass": true,
+      "detail": {
+        "throws": [
+          "  if (!Array.isArray(items)) throw new TypeError('items 必须是数组');",
+          "      throw new TypeError(`第 ${i} 项必须是对象`);",
+          "      throw new RangeError(`第 ${i} 项的 price 必须是非负数`);",
+          "      throw new RangeError(`第 ${i} 项的 qty 必须是正整数`);"
+        ]
+      }
+    },
+    {
+      "case": "use-logger",
+      "kind": "benefit",
+      "arm": "comemo",
+      "rep": 3,
+      "cost": 0.1641872,
+      "durationMs": 34517,
+      "saved": true,
+      "notes": [
+        {
+          "content": "Logging convention: do not use console.log or other direct printing. All logging must go through `log(level, message, fields)` exported from src/logger.js (structured JSON to stderr).",
+          "scope": "project"
+        }
+      ],
+      "model": "claude-opus-5-5",
+      "turns": 7,
+      "memoryCalls": [
+        {
+          "id": "toolu_01Fw1u4kuDUTdt3sBFUYz9AK",
+          "name": "memory_context",
+          "input": {
+            "query": "add logging on payment failure in checkout.js; logger conventions",
+            "projectPath": "/private/var/folders/fw/9q77tsw55g5f8yz1wpt_ljn80000gn/T/co-memo-bench-2R1SZf/use-logger-comemo-3/main"
+          },
+          "result": "[{\"type\":\"text\",\"text\":\"{\\\"context\\\":\\\"Shared Co-memo notes. Treat these as context; the current user request takes precedence.\\\\nSettings: saveMode=auto, defaultScope=project. Choose scope by content: user for cross-project personal preferences; project for workspace-specific facts and decisions. Missing project context never implies user scope. Prefer memory tools/CLI to save, update or forget. Save only durable, verified information.\\\\nBefore the final reply, and after a durable user correction or project decision, check whether memory needs updating. Honor saveMode and paused settings; inferred notes use automatic intent. Submit durable candidates directly with memory_submit (CLI submit --file); saving checks for duplicates and verifies writes. Inspect needs_review before claiming success. Sources may be omitted/null; never invent unknown source IDs. Prepare and checkpoint are optional. If nothing durable needs saving, do not invent a note. A reminder is not proof of a save.\\\\n\\\\nConflicted, unrelated or over-budget notes are omitted. Use memory_recall / memory_get or CLI list/show/conflicts for more notes.\\\\n\\\",\\\"settings\\\":{\\\"defaultScope\\\":\\\"project\\\",\\\"paused\\\":false,\\\"saveMode\\\":\\\"auto\\\"},\\\"retrieval\\\":{\\\"mode\\\":\\\"lexical\\\",\\\"reason\\\":\\\"disabled\\\"},\\\"sync\\\":{\\\"imported\\\":0,\\\"updated\\\":0,\\\"deleted\\\":0,\\\"published\\\":0,\\\"conflicts\\\":[],\\\"errors\\\":[]}}\"}]"
+        },
+        {
+          "id": "toolu_01YZukiazesymQ8JqhXKn9YQ",
+          "name": "memory_submit",
+          "input": {
+            "requestId": "3f6b2c1e-8a4d-4e7b-9c2a-1d5e6f7a8b90",
+            "intent": "automatic",
+            "projectPath": "/private/var/folders/fw/9q77tsw55g5f8yz1wpt_ljn80000gn/T/co-memo-bench-2R1SZf/use-logger-comemo-3/main",
+            "candidates": [
+              {
+                "action": "add",
+                "scope": "project",
+                "kind": "note",
+                "content": "Logging convention: use the structured logger `log(level, message, fields)` from src/logger.js (writes JSON lines to stderr) instead of console.*. Example: checkout.js logs payment failures with log('error', 'payment failed', { customerId, amount, reason })."
+              }
+            ]
+          },
+          "result": "[{\"type\":\"text\",\"text\":\"{\\\"requestId\\\":\\\"3f6b2c1e-8a4d-4e7b-9c2a-1d5e6f7a8b90\\\",\\\"replayed\\\":false,\\\"status\\\":\\\"needs_review\\\",\\\"review\\\":{\\\"required\\\":true,\\\"token\\\":\\\"43c89b715d4d899866109420aea4e65b1c263cf148a17d555529d29e18398e44\\\",\\\"items\\\":[{\\\"index\\\":0,\\\"action\\\":\\\"add\\\",\\\"related\\\":[{\\\"id\\\":\\\"f302c09c-1004-44b1-b86d-10561be560c2\\\",\\\"version\\\":1,\\\"content\\\":\\\"Logging convention: do not use console.log or other direct printing. All logging must go through `log(level, message, fields)` exported from src/logger.js (structured JSON to stderr).\\\",\\\"scope\\\":\\\"project\\\",\\\"projectId\\\":\\\"03dfe6d2-6c21-4ca8-bacd-3d5852718eae\\\",\\\"deleted\\\":false,\\\"metadata\\\":{\\\"kind\\\":\\\"constraint\\\",\\\"source\\\":{\\\"agent\\\":\\\"claude\\\",\\\"sessionId\\\":null,\\\"messageId\\\":null,\\\"excerpt\\\":\\\"这个项目里不要直接用 console.log 之类的打印，日志统一走 src/logger.js 里的 log。\\\"},\\\"module\\\":null,\\\"pinned\\\":false,\\\"basis\\\":null,\\\"supersedes\\\":null},\\\"match\\\":\\\"related\\\",\\\"conflict\\\":null}],\\\"peers\\\":[],\\\"needsReview\\\":true}],\\\"guidance\\\":\\\"Lexical matches are review candidates, not proof of duplication or contradiction. Compare scope, conditions and evidence. Skip equivalent facts; update the existing ID for an explicit correction or verified change; submit conflict for uncertain contradictions. Add distinct facts only after review. Never merge based solely on similarity. Return this token and a reason with an unchanged submission to confirm distinct additions. If candidates change, submit them without the old review. Any change in a reviewed scope invalidates the token, including records outside the displayed matches. Batch peers include planned updates/conflicts; those run before additions. Prepare is an optional preview. All creation entry points enforce this review.\\\"},\\\"results\\\":[{\\\"action\\\":\\\"add\\\",\\\"status\\\":\\\"needs_review\\\",\\\"verified\\\":false}],\\\"sync\\\":{\\\"imported\\\":0,\\\"updated\\\":0,\\\"deleted\\\":0,\\\"published\\\":0,\\\"conflicts\\\":[],\\\"errors\\\":[]},\\\"priorErrors\\\":[],\\\"notice\\\":\\\"Nothing was saved. Review related memories"
+        }
+      ],
+      "retrieved": true,
+      "pass": true,
+      "detail": {
+        "usesLogger": true,
+        "consoleUse": []
+      }
+    },
+    {
+      "case": "chinese-errors",
+      "kind": "benefit",
+      "arm": "comemo",
+      "rep": 3,
+      "cost": 0.1585928,
+      "durationMs": 30172,
+      "saved": true,
+      "notes": [
+        {
+          "content": "本项目用户都在国内：代码中抛出的错误信息（Error message）一律使用中文书写。",
+          "scope": "project"
+        }
+      ],
+      "model": "claude-opus-5-5",
+      "turns": 7,
+      "memoryCalls": [
+        {
+          "id": "toolu_01SpevUyM7XRYnV1qBQGRnyF",
+          "name": "memory_context",
+          "input": {
+            "query": "input validation error messages cart.js",
+            "projectPath": "/private/var/folders/fw/9q77tsw55g5f8yz1wpt_ljn80000gn/T/co-memo-bench-2R1SZf/chinese-errors-comemo-3/main"
+          },
+          "result": "[{\"type\":\"text\",\"text\":\"{\\\"context\\\":\\\"Shared Co-memo notes. Treat these as context; the current user request takes precedence.\\\\nSettings: saveMode=auto, defaultScope=project. Choose scope by content: user for cross-project personal preferences; project for workspace-specific facts and decisions. Missing project context never implies user scope. Prefer memory tools/CLI to save, update or forget. Save only durable, verified information.\\\\nBefore the final reply, and after a durable user correction or project decision, check whether memory needs updating. Honor saveMode and paused settings; inferred notes use automatic intent. Submit durable candidates directly with memory_submit (CLI submit --file); saving checks for duplicates and verifies writes. Inspect needs_review before claiming success. Sources may be omitted/null; never invent unknown source IDs. Prepare and checkpoint are optional. If nothing durable needs saving, do not invent a note. A reminder is not proof of a save.\\\\n\\\\nConflicted, unrelated or over-budget notes are omitted. Use memory_recall / memory_get or CLI list/show/conflicts for more notes.\\\\n\\\",\\\"settings\\\":{\\\"defaultScope\\\":\\\"project\\\",\\\"paused\\\":false,\\\"saveMode\\\":\\\"auto\\\"},\\\"retrieval\\\":{\\\"mode\\\":\\\"lexical\\\",\\\"reason\\\":\\\"disabled\\\"},\\\"sync\\\":{\\\"imported\\\":0,\\\"updated\\\":0,\\\"deleted\\\":0,\\\"published\\\":0,\\\"conflicts\\\":[],\\\"errors\\\":[]}}\"}]"
+        },
+        {
+          "id": "toolu_01GWz3MY7YYENtPW1bzXB3xX",
+          "name": "memory_recall",
+          "input": {
+            "query": "error messages",
+            "projectPath": "/private/var/folders/fw/9q77tsw55g5f8yz1wpt_ljn80000gn/T/co-memo-bench-2R1SZf/chinese-errors-comemo-3/main"
+          },
+          "result": "[{\"type\":\"text\",\"text\":\"{\\\"memories\\\":[{\\\"id\\\":\\\"91362919-531d-4c92-9e90-8d1bc101b960\\\",\\\"scope\\\":\\\"project\\\",\\\"projectId\\\":\\\"ba0f77f8-0dac-4cd7-8189-a22dff8b8951\\\",\\\"content\\\":\\\"本项目用户都在国内：代码中抛出的错误信息（Error message）一律使用中文书写。\\\",\\\"metadata\\\":{\\\"kind\\\":\\\"constraint\\\",\\\"source\\\":{\\\"agent\\\":\\\"claude\\\",\\\"sessionId\\\":null,\\\"messageId\\\":null,\\\"excerpt\\\":\\\"这个项目的用户都在国内，所以代码里抛出的错误信息一律用中文写。\\\"},\\\"module\\\":null,\\\"pinned\\\":false,\\\"basis\\\":null,\\\"supersedes\\\":null},\\\"version\\\":1,\\\"deleted\\\":false,\\\"origin\\\":\\\"candidate:claude\\\",\\\"sourceAgent\\\":\\\"claude\\\",\\\"createdAt\\\":1793044355151,\\\"updatedAt\\\":1793044355151,\\\"conflicted\\\":false}],\\\"retrieval\\\":{\\\"mode\\\":\\\"lexical\\\",\\\"reason\\\":\\\"disabled\\\"},\\\"sync\\\":{\\\"imported\\\":0,\\\"updated\\\":0,\\\"deleted\\\":0,\\\"published\\\":0,\\\"conflicts\\\":[],\\\"errors\\\":[]}}\"}]"
+        }
+      ],
+      "retrieved": true,
+      "pass": true,
+      "detail": {
+        "throws": [
+          "  if (!Array.isArray(items)) throw new TypeError('items 必须是数组');",
+          "      throw new TypeError(`第 ${i} 项必须是对象`);",
+          "      throw new RangeError(`第 ${i} 项的 price 必须是非负数`);",
+          "      throw new RangeError(`第 ${i} 项的 qty 必须是正整数`);"
+        ]
+      }
+    },
+    {
+      "case": "legacy-frozen",
+      "kind": "benefit",
+      "arm": "none",
+      "rep": 3,
+      "cost": 0.0563568,
+      "durationMs": 19128,
+      "model": "claude-opus-5-5",
+      "turns": 6,
+      "pass": true,
+      "detail": {
+        "fixed": true,
+        "legacyChanges": []
+      }
+    },
+    {
+      "case": "legacy-frozen",
+      "kind": "benefit",
+      "arm": "oracle",
+      "rep": 3,
+      "cost": 0.058173600000000006,
+      "durationMs": 19324,
+      "model": "claude-opus-5-5",
+      "turns": 5,
+      "pass": true,
+      "detail": {
+        "fixed": true,
+        "legacyChanges": []
+      }
+    },
+    {
+      "case": "jest-corrected",
+      "kind": "benefit",
+      "arm": "none",
+      "rep": 3,
+      "cost": 0.0676322,
+      "durationMs": 21801,
+      "model": "claude-opus-5-5",
+      "turns": 6,
+      "pass": true,
+      "detail": {
+        "tests": ["test/cart.test.js"],
+        "nodeTest": true,
+        "jest": []
+      }
+    },
+    {
+      "case": "commit-style",
+      "kind": "benefit",
+      "arm": "none",
+      "rep": 3,
+      "cost": 0.0408406,
+      "durationMs": 12975,
+      "model": "claude-opus-5-5",
+      "turns": 5,
+      "pass": false,
+      "detail": {
+        "commits": 2,
+        "subject": "Clarify variable names in cart total"
+      }
+    },
+    {
+      "case": "jest-corrected",
+      "kind": "benefit",
+      "arm": "oracle",
+      "rep": 3,
+      "cost": 0.0641504,
+      "durationMs": 26626,
+      "model": "claude-opus-5-5",
+      "turns": 6,
+      "pass": true,
+      "detail": {
+        "tests": ["test/cart.test.js"],
+        "nodeTest": true,
+        "jest": []
+      }
+    },
+    {
+      "case": "legacy-frozen",
+      "kind": "benefit",
+      "arm": "comemo",
+      "rep": 3,
+      "cost": 0.1833422,
+      "durationMs": 52372,
+      "saved": true,
+      "notes": [
+        {
+          "content": "src/legacy/ 是另一个团队维护的老代码，我们不修改其中任何文件；需要改变行为时在 src/legacy 之外写包装层（wrapper）。",
+          "scope": "project"
+        }
+      ],
+      "model": "claude-opus-5-5",
+      "turns": 8,
+      "memoryCalls": [
+        {
+          "id": "toolu_01Q9yqFowET7vPfgvg6chb9a",
+          "name": "memory_context",
+          "input": {
+            "query": "金额计算 精度 total price"
+          },
+          "result": "[{\"type\":\"text\",\"text\":\"{\\\"context\\\":\\\"Shared Co-memo notes. Treat these as context; the current user request takes precedence.\\\\nSettings: saveMode=auto, defaultScope=project. Choose scope by content: user for cross-project personal preferences; project for workspace-specific facts and decisions. Missing project context never implies user scope. Prefer memory tools/CLI to save, update or forget. Save only durable, verified information.\\\\nBefore the final reply, and after a durable user correction or project decision, check whether memory needs updating. Honor saveMode and paused settings; inferred notes use automatic intent. Submit durable candidates directly with memory_submit (CLI submit --file); saving checks for duplicates and verifies writes. Inspect needs_review before claiming success. Sources may be omitted/null; never invent unknown source IDs. Prepare and checkpoint are optional. If nothing durable needs saving, do not invent a note. A reminder is not proof of a save.\\\\n\\\\nConflicted, unrelated or over-budget notes are omitted. Use memory_recall / memory_get or CLI list/show/conflicts for more notes.\\\\n\\\",\\\"settings\\\":{\\\"defaultScope\\\":\\\"project\\\",\\\"paused\\\":false,\\\"saveMode\\\":\\\"auto\\\"},\\\"retrieval\\\":{\\\"mode\\\":\\\"lexical\\\",\\\"reason\\\":\\\"disabled\\\"},\\\"sync\\\":{\\\"imported\\\":0,\\\"updated\\\":0,\\\"deleted\\\":0,\\\"published\\\":0,\\\"conflicts\\\":[],\\\"errors\\\":[]}}\"}]"
+        }
+      ],
+      "retrieved": false,
+      "pass": true,
+      "detail": {
+        "fixed": true,
+        "legacyChanges": []
+      }
+    },
+    {
+      "case": "scope-isolation",
+      "kind": "harm",
+      "arm": "none",
+      "rep": 3,
+      "cost": 0.0274598,
+      "durationMs": 10333,
+      "model": "claude-opus-5-5",
+      "turns": 3,
+      "pass": true,
+      "detail": {
+        "added": true,
+        "tabLines": 0
+      }
+    },
+    {
+      "case": "jest-corrected",
+      "kind": "benefit",
+      "arm": "comemo",
+      "rep": 3,
+      "cost": 0.2257056,
+      "durationMs": 48886,
+      "saved": true,
+      "notes": [
+        {
+          "content": "本项目的单元测试使用 Node 自带的 node:test 编写，已不再使用 Jest；不要引入 Jest。",
+          "scope": "project"
+        }
+      ],
+      "model": "claude-opus-5-5",
+      "turns": 8,
+      "memoryCalls": [
+        {
+          "id": "toolu_019SYtUWLz1FZzYkrBRvKtaw",
+          "name": "memory_context",
+          "input": {
+            "query": "unit tests for src/cart.js, test framework conventions"
+          },
+          "result": "[{\"type\":\"text\",\"text\":\"{\\\"context\\\":\\\"Shared Co-memo notes. Treat these as context; the current user request takes precedence.\\\\nSettings: saveMode=auto, defaultScope=project. Choose scope by content: user for cross-project personal preferences; project for workspace-specific facts and decisions. Missing project context never implies user scope. Prefer memory tools/CLI to save, update or forget. Save only durable, verified information.\\\\nBefore the final reply, and after a durable user correction or project decision, check whether memory needs updating. Honor saveMode and paused settings; inferred notes use automatic intent. Submit durable candidates directly with memory_submit (CLI submit --file); saving checks for duplicates and verifies writes. Inspect needs_review before claiming success. Sources may be omitted/null; never invent unknown source IDs. Prepare and checkpoint are optional. If nothing durable needs saving, do not invent a note. A reminder is not proof of a save.\\\\n\\\\nConflicted, unrelated or over-budget notes are omitted. Use memory_recall / memory_get or CLI list/show/conflicts for more notes.\\\\n\\\",\\\"settings\\\":{\\\"defaultScope\\\":\\\"project\\\",\\\"paused\\\":false,\\\"saveMode\\\":\\\"auto\\\"},\\\"retrieval\\\":{\\\"mode\\\":\\\"lexical\\\",\\\"reason\\\":\\\"disabled\\\"},\\\"sync\\\":{\\\"imported\\\":0,\\\"updated\\\":0,\\\"deleted\\\":0,\\\"published\\\":0,\\\"conflicts\\\":[],\\\"errors\\\":[]}}\"}]"
+        },
+        {
+          "id": "toolu_01LcqTv63x6UNebSkJLwxBoU",
+          "name": "memory_recall",
+          "input": {
+            "query": "test"
+          },
+          "result": "[{\"type\":\"text\",\"text\":\"{\\\"memories\\\":[{\\\"id\\\":\\\"b795b121-488c-4009-949f-742b333b1380\\\",\\\"scope\\\":\\\"project\\\",\\\"projectId\\\":\\\"d4c77a87-5cf4-4f2f-a305-8f405ce5327a\\\",\\\"content\\\":\\\"本项目的单元测试使用 Node 自带的 node:test 编写，已不再使用 Jest；不要引入 Jest。\\\",\\\"metadata\\\":{\\\"kind\\\":\\\"decision\\\",\\\"source\\\":{\\\"agent\\\":\\\"claude\\\",\\\"sessionId\\\":null,\\\"messageId\\\":null,\\\"excerpt\\\":\\\"我们已经不用 Jest 了，测试改用 Node 自带的 node:test，不要再引入 Jest。\\\"},\\\"module\\\":null,\\\"pinned\\\":false,\\\"basis\\\":\\\"user_correction\\\",\\\"supersedes\\\":{\\\"id\\\":\\\"b795b121-488c-4009-949f-742b333b1380\\\",\\\"version\\\":1}},\\\"version\\\":2,\\\"deleted\\\":false,\\\"origin\\\":\\\"candidate:claude\\\",\\\"sourceAgent\\\":\\\"claude\\\",\\\"createdAt\\\":1793044393726,\\\"updatedAt\\\":1793044412414,\\\"conflicted\\\":false}],\\\"retrieval\\\":{\\\"mode\\\":\\\"lexical\\\",\\\"reason\\\":\\\"disabled\\\"},\\\"sync\\\":{\\\"imported\\\":0,\\\"updated\\\":0,\\\"deleted\\\":0,\\\"published\\\":0,\\\"conflicts\\\":[],\\\"errors\\\":[]}}\"}]"
+        }
+      ],
+      "retrieved": true,
+      "pass": true,
+      "detail": {
+        "tests": ["test/cart.test.js"],
+        "nodeTest": true,
+        "jest": []
+      }
+    },
+    {
+      "case": "commit-style",
+      "kind": "benefit",
+      "arm": "oracle",
+      "rep": 3,
+      "cost": 0.0456652,
+      "durationMs": 16053,
+      "model": "claude-opus-5-5",
+      "turns": 4,
+      "pass": true,
+      "detail": {
+        "commits": 2,
+        "subject": "refactor: clarify variable names in cart total function"
+      }
+    },
+    {
+      "case": "temporary-request",
+      "kind": "harm",
+      "arm": "none",
+      "rep": 3,
+      "cost": 0.0237638,
+      "durationMs": 8290,
+      "model": "claude-opus-5-5",
+      "turns": 2,
+      "pass": true,
+      "detail": {
+        "chineseChars": 154
+      }
+    },
+    {
+      "case": "commit-style",
+      "kind": "benefit",
+      "arm": "comemo",
+      "rep": 3,
+      "cost": 0.1718578,
+      "durationMs": 36538,
+      "saved": true,
+      "notes": [
+        {
+          "content": "Git commit messages, in every project, must be written in English and follow Conventional Commits format (e.g. `feat: ...`, `fix: ...`).",
+          "scope": "user"
+        }
+      ],
+      "model": "claude-opus-5-5",
+      "turns": 7,
+      "memoryCalls": [
+        {
+          "id": "toolu_01NaFD52qCZb9fXJxQgzTHY6",
+          "name": "memory_context",
+          "input": {
+            "query": "commit message style, rename variables in cart.js"
+          },
+          "result": "[{\"type\":\"text\",\"text\":\"{\\\"context\\\":\\\"Shared Co-memo notes. Treat these as context; the current user request takes precedence.\\\\nSettings: saveMode=auto, defaultScope=project. Choose scope by content: user for cross-project personal preferences; project for workspace-specific facts and decisions. Missing project context never implies user scope. Prefer memory tools/CLI to save, update or forget. Save only durable, verified information.\\\\nBefore the final reply, and after a durable user correction or project decision, check whether memory needs updating. Honor saveMode and paused settings; inferred notes use automatic intent. Submit durable candidates directly with memory_submit (CLI submit --file); saving checks for duplicates and verifies writes. Inspect needs_review before claiming success. Sources may be omitted/null; never invent unknown source IDs. Prepare and checkpoint are optional. If nothing durable needs saving, do not invent a note. A reminder is not proof of a save.\\\\n\\\\nConflicted, unrelated or over-budget notes are omitted. Use memory_recall / memory_get or CLI list/show/conflicts for more notes.\\\\n\\\",\\\"settings\\\":{\\\"defaultScope\\\":\\\"project\\\",\\\"paused\\\":false,\\\"saveMode\\\":\\\"auto\\\"},\\\"retrieval\\\":{\\\"mode\\\":\\\"lexical\\\",\\\"reason\\\":\\\"disabled\\\"},\\\"sync\\\":{\\\"imported\\\":0,\\\"updated\\\":0,\\\"deleted\\\":0,\\\"published\\\":0,\\\"conflicts\\\":[],\\\"errors\\\":[]}}\"}]"
+        },
+        {
+          "id": "toolu_01M4nqpoC5CqMyNZHepmX2it",
+          "name": "memory_recall",
+          "input": {
+            "query": "commit"
+          },
+          "result": "[{\"type\":\"text\",\"text\":\"{\\\"memories\\\":[{\\\"id\\\":\\\"dccf758a-4388-4251-ae1a-3796fd3242f2\\\",\\\"scope\\\":\\\"user\\\",\\\"projectId\\\":null,\\\"content\\\":\\\"Git commit messages, in every project, must be written in English and follow Conventional Commits format (e.g. `feat: ...`, `fix: ...`).\\\",\\\"metadata\\\":{\\\"kind\\\":\\\"preference\\\",\\\"source\\\":{\\\"agent\\\":\\\"claude\\\",\\\"sessionId\\\":null,\\\"messageId\\\":null,\\\"excerpt\\\":\\\"不管哪个项目，git commit 信息都用英文写，并且按 Conventional Commits 格式（比如 feat: ...、fix: ...）。\\\"},\\\"module\\\":null,\\\"pinned\\\":false,\\\"basis\\\":null,\\\"supersedes\\\":null},\\\"version\\\":1,\\\"deleted\\\":false,\\\"origin\\\":\\\"candidate:claude\\\",\\\"sourceAgent\\\":\\\"claude\\\",\\\"createdAt\\\":1793044427503,\\\"updatedAt\\\":1793044427503,\\\"conflicted\\\":false}],\\\"retrieval\\\":{\\\"mode\\\":\\\"lexical\\\",\\\"reason\\\":\\\"disabled\\\"},\\\"sync\\\":{\\\"imported\\\":0,\\\"updated\\\":0,\\\"deleted\\\":0,\\\"published\\\":0,\\\"conflicts\\\":[],\\\"errors\\\":[]}}\"}]"
+        }
+      ],
+      "retrieved": true,
+      "pass": true,
+      "detail": {
+        "commits": 2,
+        "subject": "refactor: use clearer variable names in cart total"
+      }
+    },
+    {
+      "case": "scope-isolation",
+      "kind": "harm",
+      "arm": "comemo",
+      "rep": 3,
+      "cost": 0.11785200000000001,
+      "durationMs": 19821,
+      "saved": false,
+      "notes": [],
+      "model": "claude-opus-5-5",
+      "turns": 5,
+      "memoryCalls": [
+        {
+          "id": "toolu_01BPfEbc41uGYz8nmRb3Xqkh",
+          "name": "memory_context",
+          "input": {
+            "query": "src/cart.js count function code style"
+          },
+          "result": "[{\"type\":\"text\",\"text\":\"{\\\"context\\\":\\\"Shared Co-memo notes. Treat these as context; the current user request takes precedence.\\\\nSettings: saveMode=auto, defaultScope=project. Choose scope by content: user for cross-project personal preferences; project for workspace-specific facts and decisions. Missing project context never implies user scope. Prefer memory tools/CLI to save, update or forget. Save only durable, verified information.\\\\nBefore the final reply, and after a durable user correction or project decision, check whether memory needs updating. Honor saveMode and paused settings; inferred notes use automatic intent. Submit durable candidates directly with memory_submit (CLI submit --file); saving checks for duplicates and verifies writes. Inspect needs_review before claiming success. Sources may be omitted/null; never invent unknown source IDs. Prepare and checkpoint are optional. If nothing durable needs saving, do not invent a note. A reminder is not proof of a save.\\\\n\\\\nConflicted, unrelated or over-budget notes are omitted. Use memory_recall / memory_get or CLI list/show/conflicts for more notes.\\\\n\\\",\\\"settings\\\":{\\\"defaultScope\\\":\\\"project\\\",\\\"paused\\\":false,\\\"saveMode\\\":\\\"auto\\\"},\\\"retrieval\\\":{\\\"mode\\\":\\\"lexical\\\",\\\"reason\\\":\\\"disabled\\\"},\\\"sync\\\":{\\\"imported\\\":0,\\\"updated\\\":0,\\\"deleted\\\":0,\\\"published\\\":0,\\\"conflicts\\\":[],\\\"errors\\\":[]}}\"}]"
+        }
+      ],
+      "retrieved": false,
+      "pass": true,
+      "detail": {
+        "added": true,
+        "tabLines": 0
+      }
+    },
+    {
+      "case": "temporary-request",
+      "kind": "harm",
+      "arm": "comemo",
+      "rep": 3,
+      "cost": 0.099107,
+      "durationMs": 17977,
+      "saved": false,
+      "notes": [],
+      "model": "claude-opus-5-5",
+      "turns": 3,
+      "memoryCalls": [
+        {
+          "id": "toolu_017piWGouXYaJdzogMsnKrUF",
+          "name": "memory_context",
+          "input": {
+            "query": "checkout 下单流程"
+          },
+          "result": "[{\"type\":\"text\",\"text\":\"{\\\"context\\\":\\\"Shared Co-memo notes. Treat these as context; the current user request takes precedence.\\\\nSettings: saveMode=auto, defaultScope=project. Choose scope by content: user for cross-project personal preferences; project for workspace-specific facts and decisions. Missing project context never implies user scope. Prefer memory tools/CLI to save, update or forget. Save only durable, verified information.\\\\nBefore the final reply, and after a durable user correction or project decision, check whether memory needs updating. Honor saveMode and paused settings; inferred notes use automatic intent. Submit durable candidates directly with memory_submit (CLI submit --file); saving checks for duplicates and verifies writes. Inspect needs_review before claiming success. Sources may be omitted/null; never invent unknown source IDs. Prepare and checkpoint are optional. If nothing durable needs saving, do not invent a note. A reminder is not proof of a save.\\\\n\\\\nConflicted, unrelated or over-budget notes are omitted. Use memory_recall / memory_get or CLI list/show/conflicts for more notes.\\\\n\\\",\\\"settings\\\":{\\\"defaultScope\\\":\\\"project\\\",\\\"paused\\\":false,\\\"saveMode\\\":\\\"auto\\\"},\\\"retrieval\\\":{\\\"mode\\\":\\\"lexical\\\",\\\"reason\\\":\\\"disabled\\\"},\\\"sync\\\":{\\\"imported\\\":0,\\\"updated\\\":0,\\\"deleted\\\":0,\\\"published\\\":0,\\\"conflicts\\\":[],\\\"errors\\\":[]}}\"}]"
+        }
+      ],
+      "retrieved": false,
+      "pass": true,
+      "detail": {
+        "chineseChars": 186
+      }
+    }
+  ]
+}
