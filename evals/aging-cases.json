@@ -1,0 +1,36 @@
+{
+  "version": 1,
+  "description": "Each case has one old, still-valid note and a template for newer notes that share its query words but do not answer the question. The probe checks whether the old note stays findable as newer notes pile up.",
+  "oldNoteAgeDays": 180,
+  "newerNotesWithinDays": 30,
+  "newerCounts": [0, 10, 50, 200],
+  "cases": [
+    {
+      "id": "release-signing",
+      "old": {
+        "content": "Sign the release build with the team certificate before upload.",
+        "kind": "decision"
+      },
+      "newer": "Release build {i}: upload to staging finished, smoke checks passed.",
+      "query": "how do I upload a release build"
+    },
+    {
+      "id": "utc-timestamps",
+      "old": {
+        "content": "Store timestamps in UTC; convert to local time only in the UI.",
+        "kind": "decision"
+      },
+      "newer": "Report {i}: timestamps looked wrong in local time, reran the export.",
+      "query": "where should timestamps be converted to local time"
+    },
+    {
+      "id": "error-codes-zh",
+      "old": {
+        "content": "接口错误码统一用英文大写，例如 NOT_FOUND。",
+        "kind": "lesson"
+      },
+      "newer": "第 {i} 次排查：接口错误码日志已归档。",
+      "query": "接口错误码怎么写"
+    }
+  ]
+}
