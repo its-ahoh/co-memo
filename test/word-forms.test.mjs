@@ -40,6 +40,11 @@ test('stem maps common English word forms to one term', () => {
     ['store', 'stores', 'stored', 'storing'],
     ['use', 'uses', 'used', 'using'],
     ['story', 'stories'],
+    ['try', 'tries', 'tried', 'trying'],
+    ['fly', 'flies'],
+    ['dry', 'dries', 'dried'],
+    ['spy', 'spies'],
+    ['say', 'says'],
     ['plan', 'plans', 'planned', 'planning'],
     ['class', 'classes'],
   ])
@@ -113,4 +118,8 @@ test('an index written without stems is rebuilt once on open', (t) => {
     [note.id],
   );
   assert.ok(context(f.store, f.project.id, 16_000, 'building docs').includes(note.content));
+  // The rebuild runs once: a later open with the marker in place leaves the index alone.
+  f.store.db.prepare('DELETE FROM notes_fts WHERE rowid=?').run(rowid);
+  f.reopen();
+  assert.equal(f.store.search(f.project.id, 'build').length, 0);
 });

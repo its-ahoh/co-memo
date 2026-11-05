@@ -68,7 +68,10 @@ export function stem(word: string): string {
       else if (measure(w) === 1 && cvc(w)) w += 'e';
     }
   }
-  if (w.endsWith('y') && hasVowel(w.slice(0, -1))) w = w.slice(0, -1) + 'i';
+  // Porter2: y becomes i after a consonant that is not the first letter, so "try" and
+  // "tries" meet at "tri" while "say" and "boy" keep their y.
+  if (w.length > 2 && w.endsWith('y') && !'aeiouy'.includes(w[w.length - 2]!))
+    w = w.slice(0, -1) + 'i';
   if (w.endsWith('e')) {
     const base = w.slice(0, -1);
     const m = measure(base);

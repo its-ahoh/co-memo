@@ -72,6 +72,13 @@ test('pinned preferences and constraints are never dropped as look-alikes', (t) 
   const f = fixture(t);
   const standing = [];
   for (let i = 1; i <= lookAlikeLimit + 2; i++)
+    standing.push(
+      f.add(`Prefer short answers about network calls, variant ${i}.`, {
+        kind: 'preference',
+        pinned: true,
+      }),
+    );
+  for (let i = 1; i <= lookAlikeLimit + 2; i++)
     standing.push(f.add(`Keep module ${i} free of network calls.`, { kind: 'constraint' }));
   const ids = injectedIds(contextSelection(f.store, f.project.id, 16_000, 'network calls').context);
   for (const note of standing) assert.ok(ids.includes(note.id), note.content);
