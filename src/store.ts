@@ -1,7 +1,7 @@
 import { beginImmediate } from './sqlite.js';
 import { withoutPurged } from './document.js';
 import { repository } from './worktrees.js';
-import { searchTerms, recent } from './relevance.js';
+import { indexTerms, recent, stem, words } from './relevance.js';
 import { SettingsPatch, allowWrite } from './settings.js';
 import type { Intent } from './settings.js';
 import { DatabaseSync } from 'node:sqlite';
@@ -35,6 +35,9 @@ import {
 } from './model.js';
 import type { Scope, Replica, Project, Proposal } from './model.js';
 import { safeParents, absent } from './fs.js';
+
+/** Bump when indexTerms changes so existing notes are re-indexed on open. */
+const searchIndexVersion = 1;
 
 export function dataHome(): string {
   return resolve(
@@ -183,6 +186,7 @@ export class Store {
             );
           });
         });
+      this.ensureSearchIndex();
     } catch (error) {
       this.db.close();
       this.mutex.close();
@@ -190,6 +194,28 @@ export class Store {
     }
     chmodSync(path, 0o600);
     chmodSync(join(this.home, 'sync-lock.sqlite'), 0o600);
+  }
+  /** Rebuild the full-text index once when it predates the current term format. Kept out of
+   * user_version so older co-memo releases can still open the database; the index they would
+   * write is a subset of this one and only loses word-form matching for their own writes. */
+  private ensureSearchIndex(): void {
+    const current = () =>
+      this.db
+        .prepare("SELECT name FROM sqlite_schema WHERE type='table' AND name='search_index'")
+        .get()
+        ? Number(this.db.prepare('SELECT max(version) AS v FROM search_index').get()?.v ?? 0)
+        : 0;
+    if (current() >= searchIndexVersion) return;
+    this.lock(() => {
+      if (current() >= searchIndexVersion) return;
+      this.transaction(() => {
+        this.db.exec(
+          'CREATE TABLE IF NOT EXISTS search_index(version INTEGER NOT NULL); DELETE FROM search_index; DELETE FROM notes_fts;',
+        );
+        for (const memory of this.rows(Memory, 'SELECT payload FROM notes')) this.index(memory);
+        this.db.prepare('INSERT INTO search_index(version) VALUES (?)').run(searchIndexVersion);
+      });
+    });
   }
   close(): void {
     this.db.close();
@@ -449,7 +475,12 @@ export class Store {
         (m) => (!onlyScope || m.scope === onlyScope) && (includeConflicts || !blocked.has(m.id)),
       );
     }
-    const terms = [...new Set(searchTerms(query.slice(0, 16000)))].slice(0, 64);
+    // Each query word matches its exact form and its stem; the index stores both.
+    const terms = [
+      ...new Set(
+        [...new Set(words(query.slice(0, 16000)))].slice(0, 64).flatMap((w) => [w, stem(w)]),
+      ),
+    ];
     if (!terms.length) return [];
     const match = terms.map((term) => '"' + term.replaceAll('"', '""') + '"').join(' OR ');
     return this.rows(
@@ -475,7 +506,7 @@ export class Store {
       .run(
         rowid,
         memory.id,
-        searchTerms(memory.content + ' ' + (memory.metadata.module ?? '')).join(' '),
+        indexTerms(memory.content + ' ' + (memory.metadata.module ?? '')).join(' '),
       );
   }
   submission(

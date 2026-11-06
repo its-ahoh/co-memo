@@ -8,7 +8,7 @@ Memories have stable IDs, user/project scope, versions, content, metadata and hi
 
 Writes and host-configuration changes acquire the shared SQLite process lock. Reads use short, query-only WAL snapshots without that lock, including CLI/MCP retrieval, hook context and the console. Opening a current-schema database skips migration transactions. First-time project registration and schema upgrades still require a write lock. Reads no longer perform cache cleanup; writes and explicit sync/watch retain maintenance. Writes use transactions and expected versions; stale updates fail instead of silently overwriting another agent. Structured candidate submissions commit the batch and retry receipt together. Uncertain contradictions preserve competing proposals as conflicts. Conflicted notes are excluded from context until explicitly resolved. Settings enforce pause and explicit-only policy; intent and evidence are caller declarations.
 
-Retrieval uses FTS5 with Chinese/code-identifier normalization, scope and conflict filters, bounded context and optional semantic ranking. Hooks deliver current database context; tools-only agents call memory_context or CLI context. Existing conversations are not retroactively rewritten.
+Retrieval uses FTS5 with Chinese/code-identifier normalization, light English stemming (the index keeps each original word next to its stem, rebuilt once when the term format changes), scope and conflict filters, bounded context and optional semantic ranking. Hooks deliver current database context; tools-only agents call memory_context or CLI context. Existing conversations are not retroactively rewritten.
 
 ## Upgrade from file replicas
 

@@ -1,6 +1,6 @@
 import { purgeEmbeddings } from './semantic.js';
 import { join } from 'node:path';
-import { checkpointReminder, contextFilter, contextTerms, searchTerms } from './relevance.js';
+import { checkpointReminder, contextFilter, contextTerms, searchTerms, stem } from './relevance.js';
 import { settings } from './settings.js';
 import { Store } from './store.js';
 import { errorMessage } from './model.js';
@@ -36,6 +36,20 @@ export function sync(store: Store): SyncReport {
   }
   return report;
 }
+/** Most notes from one group of look-alikes that a single context injection may carry. */
+export const lookAlikeLimit = 3;
+/** Share of distinct terms two notes must have in common to count as look-alikes. */
+const lookAlikeSimilarity = 0.7;
+/** Note terms without bare numbers, so "Run 4: ..." and "Run 5: ..." compare as equal. */
+const signature = (memory: Memory) =>
+  new Set(searchTerms(memory.content).filter((term) => !/^\d+$/.test(term)));
+function similarity(a: Set<string>, b: Set<string>): number {
+  let shared = 0;
+  for (const term of a) if (b.has(term)) shared++;
+  const union = a.size + b.size - shared;
+  return union ? shared / union : 1;
+}
+
 export function contextSelection(
   store: Store,
   projectId: string | null,
@@ -53,9 +67,11 @@ export function contextSelection(
   const budgetSkipped = new Set<string>();
   const pinnedSkipped = new Set<string>();
   const constraintSkipped = new Set<string>();
+  const lookAlikeSkipped = new Set<string>();
   const candidates = new Set<string>();
   const conflicts = new Set<string>();
   const terms = contextTerms(query);
+  const termStems = new Set(terms.map(stem));
   const unfiltered = !query?.trim();
   const standingLimit = 2000;
   let standingUsed = { pinned: 0, constraint: 0 };
@@ -88,22 +104,24 @@ export function contextSelection(
                     : conflicted
                       ? 'conflict'
                       : (included.get(memory.id) ??
-                        (budgetSkipped.has(memory.id)
-                          ? 'context_budget'
-                          : pinnedSkipped.has(memory.id)
-                            ? 'pinned_budget'
-                            : constraintSkipped.has(memory.id)
-                              ? 'constraint_budget'
-                              : !candidates.has(memory.id)
-                                ? 'not_retrieved'
-                                : 'task_mismatch'));
+                        (lookAlikeSkipped.has(memory.id)
+                          ? 'look_alike'
+                          : budgetSkipped.has(memory.id)
+                            ? 'context_budget'
+                            : pinnedSkipped.has(memory.id)
+                              ? 'pinned_budget'
+                              : constraintSkipped.has(memory.id)
+                                ? 'constraint_budget'
+                                : !candidates.has(memory.id)
+                                  ? 'not_retrieved'
+                                  : 'task_mismatch'));
                   return {
                     id: memory.id,
                     version: memory.version,
                     scope: memory.scope,
                     included: included.has(memory.id),
                     reason,
-                    matchedTerms: terms.filter((term) => indexed.has(term)),
+                    matchedTerms: terms.filter((term) => indexed.has(stem(term))),
                     characters: memory.content.length,
                   };
                 }),
@@ -161,7 +179,7 @@ export function contextSelection(
   const priority = (m: Memory) =>
     !m.metadata.module
       ? 0
-      : searchTerms(m.metadata.module).some((term) => terms.includes(term))
+      : searchTerms(m.metadata.module).some((term) => termStems.has(term))
         ? 1
         : 2;
   const constraints = allocate(
@@ -177,7 +195,27 @@ export function contextSelection(
   const size = (list: Memory[]) => list.reduce((n, m) => n + m.content.length + 100, 0);
   standingUsed = { pinned: size(preferences), constraint: size(constraints) };
   const standing = [...preferences, ...constraints];
-  const selected = [...standing, ...ranked.filter((m) => !standing.some((p) => p.id === m.id))];
+  // Many near-identical notes (say, one log line per release) would otherwise crowd out the
+  // one note that answers the task. Keep the best-ranked few of each look-alike group; recall
+  // still returns all of them. Standing notes are deliberate and never capped.
+  const groups: { terms: Set<string>; count: number }[] = [];
+  const varied = ranked
+    .filter((m) => !standing.some((p) => p.id === m.id))
+    .filter((m) => {
+      const terms = signature(m);
+      const group = groups.find((g) => similarity(g.terms, terms) >= lookAlikeSimilarity);
+      if (!group) {
+        groups.push({ terms, count: 1 });
+        return true;
+      }
+      if (group.count >= lookAlikeLimit) {
+        lookAlikeSkipped.add(m.id);
+        return false;
+      }
+      group.count++;
+      return true;
+    });
+  const selected = [...standing, ...varied];
   const footer =
     '\nConflicted, unrelated or over-budget notes are omitted. Use memory_recall / memory_get or CLI list/show/conflicts for more notes.\n';
   if (text.length + footer.length > limit) {
