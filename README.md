@@ -37,8 +37,10 @@ co-memo init --agents claude,codex --apply
 You can also install the exact release directly from the official npm tarball, including while a new version is unavailable through the package index:
 
 ```sh
-npm install -g https://registry.npmjs.org/co-memo/-/co-memo-0.8.3.tgz
+npm install -g https://registry.npmjs.org/co-memo/-/co-memo-0.8.4.tgz
 ```
+
+Version 0.8.4 matches word forms in search, so a query for "build" also finds notes that say "builds" or "building"; existing notes are re-indexed once on first open. Automatic context now keeps at most 3 look-alike notes per group, so many near-duplicates no longer crowd out other notes; pinned preferences are never dropped.
 
 Version 0.8.3 always includes project rules saved as `constraint` notes in context, even when a task shares no words with them; they share a 2,000-character allocation with pinned preferences, and personal (user-scope) rules still must match the task. `co-memo context --explain` shows why each note was included or left out, and updates keep a note's module and pinned flag unless changed.
 
@@ -358,7 +360,7 @@ Requires **Node.js 24.12+** and pnpm.
 pnpm install --frozen-lockfile
 pnpm check
 pnpm pack
-npm install -g ./co-memo-0.8.3.tgz
+npm install -g ./co-memo-0.8.4.tgz
 ```
 
 pnpm is only required for development. Co-memo is distributed under the [MIT license](LICENSE).
