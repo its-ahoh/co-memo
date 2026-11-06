@@ -142,3 +142,13 @@ pnpm eval:scale
 Dataset version 2 adds full-width characters, mixed-language terms, path separators, quoted queries and negative/punctuation queries. Scale mode adds 1,000 reproducible synthetic distractors, including partial keyword overlap and inaccessible foreign-project notes. CI checks Recall@5 >= 0.9, zero forbidden-memory leaks/false positives for empty-result queries, and the context character budget. Reports include precision and p95 query latency; there is no hardware-independent latency gate.
 
 This is a stress regression, not a real-user benchmark. The current large-corpus run still retrieves some weak partial matches, and lexical search still misses the three semantic-only cases. Do not tune away these limits by relabeling the fixtures or claim embedding accuracy without running an actual provider evaluation. Optional semantic retrieval remains off by default.
+
+## Aging probe
+
+```sh
+pnpm eval:aging
+```
+
+Checks whether an old, still-valid note stays findable as newer notes that share its query words pile up. The fixture in `evals/aging-cases.json` adds 0, 10, 50 and 200 newer look-alike notes with a faked clock (old note 180 days old, newer notes within the last 30 days), then reports the old note's search rank and whether automatic context includes it.
+
+Ranking ignores note age today, so this is a baseline to run before adding any time decay. It has no pass/fail gate. If old notes keep their rank, decay has nothing to fix for this pattern. Keep the old note's wording aligned with the query: word-form mismatches such as "builds" versus "build" are a lexical problem, not an aging one.
